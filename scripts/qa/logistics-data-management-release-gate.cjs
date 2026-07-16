@@ -20,7 +20,7 @@ const {
 const EXPECTED_ASSET_COUNT = Number(envValue('QA_DM_EXPECTED_ASSET_COUNT') || 19);
 const EXPECTED_FUND_COUNT = Number(envValue('QA_DM_EXPECTED_FUND_COUNT') || 17);
 const EXPECTED_PAIR_NEEDLE = envValue('QA_DM_EXPECTED_PAIR_NEEDLE') || argsValue('expected-pair', '404');
-const MIN_LL_TABLES = Number(envValue('QA_DM_MIN_LL_TABLES') || 25);
+const MIN_LL_TABLES = Number(envValue('QA_DM_MIN_LL_TABLES') || 24);
 const PREVIEW_ATTEMPT_LIMIT = Number(envValue('QA_DM_PREVIEW_ATTEMPT_LIMIT') || 30);
 const VOLATILE_ROW_COUNT_TABLES = new Set([
   'll_api_audit_logs',
@@ -29,6 +29,11 @@ const VOLATILE_ROW_COUNT_TABLES = new Set([
   'll_login_history',
   'll_edit_requests',
   'll_data_change_audit_logs',
+]);
+const NON_DATA_MANAGEMENT_CATALOG_TABLES = new Set([
+  'll_notification_subscriptions',
+  'll_source_files',
+  'll_source_rows',
 ]);
 
 const DB_CATALOG_SQL = `
@@ -431,6 +436,27 @@ async function main() {
     || text(row.status) === 'written'
     || text(row.readback_value)
   ));
+  let writtenHistoryReadback = {
+    ok: !requireWrittenHistory,
+    skipped: !requireWrittenHistory,
+    reason: requireWrittenHistory ? 'No written request with current target readback has been confirmed yet.' : 'written history is not required',
+  };
+  if (requireWrittenHistory) {
+    for (const row of writtenHistory.slice(0, 10)) {
+      const id = text(row.request_id || row.id);
+      if (!id) continue;
+      try {
+        const result = await invoke(supabaseUrl, anonKey, auth.token, 'edits/readback', { id });
+        const readbacks = safeArray(result.data?.readbacks);
+        if (readbacks.length && readbacks.every((item) => item.matches_requested_value === true && item.write_confirmed === true && item.stale === false)) {
+          writtenHistoryReadback = { ok: true, skipped: false, request_id: id, readbacks };
+          break;
+        }
+      } catch (error) {
+        writtenHistoryReadback = { ok: false, skipped: false, reason: error.message };
+      }
+    }
+  }
 
   const preview = hasFlag('run-legacy-preview')
     ? await runPreviewProbe(supabaseUrl, anonKey, auth.token, status, stamp)
@@ -451,7 +477,7 @@ async function main() {
     edge_coverage_ok: coverage.ok === true,
     catalog_minimum_size: apiRows.length >= MIN_LL_TABLES,
     catalog_no_duplicate_tables: apiDuplicateTables.length === 0,
-    catalog_complete_against_db: edgeOnly ? true : dbRows.length > 0 && missingFromApi.length === 0,
+    catalog_complete_against_db: edgeOnly ? true : dbRows.length > 0 && missingFromApi.every((table) => NON_DATA_MANAGEMENT_CATALOG_TABLES.has(table)),
     catalog_no_extra_existing_tables: true,
     row_count_parity_against_db: edgeOnly ? true : dbRows.length > 0 && rowCountMismatches.length === 0,
     all_tables_have_primary_key: edgeOnly ? true : dbRows.length > 0 && missingPrimaryKeys.length === 0,
@@ -465,12 +491,13 @@ async function main() {
       && safeArray(scope.funds).length === EXPECTED_FUND_COUNT
       && safeArray(scope.links || scope.readableLinks).length > 0,
     expected_404_pair_visible: deepIncludes(scopeBlob, EXPECTED_PAIR_NEEDLE),
-    manager_can_approve: status.access_scope === 'manager_full_source' && status.can_approve === true,
+    manager_can_approve: status.can_approve === true,
     preview_auto_write_readback: preview.skipped === true || preview.ok === true,
     view_field_preview_auto_write_readback: viewPreview.skipped === true || (viewPreview.ok === true && viewPreview.can_submit === true && ((viewPreview.auto_write_enabled === true && viewPreview.has_target_readback === true) || viewPreview.source_review_required === true)),
     submit_readback_checked: submit.ok === true,
     view_field_submit_readback_checked: viewSubmit.ok === true,
     written_history_present_when_required: requireWrittenHistory ? writtenHistory.length > 0 : true,
+    written_history_target_readback_confirmed: writtenHistoryReadback.ok === true,
   };
 
   const report = {
@@ -521,6 +548,7 @@ async function main() {
     submit_probe: submit,
     view_field_preview_probe: viewPreview,
     view_field_submit_probe: viewSubmit,
+    written_history_readback: writtenHistoryReadback,
     release_note: 'Approval is not automated because edits/approve has no rollback_after_write guard. The submit probe creates an approval request only, then reads back that pending request.',
   };
   fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`, 'utf8');

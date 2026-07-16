@@ -4342,7 +4342,6 @@ async function listEditRequests(ctx: Context, payload: Record<string, unknown>) 
 
 async function readbackEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is required', ctx.origin);
-  if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'edits/readback', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const id = String(payload.id || '');
   if (!id) return fail(400, 'id is required', ctx.origin);
@@ -4356,8 +4355,11 @@ async function readbackEdit(ctx: Context, payload: Record<string, unknown>) {
   const validationError = cells.map((cell) => validateEditCell(ctx, cell)).find(Boolean);
   if (validationError) return fail(400, validationError, ctx.origin);
   const readbacks = [];
+  const requestWritten = safeText(data.status) === 'written' || safeText(data.write_status) === 'readback_confirmed';
   for (const cell of cells) {
     const currentValue = await readTargetCell(ctx, cell);
+    const matchesBeforeValue = dataManagementFieldValuesEqual(cell.fieldName, currentValue, cell.beforeValue);
+    const matchesRequestedValue = dataManagementFieldValuesEqual(cell.fieldName, currentValue, cell.afterValue);
     readbacks.push({
       target_table: cell.targetTable,
       target_row_id: cell.targetRowId,
@@ -4366,13 +4368,16 @@ async function readbackEdit(ctx: Context, payload: Record<string, unknown>) {
       before_value: cell.beforeValue,
       requested_value: cell.afterValue,
       current_value: currentValue,
-      stale: !valuesEqual(currentValue, cell.beforeValue),
+      matches_before_value: matchesBeforeValue,
+      matches_requested_value: matchesRequestedValue,
+      write_confirmed: requestWritten ? matchesRequestedValue : null,
+      stale: requestWritten ? !matchesRequestedValue : !matchesBeforeValue,
       source_row_id: cell.sourceRowId || null,
       source_cell_id: cell.sourceCellId || null,
     });
   }
   await audit(ctx.serviceClient, ctx.user.id, 'edits/readback', 200, { id, stale_count: readbacks.filter((item) => item.stale).length });
-  return jsonResponse({ ok: true, data: { id, status: data.status, requested_by: data.requested_by, readbacks } }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: { id, status: data.status, write_status: data.write_status, requested_by: data.requested_by, readbacks } }, 200, ctx.origin);
 }
 
 async function submitEdit(ctx: Context, payload: Record<string, unknown>) {

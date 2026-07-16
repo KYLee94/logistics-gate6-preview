@@ -187,3 +187,15 @@ test('Data Management approval writes use compare-and-swap and rollback cannot o
   assert.match(approveSource, /writtenValue: coerced/u);
   assert.match(edgeSource, /writeTargetCell\(client, item\.cell, item\.previousValue, item\.writtenValue\)/u);
 });
+
+test('Data Management readback compares written requests with the requested value', () => {
+  const readbackStart = edgeSource.indexOf('async function readbackEdit(');
+  const readbackEnd = edgeSource.indexOf('async function submitEdit(', readbackStart);
+  const source = edgeSource.slice(readbackStart, readbackEnd);
+
+  assert.match(source, /const requestWritten =/u);
+  assert.match(source, /dataManagementFieldValuesEqual\(cell\.fieldName, currentValue, cell\.afterValue\)/u);
+  assert.match(source, /matches_requested_value: matchesRequestedValue/u);
+  assert.match(source, /write_confirmed: requestWritten \? matchesRequestedValue : null/u);
+  assert.match(source, /stale: requestWritten \? !matchesRequestedValue : !matchesBeforeValue/u);
+});
