@@ -11,6 +11,10 @@ const EDGE_PATH = path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', '
 const MIGRATIONS_PATH = path.join(ROOT, 'supabase', 'migrations');
 const WORK_PLATFORM_SMOKE_PATH = path.join(ROOT, 'scripts', 'qa', 'logistics-work-platform-browser-smoke.cjs');
 const PACKAGE_PATH = path.join(ROOT, 'package.json');
+const PUSH_SW_PATH = path.join(ROOT, 'public', 'logistics-push-sw.js');
+const PUSH_UTIL_PATH = path.join(ROOT, 'src', 'utils', 'logisticsPushNotifications.js');
+const LEFT_NAV_PATH = path.join(ROOT, 'src', 'components', 'system', 'IotaLeftNav.jsx');
+const PUSH_EDGE_PATH = path.join(ROOT, 'supabase', 'functions', 'll-push-notifications', 'index.ts');
 const SOURCE_EXTENSIONS = /\.(?:[cm]?js|jsx|tsx?)$/iu;
 
 function walkFiles(directory) {
@@ -130,11 +134,23 @@ function taskBoardMigration() {
 function taskBoardCommentsMigration() {
   const candidates = fs.readdirSync(MIGRATIONS_PATH)
     .filter((fileName) => fileName.endsWith('.sql'))
+    .filter((fileName) => fileName.includes('task_board_comments_status'))
     .filter((fileName) => {
       const source = fs.readFileSync(path.join(MIGRATIONS_PATH, fileName), 'utf8');
       return /\btask_comments\b/iu.test(source) && /\bll_task_board_append_comment\b/iu.test(source);
     });
   assert.equal(candidates.length, 1, 'one task-comment migration must own ll_work_items.task_comments');
+  return {
+    filePath: path.join(MIGRATIONS_PATH, candidates[0]),
+    source: fs.readFileSync(path.join(MIGRATIONS_PATH, candidates[0]), 'utf8'),
+  };
+}
+
+function taskBoardCommentFollowUpMigration() {
+  const candidates = fs.readdirSync(MIGRATIONS_PATH)
+    .filter((fileName) => fileName.endsWith('.sql'))
+    .filter((fileName) => fileName.includes('task_board_comment_follow_up'));
+  assert.equal(candidates.length, 1, 'one task-comment follow-up migration must exist');
   return {
     filePath: path.join(MIGRATIONS_PATH, candidates[0]),
     source: fs.readFileSync(path.join(MIGRATIONS_PATH, candidates[0]), 'utf8'),
@@ -260,10 +276,11 @@ test('task drawer does not expose an internal Task ID or the fixed 업무 상세
   assert.doesNotMatch(drawer, /<h3[^>]*>업무 상세<\/h3>/u);
 });
 
-test('task comments and replies use task_comments JSONB, one idempotent create mutation, and get readback', () => {
+test('task comments support recursive replies, author edits, idempotency, and get readback', () => {
   const { source } = taskBoardComponent();
   const edge = fs.readFileSync(EDGE_PATH, 'utf8');
   const { source: migration } = taskBoardCommentsMigration();
+  const { source: followUp } = taskBoardCommentFollowUpMigration();
   const createStart = edge.indexOf('async function createTaskBoardComment(');
   const createEnd = edge.indexOf('\nfunction validatedTaskBoardFields(', createStart);
   assert.ok(createStart >= 0 && createEnd > createStart, 'createTaskBoardComment must be present');
@@ -273,9 +290,13 @@ test('task comments and replies use task_comments JSONB, one idempotent create m
     assert.match(source, new RegExp(`data-testid=[\"']${testId}[\"']`, 'u'));
   }
   assert.match(source, /parent_comment_id/u);
+  assert.match(source, /renderCommentTree/u);
+  assert.match(source, /collapsedReplyIds/u);
   assert.match(source, /work-platform\/task-board\/comments\/create/u);
+  assert.match(source, /work-platform\/task-board\/comments\/update/u);
   assert.doesNotMatch(source, /work-platform\/task-board\/comments\/(?:list|delete)/u);
   assert.match(edge, /['"]work-platform\/task-board\/comments\/create['"]/u);
+  assert.match(edge, /['"]work-platform\/task-board\/comments\/update['"]/u);
   assert.match(createComment, /taskBoardClientRequestId\(payload\.client_request_id\)/u);
   assert.match(createComment, /id:\s*requestId/u);
   assert.match(createComment, /comments:\s*comments/u);
@@ -285,6 +306,9 @@ test('task comments and replies use task_comments JSONB, one idempotent create m
   assert.match(migration, /create or replace function public\.ll_task_board_append_comment\(/u);
   assert.match(migration, /where existing\.comment->>'id' = p_comment->>'id'[\s\S]*return v_comments;/u);
   assert.match(migration, /v_parent_id := nullif\(btrim\(p_comment->>'parent_comment_id'\), ''\)/u);
+  assert.doesNotMatch(followUp, /task_comment_reply_depth_exceeded/u);
+  assert.match(followUp, /create or replace function public\.ll_task_board_update_comment\(/u);
+  assert.match(followUp, /coalesce\(v_comment->>'created_by_user_id', v_comment->>'author_user_id'\)/u);
 });
 
 test('standard work-platform browser smoke stays read-only and CRUD is opt-in with finally cleanup', () => {
@@ -297,6 +321,9 @@ test('standard work-platform browser smoke stays read-only and CRUD is opt-in wi
   assert.match(smoke, /delete from public\.ll_work_items[\s\S]*client_request_id = \$\{sqlString\(taskRequestId\)\}::uuid/u);
   assert.match(smoke, /database_readback/u);
   assert.match(smoke, /physical_cleanup/u);
+  assert.match(smoke, /temporary nested reply create failed/u);
+  assert.match(smoke, /work-platform\/task-board\/comments\/update/u);
+  assert.match(smoke, /has_nested_reply/u);
   assert.equal(packageJson.scripts['test:work-platform:contract'], 'node --test tests/logistics-task-board-contract.test.cjs');
   assert.equal(packageJson.scripts['qa:work-platform:browser'], 'node scripts/qa/logistics-work-platform-browser-smoke.cjs');
   assert.equal(packageJson.scripts['qa:work-platform:crud-live'], 'node scripts/qa/logistics-work-platform-browser-smoke.cjs --exercise-crud');
@@ -438,4 +465,21 @@ test('service-worker and Windows notification opt-in implementation files are pr
     .find((source) => /ll_web_push_gateway_jwt/u.test(source));
   assert.ok(secureWebhookMigration, 'the database webhook must retain Supabase gateway JWT verification');
   assert.match(secureWebhookMigration, /['"]Authorization['"][\s\S]{0,120}['"]Bearer ['"]/u);
+});
+
+test('Windows push refreshes the worker and surfaces every delivered notification', () => {
+  const worker = fs.readFileSync(PUSH_SW_PATH, 'utf8');
+  const utility = fs.readFileSync(PUSH_UTIL_PATH, 'utf8');
+  const leftNav = fs.readFileSync(LEFT_NAV_PATH, 'utf8');
+  const pushEdge = fs.readFileSync(PUSH_EDGE_PATH, 'utf8');
+
+  assert.match(worker, /self\.skipWaiting\(\)/u);
+  assert.match(worker, /clients\.claim\(\)/u);
+  assert.match(worker, /notification_id/u);
+  assert.match(worker, /renotify:\s*true/u);
+  assert.doesNotMatch(worker, /tag:\s*['"]logistics-push-notification['"]/u);
+  assert.match(utility, /registration\.update\(\)/u);
+  assert.match(utility, /showLogisticsPushSetupConfirmation/u);
+  assert.match(leftNav, /showLogisticsPushSetupConfirmation/u);
+  assert.match(pushEdge, /notification_id:\s*taskShare\.notification_id/u);
 });

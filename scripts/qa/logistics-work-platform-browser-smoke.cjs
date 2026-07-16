@@ -121,6 +121,8 @@ async function exerciseCrud(session, report, stamp) {
   const taskRequestId = crypto.randomUUID();
   const commentRequestId = crypto.randomUUID();
   const replyRequestId = crypto.randomUUID();
+  const nestedReplyRequestId = crypto.randomUUID();
+  const commentUpdateRequestId = crypto.randomUUID();
   try {
     const list = await run('work-platform/task-board/list', { page: 1, page_size: 1 }, 'eligible asset lookup failed');
     const asset = Array.isArray(list.assets) ? list.assets[0] : null;
@@ -155,6 +157,21 @@ async function exerciseCrud(session, report, stamp) {
       client_request_id: replyRequestId,
     }, 'temporary reply create failed');
 
+    await run('work-platform/task-board/comments/create', {
+      task_code: taskCode,
+      parent_comment_id: replyRequestId,
+      text: `QA nested reply ${stamp}`,
+      client_request_id: nestedReplyRequestId,
+    }, 'temporary nested reply create failed');
+
+    const updatedCommentText = `QA comment updated ${stamp}`;
+    await run('work-platform/task-board/comments/update', {
+      task_code: taskCode,
+      comment_id: commentId,
+      text: updatedCommentText,
+      client_request_id: commentUpdateRequestId,
+    }, 'temporary comment update failed');
+
     const readback = await run('work-platform/task-board/get', { task_code: taskCode }, 'task readback failed');
     report.crud.readback = {
       task_code: readback.task_code || null,
@@ -166,8 +183,10 @@ async function exerciseCrud(session, report, stamp) {
     }
 
     const readbackComments = Array.isArray(readback.task_comments) ? readback.task_comments : [];
-    if (!readbackComments.some((comment) => String(comment.id || '') === replyRequestId && String(comment.parent_comment_id || '') === commentId)) {
-      throw new Error('comment readback did not retain the temporary reply parent relation');
+    if (!readbackComments.some((comment) => String(comment.id || '') === commentId && String(comment.text || '') === updatedCommentText)
+      || !readbackComments.some((comment) => String(comment.id || '') === replyRequestId && String(comment.parent_comment_id || '') === commentId)
+      || !readbackComments.some((comment) => String(comment.id || '') === nestedReplyRequestId && String(comment.parent_comment_id || '') === replyRequestId)) {
+      throw new Error('comment readback did not retain the edit or recursive reply relations');
     }
 
     const databaseRows = runLinkedQuery(`
@@ -176,8 +195,9 @@ async function exerciseCrud(session, report, stamp) {
         stakeholder_name,
         status,
         jsonb_array_length(task_comments)::integer as task_comment_count,
-        exists (select 1 from jsonb_array_elements(task_comments) c where c->>'id' = ${sqlString(commentRequestId)}) as has_comment,
-        exists (select 1 from jsonb_array_elements(task_comments) c where c->>'id' = ${sqlString(replyRequestId)} and c->>'parent_comment_id' = ${sqlString(commentRequestId)}) as has_reply
+        exists (select 1 from jsonb_array_elements(task_comments) c where c->>'id' = ${sqlString(commentRequestId)} and c->>'text' = ${sqlString(updatedCommentText)}) as has_comment,
+        exists (select 1 from jsonb_array_elements(task_comments) c where c->>'id' = ${sqlString(replyRequestId)} and c->>'parent_comment_id' = ${sqlString(commentRequestId)}) as has_reply,
+        exists (select 1 from jsonb_array_elements(task_comments) c where c->>'id' = ${sqlString(nestedReplyRequestId)} and c->>'parent_comment_id' = ${sqlString(replyRequestId)}) as has_nested_reply
       from public.ll_work_items
       where item_type = 'task'
         and created_by = ${sqlString(session.user.id)}::uuid
@@ -188,10 +208,11 @@ async function exerciseCrud(session, report, stamp) {
     if (!databaseRow
       || databaseRow.task_code !== taskCode
       || databaseRow.stakeholder_name !== stakeholderName
-      || databaseRow.task_comment_count !== 2
+      || databaseRow.task_comment_count !== 3
       || databaseRow.has_comment !== true
-      || databaseRow.has_reply !== true) {
-      throw new Error('Supabase DB readback did not retain the task, stakeholder, comment and reply');
+      || databaseRow.has_reply !== true
+      || databaseRow.has_nested_reply !== true) {
+      throw new Error('Supabase DB readback did not retain the task, stakeholder, edited comment and recursive replies');
     }
 
     await cleanup(taskCode);

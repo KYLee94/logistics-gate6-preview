@@ -520,6 +520,7 @@ const ACTION_MANIFEST = new Map<string, ActionClassification>([
     'work-platform/board-posts/comment-delete', 'weekly-assets/replace-latest', 'weekly-assets/latest',
     'work-platform/task-board/list', 'work-platform/task-board/get', 'work-platform/task-board/create',
     'work-platform/task-board/update', 'work-platform/task-board/delete', 'work-platform/task-board/comments/create',
+    'work-platform/task-board/comments/update',
     'notifications/push/config', 'notifications/push/subscribe', 'notifications/push/unsubscribe',
     'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset',
     'funds/save-by-asset', 'opendart/company/cache-upsert', 'opendart/company', 'building-register/summary',
@@ -551,6 +552,7 @@ const ACTION_SCOPE_MANIFEST = new Map<string, ActionScopeContract>([
     'worklogs/list', 'worklogs', 'worklogs/update', 'worklogs/complete', 'worklogs/delete',
     'work-platform/tasks', 'work-platform/tasks/update', 'work-platform/tasks/complete', 'work-platform/tasks/delete', 'work-platform/tasks/archive-seed',
     'work-platform/task-board/get', 'work-platform/task-board/create', 'work-platform/task-board/update', 'work-platform/task-board/delete', 'work-platform/task-board/comments/create',
+    'work-platform/task-board/comments/update',
     'work-platform/board-posts', 'work-platform/board-posts/update', 'work-platform/board-posts/delete',
     'work-platform/board-posts/comment', 'work-platform/board-posts/comment-delete',
     'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset', 'funds/save-by-asset',
@@ -578,6 +580,7 @@ const ACTION_SCOPE_HANDLER_CONTRACTS = new Map<string, Extract<ActionScopeContra
     'worklogs/list', 'worklogs', 'worklogs/update', 'worklogs/complete', 'worklogs/delete',
     'work-platform/tasks', 'work-platform/tasks/update', 'work-platform/tasks/complete', 'work-platform/tasks/delete', 'work-platform/tasks/archive-seed',
     'work-platform/task-board/get', 'work-platform/task-board/create', 'work-platform/task-board/update', 'work-platform/task-board/delete', 'work-platform/task-board/comments/create',
+    'work-platform/task-board/comments/update',
     'work-platform/board-posts', 'work-platform/board-posts/update', 'work-platform/board-posts/delete',
     'work-platform/board-posts/comment', 'work-platform/board-posts/comment-delete',
     'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset', 'funds/save-by-asset',
@@ -16659,7 +16662,7 @@ async function createTaskBoardComment(ctx: Context, payload: Record<string, unkn
     id: requestId,
     text: rawText,
     parent_comment_id: parentCommentId || null,
-    author_user_id: ctx.user.id,
+    created_by_user_id: ctx.user.id,
     author_name: actorName(ctx),
     author_email: actorEmail(ctx),
     created_at: new Date().toISOString(),
@@ -16670,7 +16673,7 @@ async function createTaskBoardComment(ctx: Context, payload: Record<string, unkn
   });
   if (error) {
     if (error.message.includes('task_comment_parent_not_found')) return fail(400, 'Parent comment does not belong to this task', ctx.origin);
-    if (error.message.includes('task_comment_reply_depth_exceeded')) return fail(400, 'Replies can only be one level deep', ctx.origin);
+    if (error.message.includes('task_comment_invalid')) return fail(400, 'Comment payload is invalid', ctx.origin);
     if (error.message.includes('task_comment_not_found')) return fail(404, 'Task board row was not found', ctx.origin);
     return fail(500, 'Failed to create task comment', ctx.origin);
   }
@@ -16678,6 +16681,51 @@ async function createTaskBoardComment(ctx: Context, payload: Record<string, unkn
     task_code: row.task_code,
     asset_id: row.related_asset_id,
     parent_comment_id: parentCommentId || null,
+    client_request_id: requestId,
+  });
+  const comments = Array.isArray(data) ? data : [];
+  return jsonResponse({
+    ok: true,
+    data: {
+      task_code: safeText(row.task_code),
+      comments,
+      task_comments: comments,
+    },
+  }, 200, ctx.origin);
+}
+
+async function updateTaskBoardComment(ctx: Context, payload: Record<string, unknown>) {
+  const current = await readTaskBoardRow(ctx, payload.task_code);
+  if (current.response) return current.response;
+  const commentId = taskBoardClientRequestId(payload.comment_id);
+  if (!commentId) return fail(400, 'comment_id must be a UUID', ctx.origin);
+  const requestId = taskBoardClientRequestId(payload.client_request_id);
+  if (!requestId) return fail(400, 'client_request_id must be a UUID', ctx.origin);
+
+  const rawText = safeText(firstDefined(payload.text, payload.content)).replace(/\s+/gu, ' ').trim();
+  if (!rawText) return fail(400, 'Comment text is required', ctx.origin);
+  if (rawText.length > TASK_BOARD_COMMENT_MAX_LENGTH) {
+    return fail(400, `Comment text must not exceed ${TASK_BOARD_COMMENT_MAX_LENGTH} characters`, ctx.origin);
+  }
+
+  const row = current.row as Record<string, unknown>;
+  const { data, error } = await ctx.serviceClient.rpc('ll_task_board_update_comment', {
+    p_task_code: safeText(row.task_code),
+    p_comment_id: commentId,
+    p_text: rawText,
+    p_created_by_user_id: ctx.user.id,
+    p_client_request_id: requestId,
+  });
+  if (error) {
+    if (error.message.includes('task_comment_not_author')) return fail(403, 'Only the original comment author can edit this comment', ctx.origin);
+    if (error.message.includes('task_comment_not_found')) return fail(404, 'Task board row or comment was not found', ctx.origin);
+    if (error.message.includes('task_comment_invalid')) return fail(400, 'Comment payload is invalid', ctx.origin);
+    return fail(500, 'Failed to update task comment', ctx.origin);
+  }
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'work-platform/task-board/comments/update', 200, {
+    task_code: row.task_code,
+    asset_id: row.related_asset_id,
+    comment_id: commentId,
     client_request_id: requestId,
   });
   const comments = Array.isArray(data) ? data : [];
@@ -25650,6 +25698,7 @@ Deno.serve(async (request): Promise<Response> => {
   if (action === 'work-platform/task-board/update') return updateTaskBoard(ctx, payload);
   if (action === 'work-platform/task-board/delete') return deleteTaskBoard(ctx, payload);
   if (action === 'work-platform/task-board/comments/create') return createTaskBoardComment(ctx, payload);
+  if (action === 'work-platform/task-board/comments/update') return updateTaskBoardComment(ctx, payload);
   if (action === 'work-platform/board-posts/list') return listWorkPlatformBoardPosts(ctx, payload);
   if (action === 'work-platform/board-posts') return saveWorkPlatformBoardPost(ctx, payload);
   if (action === 'work-platform/board-posts/update') return updateWorkPlatformBoardPost(ctx, payload);

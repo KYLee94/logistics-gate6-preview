@@ -98,12 +98,25 @@ export async function registerLogisticsPushServiceWorker() {
   assertPushSupport();
   if (!registrationPromise) {
     registrationPromise = navigator.serviceWorker.register(getServiceWorkerUrl(), { scope: getBasePath() })
+      .then(async (registration) => {
+        await registration.update();
+        return navigator.serviceWorker.ready;
+      })
       .catch((error) => {
         registrationPromise = null;
         throw error;
       });
   }
   return registrationPromise;
+}
+
+export async function showLogisticsPushSetupConfirmation() {
+  const registration = await registerLogisticsPushServiceWorker();
+  await registration.showNotification('IGIS Logistics Platform', {
+    body: 'Windows 알림이 정상적으로 연결되었습니다.',
+    tag: `logistics-push-setup-${Date.now()}`,
+    renotify: true,
+  });
 }
 
 export async function requestLogisticsPushPermission() {

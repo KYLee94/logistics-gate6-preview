@@ -5,6 +5,7 @@ import { invokeDashboardApi } from '../../utils/supabaseSession';
 import {
     getLogisticsPushSubscriptionStatus,
     isLogisticsPushSupported,
+    showLogisticsPushSetupConfirmation,
     subscribeLogisticsPushNotifications,
     unsubscribeLogisticsPushNotifications,
 } from '../../utils/logisticsPushNotifications';
@@ -769,6 +770,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                     return;
                 }
                 setPushEnabled(true);
+                await showLogisticsPushSetupConfirmation();
                 setPushMessage('Windows 알림을 켰습니다.');
             }
         } catch (error) {

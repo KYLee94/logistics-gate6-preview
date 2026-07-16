@@ -87,6 +87,7 @@ function normalizeTaskComment(comment = {}, parentCommentId = '') {
     ...comment,
     id: text(firstValue(comment, ['comment_id', 'id', 'commentId'])),
     parent_comment_id: text(firstValue(comment, ['parent_comment_id', 'parentCommentId', 'parent_id']), parentCommentId),
+    author_user_id: text(firstValue(comment, ['author_user_id', 'author_id', 'created_by_user_id', 'created_by', 'user_id']) || firstValue(author, ['user_id', 'auth_subject', 'auth_user_id', 'id'])),
     text: text(firstValue(comment, ['text', 'comment_text', 'content', 'body'])),
     author_name: text(firstValue(comment, ['author_name', 'created_by_name', 'staff_name', 'user_name', 'name']) || firstValue(author, ['staff_name', 'name', 'display_name', 'email']), '작성자 미확인'),
     author_member_info: author,
@@ -455,6 +456,8 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
   const [deleting, setDeleting] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [reply, setReply] = useState({ parentCommentId: '', text: '' });
+  const [editingComment, setEditingComment] = useState({ commentId: '', text: '' });
+  const [collapsedReplyIds, setCollapsedReplyIds] = useState(() => new Set());
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [commentError, setCommentError] = useState('');
 
@@ -559,6 +562,8 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
   const openDrawer = async (task) => {
     setCommentText('');
     setReply({ parentCommentId: '', text: '' });
+    setEditingComment({ commentId: '', text: '' });
+    setCollapsedReplyIds(new Set());
     setCommentError('');
     setDrawer({ open: true, task, loading: true, error: '' });
     try {
@@ -683,7 +688,45 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
     }
   };
 
+  const submitCommentUpdate = async (event, comment) => {
+    event.preventDefault();
+    const taskCode = drawer.task?.id;
+    const value = editingComment.text.trim();
+    if (!taskCode || !comment?.id || commentSubmitting || !value || comment.author_user_id !== currentUserId) return;
+    setCommentSubmitting(true);
+    setCommentError('');
+    try {
+      const response = await invokeDashboardApi('work-platform/task-board/comments/update', {
+        task_code: taskCode,
+        comment_id: comment.id,
+        text: value,
+        client_request_id: requestId(),
+      }, { retryTimeout: false });
+      const data = unwrapApiData(response);
+      const nextComments = data.comments ?? data.task_comments;
+      setDrawer((current) => current.task ? {
+        ...current,
+        task: {
+          ...current.task,
+          task_comments: normalizeTaskComments(nextComments ?? current.task.task_comments.map((item) => (
+            item.id === comment.id ? { ...item, text: value } : item
+          ))),
+        },
+      } : current);
+      setEditingComment({ commentId: '', text: '' });
+    } catch (error) {
+      setCommentError(text(error?.message, '댓글을 수정하지 못했습니다.'));
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
+
   const taskComments = useMemo(() => normalizeTaskComments(drawer.task?.task_comments ?? []), [drawer.task?.task_comments]);
+  const currentUserId = useMemo(() => text(
+    firstValue(memberInfo, ['auth_subject', 'user_id', 'userId', 'id'])
+      || memberInfo?.user?.id
+      || memberInfo?.user?.user_id,
+  ), [memberInfo]);
   const rootTaskComments = useMemo(() => {
     const commentIds = new Set(taskComments.map((comment) => comment.id));
     return taskComments.filter((comment) => !comment.parent_comment_id || !commentIds.has(comment.parent_comment_id));
@@ -694,6 +737,70 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
     }
     return result;
   }, {}), [taskComments]);
+  const toggleCollapsedReplies = (commentId) => {
+    setCollapsedReplyIds((current) => {
+      const next = new Set(current);
+      if (next.has(commentId)) next.delete(commentId);
+      else next.add(commentId);
+      return next;
+    });
+  };
+  const renderCommentTree = (comment, level = 0, ancestorIds = new Set()) => {
+    if (ancestorIds.has(comment.id)) return null;
+    const childComments = repliesByParent[comment.id] || [];
+    const nextAncestorIds = new Set(ancestorIds);
+    nextAncestorIds.add(comment.id);
+    const isReply = level >= 1;
+    const canToggleChildren = isReply && childComments.length > 0;
+    const childrenCollapsed = collapsedReplyIds.has(comment.id);
+    const isEditing = editingComment.commentId === comment.id;
+    const isOwnComment = Boolean(currentUserId && comment.author_user_id && comment.author_user_id === currentUserId);
+    return (
+      <div key={comment.id} className={isReply ? 'ml-9 mt-3 border-l border-[#4a4d52] pl-3' : 'border-b border-[#34363b] py-4 last:border-b-0'}>
+        <div className="flex gap-2.5">
+          <UserAvatar memberInfo={{ ...comment.author_member_info, staff_name: comment.author_name }} name={comment.author_name} sizeClass={isReply ? 'h-6 w-6' : 'h-7 w-7'} textClass={isReply ? 'text-[9px]' : 'text-[10px]'} className="bg-[#3c3c3c]" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="text-[12px] font-semibold text-[#e7e8ea]">{comment.author_name}</span>
+              <time className="text-[11px] text-[#878b92]">{formatDateTime(comment.created_at)}</time>
+            </div>
+            {isEditing ? (
+              <form className="mt-2" onSubmit={(event) => void submitCommentUpdate(event, comment)}>
+                <label className="sr-only" htmlFor={`task-comment-edit-${comment.id}`}>댓글 수정</label>
+                <textarea id={`task-comment-edit-${comment.id}`} value={editingComment.text} onChange={(event) => setEditingComment((current) => ({ ...current, text: event.target.value }))} maxLength={2000} rows={2} disabled={commentSubmitting} className="w-full resize-y rounded border border-[#4a4d52] bg-[#242529] px-3 py-2 text-[12px] text-[#f2f2f3] outline-none focus:border-[#90949b] disabled:opacity-60" />
+                <div className="mt-2 flex justify-end gap-2">
+                  <button type="button" onClick={() => setEditingComment({ commentId: '', text: '' })} disabled={commentSubmitting} className="rounded border border-[#52555b] px-2.5 py-1.5 text-[11px] text-[#d9dade] hover:bg-[#303135] disabled:opacity-50">취소</button>
+                  <button type="submit" disabled={commentSubmitting || !editingComment.text.trim()} className={`rounded border px-2.5 py-1.5 text-[11px] font-semibold disabled:opacity-50 ${PRIMARY_BLUE_BUTTON_CLASS}`}>{commentSubmitting ? '저장 중...' : '저장'}</button>
+                </div>
+              </form>
+            ) : <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-5 text-[#d7d9dd]">{comment.text || '-'}</p>}
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <button type="button" onClick={() => {
+                setEditingComment({ commentId: '', text: '' });
+                setReply((current) => current.parentCommentId === comment.id ? { parentCommentId: '', text: '' } : { parentCommentId: comment.id, text: '' });
+              }} disabled={commentSubmitting} className="text-[11px] font-medium text-[#aab8c8] hover:text-white disabled:opacity-50">답글</button>
+              {isOwnComment ? <button type="button" onClick={() => {
+                setReply({ parentCommentId: '', text: '' });
+                setEditingComment((current) => current.commentId === comment.id ? { commentId: '', text: '' } : { commentId: comment.id, text: comment.text });
+              }} disabled={commentSubmitting} className="text-[11px] font-medium text-[#aab8c8] hover:text-white disabled:opacity-50">수정</button> : null}
+              {canToggleChildren ? <button type="button" onClick={() => toggleCollapsedReplies(comment.id)} aria-expanded={!childrenCollapsed} className="text-[11px] font-medium text-[#aab8c8] hover:text-white">{childrenCollapsed ? `하위 답글 ${childComments.length}개 펼치기` : '하위 답글 접기'}</button> : null}
+            </div>
+          </div>
+        </div>
+        {!childrenCollapsed ? childComments.map((childComment) => renderCommentTree(childComment, level + 1, nextAncestorIds)) : null}
+        {reply.parentCommentId === comment.id ? (
+          <form className={isReply ? 'ml-9 mt-3' : 'ml-9 mt-3'} onSubmit={(event) => void submitComment(event, comment.id)}>
+            <label className="sr-only" htmlFor={`task-comment-reply-${comment.id}`}>답글 작성</label>
+            <textarea data-testid="logistics-task-board-reply-input" id={`task-comment-reply-${comment.id}`} value={reply.text} onChange={(event) => setReply((current) => ({ ...current, text: event.target.value }))} maxLength={2000} rows={2} disabled={commentSubmitting} placeholder="답글을 입력하세요" className="w-full resize-y rounded border border-[#4a4d52] bg-[#242529] px-3 py-2 text-[12px] text-[#f2f2f3] outline-none placeholder:text-[#81848a] focus:border-[#90949b] disabled:opacity-60" />
+            <div className="mt-2 flex justify-end gap-2">
+              <button type="button" onClick={() => setReply({ parentCommentId: '', text: '' })} disabled={commentSubmitting} className="rounded border border-[#52555b] px-2.5 py-1.5 text-[11px] text-[#d9dade] hover:bg-[#303135] disabled:opacity-50">취소</button>
+              <button type="submit" disabled={commentSubmitting || !reply.text.trim()} className={`rounded border px-2.5 py-1.5 text-[11px] font-semibold disabled:opacity-50 ${PRIMARY_BLUE_BUTTON_CLASS}`}>{commentSubmitting ? '등록 중...' : '답글 등록'}</button>
+            </div>
+          </form>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
     <section data-testid="logistics-task-board" className="min-w-0 text-[#f0f0f1]">
@@ -794,45 +901,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
                 <section data-testid="logistics-task-board-comments" className="mt-6 border-t border-[#3d4045] pt-5" aria-label="댓글">
                   <h4 className="text-[14px] font-semibold text-[#f2f2f3]">댓글</h4>
                   <div className="mt-3 space-y-1">
-                    {rootTaskComments.length ? rootTaskComments.map((comment) => (
-                      <div key={comment.id} className="border-b border-[#34363b] py-4 last:border-b-0">
-                        <div className="flex gap-2.5">
-                          <UserAvatar memberInfo={{ ...comment.author_member_info, staff_name: comment.author_name }} name={comment.author_name} sizeClass="h-7 w-7" textClass="text-[10px]" className="bg-[#3c3c3c]" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                              <span className="text-[12px] font-semibold text-[#e7e8ea]">{comment.author_name}</span>
-                              <time className="text-[11px] text-[#878b92]">{formatDateTime(comment.created_at)}</time>
-                            </div>
-                            <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-5 text-[#d7d9dd]">{comment.text || '-'}</p>
-                            <button type="button" onClick={() => setReply((current) => current.parentCommentId === comment.id ? { parentCommentId: '', text: '' } : { parentCommentId: comment.id, text: '' })} disabled={commentSubmitting} className="mt-2 text-[11px] font-medium text-[#aab8c8] hover:text-white disabled:opacity-50">답글</button>
-                          </div>
-                        </div>
-                        {(repliesByParent[comment.id] || []).map((childComment) => (
-                          <div key={childComment.id} className="ml-9 mt-3 border-l border-[#4a4d52] pl-3">
-                            <div className="flex gap-2.5">
-                              <UserAvatar memberInfo={{ ...childComment.author_member_info, staff_name: childComment.author_name }} name={childComment.author_name} sizeClass="h-6 w-6" textClass="text-[9px]" className="bg-[#3c3c3c]" />
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                                  <span className="text-[12px] font-semibold text-[#e7e8ea]">{childComment.author_name}</span>
-                                  <time className="text-[11px] text-[#878b92]">{formatDateTime(childComment.created_at)}</time>
-                                </div>
-                                <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-5 text-[#d7d9dd]">{childComment.text || '-'}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                        {reply.parentCommentId === comment.id ? (
-                          <form className="ml-9 mt-3" onSubmit={(event) => void submitComment(event, comment.id)}>
-                            <label className="sr-only" htmlFor={`task-comment-reply-${comment.id}`}>답글 작성</label>
-                            <textarea data-testid="logistics-task-board-reply-input" id={`task-comment-reply-${comment.id}`} value={reply.text} onChange={(event) => setReply((current) => ({ ...current, text: event.target.value }))} maxLength={2000} rows={2} disabled={commentSubmitting} placeholder="답글을 입력하세요" className="w-full resize-y rounded border border-[#4a4d52] bg-[#242529] px-3 py-2 text-[12px] text-[#f2f2f3] outline-none placeholder:text-[#81848a] focus:border-[#90949b] disabled:opacity-60" />
-                            <div className="mt-2 flex justify-end gap-2">
-                              <button type="button" onClick={() => setReply({ parentCommentId: '', text: '' })} disabled={commentSubmitting} className="rounded border border-[#52555b] px-2.5 py-1.5 text-[11px] text-[#d9dade] hover:bg-[#303135] disabled:opacity-50">취소</button>
-                              <button type="submit" disabled={commentSubmitting || !reply.text.trim()} className={`rounded border px-2.5 py-1.5 text-[11px] font-semibold disabled:opacity-50 ${PRIMARY_BLUE_BUTTON_CLASS}`}>{commentSubmitting ? '등록 중...' : '답글 등록'}</button>
-                            </div>
-                          </form>
-                        ) : null}
-                      </div>
-                    )) : <p className="py-4 text-[12px] text-[#92959c]">등록된 댓글이 없습니다.</p>}
+                    {rootTaskComments.length ? rootTaskComments.map((comment) => renderCommentTree(comment)) : <p className="py-4 text-[12px] text-[#92959c]">등록된 댓글이 없습니다.</p>}
                   </div>
                   {commentError ? <p role="alert" className="mt-3 rounded border border-[#67413d] bg-[#352523] px-3 py-2 text-[12px] text-[#e4b4ad]">{commentError}</p> : null}
                   <form className="mt-4" onSubmit={(event) => void submitComment(event)}>

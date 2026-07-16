@@ -124,6 +124,7 @@ Deno.serve(async (request) => {
   if (subscriptionsError) return json(500, { error: 'subscription_read_failed' });
 
   const payload = JSON.stringify({
+    notification_id: taskShare.notification_id,
     title: text(taskShare.title, 200),
     body: text(taskShare.body, 1000),
     path: notificationPath(taskShare.payload),
