@@ -67,3 +67,17 @@ test('invalid numeric and date view values are rejected instead of being coerced
   assert.match(parser, /type === 'date'[\s\S]{0,500}throw new Error\(/u);
   assert.doesNotMatch(parser, /if \(type === 'date'\) return safeDateText\(value\);/u);
 });
+
+test('manager rows use the canonical asset row without asset-name hardcodes', () => {
+  const managerResolver = sourceBetween(
+    'function dataManagementEffectiveAssetManager(',
+    '\nasync function dataManagementAssetIntegratedRows(',
+  );
+  const managerRows = sourceBetween(
+    'async function dataManagementManagerLinkRows(',
+    '\nasync function dataManagementResolveLeaseViewEdit(',
+  );
+
+  assert.doesNotMatch(managerResolver, /경산|gyeongsan|shkang@igisam\.com|강성호/iu);
+  assert.match(managerRows, /dataManagementEffectiveAssetManager\(assetRecord\)/u);
+});

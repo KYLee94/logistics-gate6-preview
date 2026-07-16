@@ -9732,10 +9732,6 @@ function dataManagementIsSoldAsset(asset: Record<string, unknown>) {
 }
 
 function dataManagementEffectiveAssetManager(asset: Record<string, unknown>) {
-  const assetName = safeText(firstDefined(asset.asset_name, asset.label, asset.asset_code));
-  if (/경산|gyeongsan/i.test(assetName)) {
-    return { name: '강성호', email: 'shkang@igisam.com', team: firstDefined(asset.current_manager_team, asset.manager_team, '') };
-  }
   return {
     name: firstDefined(asset.current_manager_name, asset.manager_name, ''),
     email: firstDefined(asset.current_manager_email, asset.manager_email, ''),
@@ -11077,7 +11073,7 @@ async function dataManagementManagerLinkRows(ctx: Context, payload: Record<strin
       || safeText(candidate.asset_code) === safeText(asset.asset_code)
       || safeText(candidate.asset_name) === safeText(asset.asset_name)
     )) || {};
-    const effectiveManager = dataManagementEffectiveAssetManager({ ...asset, ...assetRecord });
+    const effectiveManager = dataManagementEffectiveAssetManager(assetRecord);
     const source = stripUndefined({
       asset_name: firstDefined(asset.label, asset.asset_name, asset.asset_code),
       fund_name: firstDefined(fund.fund_name, fund.label, fund.display_name, fund.short_name, fund.fund_code),

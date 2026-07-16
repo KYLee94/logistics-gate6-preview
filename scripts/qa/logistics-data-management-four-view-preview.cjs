@@ -7,7 +7,7 @@ const {
 } = require('./logistics-data-management-qa-utils.cjs');
 
 const VIEW_PROBES = [
-  { view_key: 'asset_integrated', field_key: 'asset_name' },
+  { view_key: 'asset_integrated', field_key: 'disposition_status' },
   { view_key: 'investment_integrated', field_key: 'fund_name' },
   { view_key: 'lease_general_excel', field_key: 'tenant_master_name' },
   { view_key: 'lease_asset_manager_links', field_key: 'manager_email' },
