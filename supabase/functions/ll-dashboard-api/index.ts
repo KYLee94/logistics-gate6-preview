@@ -3706,9 +3706,9 @@ function normalizeEditCells(record: Record<string, unknown>) {
       sourceSheet: String(firstDefined(cell.source_sheet, cell.sourceSheet, '')),
       sourceColumnLetter: String(firstDefined(cell.source_column_letter, cell.sourceColumnLetter, '')),
       sourceHeader: String(firstDefined(cell.source_header, cell.sourceHeader, '')),
-      viewKey: String(firstDefined(cell.view_key, cell.viewKey, requestPayload.view_key, requestPayload.viewKey, '')),
-      viewFieldKey: String(firstDefined(cell.view_field_key, cell.viewFieldKey, requestPayload.field_key, requestPayload.fieldKey, '')),
-      viewFieldLabel: String(firstDefined(cell.view_field_label, cell.viewFieldLabel, '')),
+      viewKey: safeText(firstDefined(cell.view_key, cell.viewKey, requestPayload.view_key, requestPayload.viewKey)),
+      viewFieldKey: safeText(firstDefined(cell.view_field_key, cell.viewFieldKey, requestPayload.field_key, requestPayload.fieldKey)),
+      viewFieldLabel: safeText(firstDefined(cell.view_field_label, cell.viewFieldLabel)),
     };
   });
 }

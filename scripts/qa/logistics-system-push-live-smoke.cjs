@@ -1,7 +1,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -86,6 +86,31 @@ async function signInSession() {
   return session;
 }
 
+async function launchChromeForCdp(profileDir) {
+  const executablePath = chromeExecutablePath();
+  if (!executablePath) throw new Error('Google Chrome 실행 파일을 찾지 못했습니다.');
+  const port = 9300 + Math.floor(Math.random() * 500);
+  const processHandle = spawn(executablePath, [
+    `--remote-debugging-port=${port}`,
+    '--remote-debugging-address=127.0.0.1',
+    `--user-data-dir=${profileDir}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--start-maximized',
+    'about:blank',
+  ], { stdio: 'ignore', windowsHide: false });
+  const endpoint = `http://127.0.0.1:${port}`;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      const response = await fetch(`${endpoint}/json/version`);
+      if (response.ok) return { browser: await chromium.connectOverCDP(endpoint), processHandle };
+    } catch { /* Chrome is still starting */ }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  processHandle.kill();
+  throw new Error('실제 Chrome 디버깅 연결이 시간 안에 열리지 않았습니다.');
+}
+
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const runStamp = stamp();
@@ -109,14 +134,15 @@ async function main() {
     errors: [],
   };
   let context;
+  let browser;
+  let chromeProcess;
+  let qaEndpoint = '';
   try {
-    context = await chromium.launchPersistentContext(profileDir, {
-      headless: false,
-      executablePath: chromeExecutablePath(),
-      viewport: { width: 1440, height: 900 },
-      serviceWorkers: 'allow',
-      args: ['--start-maximized'],
-    });
+    const launched = await launchChromeForCdp(profileDir);
+    browser = launched.browser;
+    chromeProcess = launched.processHandle;
+    context = browser.contexts()[0];
+    if (!context) throw new Error('실제 Chrome 기본 컨텍스트를 열지 못했습니다.');
     await context.grantPermissions(['notifications'], { origin });
     await context.addInitScript((authSession) => {
       sessionStorage.setItem('sb-iota-auth-token', JSON.stringify(authSession));
@@ -140,9 +166,10 @@ async function main() {
     await toggle.click();
     await page.waitForFunction(() => document.querySelector('[data-testid="logistics-windows-push-message"]')?.textContent?.includes('시스템 알림을 켰습니다.'), null, { timeout: 30000 });
     report.checks.permission_granted = await page.evaluate(() => Notification.permission === 'granted');
-    report.checks.subscription_saved = await page.evaluate(async () => Boolean((await navigator.serviceWorker.ready).pushManager && await (await navigator.serviceWorker.ready).pushManager.getSubscription()));
+    qaEndpoint = await page.evaluate(async () => (await (await navigator.serviceWorker.ready).pushManager.getSubscription())?.endpoint || '');
+    report.checks.subscription_saved = Boolean(qaEndpoint);
     await page.waitForTimeout(900);
-    report.notification_counts.push(await page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications()).length));
+    report.notification_counts.push(await page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications({ includeTriggered: true })).length));
     captureDesktop(desktopScreenshots[0]);
 
     for (let index = 1; index <= 3; index += 1) {
@@ -162,7 +189,7 @@ async function main() {
         );
       `, `push-insert-${index}`);
       await page.waitForTimeout(2500);
-      report.notification_counts.push(await page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications()).length));
+      report.notification_counts.push(await page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications({ includeTriggered: true })).length));
       captureDesktop(desktopScreenshots[index]);
     }
     await page.screenshot({ path: pageScreenshot, fullPage: false });
@@ -181,11 +208,15 @@ async function main() {
   } finally {
     try {
       runLinkedSql(`delete from public.ll_notifications where dedupe_key like ${sqlString(`${qaPrefix}:%`)};`, 'push-cleanup');
+      if (qaEndpoint) {
+        runLinkedSql(`delete from public.ll_notification_subscriptions where user_id = ${sqlString(session.user.id)}::uuid and endpoint = ${sqlString(qaEndpoint)};`, 'push-subscription-cleanup');
+      }
     } catch (error) {
       report.errors.push(`cleanup: ${error?.message || String(error)}`);
       report.ok = false;
     }
-    if (context) await context.close();
+    if (browser) await browser.close().catch(() => null);
+    if (chromeProcess && !chromeProcess.killed) chromeProcess.kill();
     try { fs.rmSync(profileDir, { recursive: true, force: true }); } catch { /* isolated temp profile */ }
     fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   }

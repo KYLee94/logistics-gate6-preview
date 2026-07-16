@@ -12,6 +12,7 @@ const checks = [
   ['API가 승인 항목의 업무 탭을 판정함', /function dataManagementApprovalTabMeta\(/u.test(edge)],
   ['API가 승인 항목에 탭명을 반환함', /tab_label:\s*tabMeta\.label/u.test(edge)],
   ['API가 승인 항목에 업무 컬럼명을 반환함', /column_label:/u.test(edge)],
+  ['빈 view 메타데이터를 undefined 문자열로 만들지 않음', /viewFieldLabel:\s*safeText\(firstDefined\(/u.test(edge)],
   ['네 개 데이터 탭명이 API 계약에 존재함', ['자산 데이터', '투자 데이터', '임대차계약 데이터', '담당자 데이터'].every((label) => edge.includes(label))],
   ['목록이 변경 위치를 표시함', ui.includes("'변경 위치'") && /locationSummaryFor\(row\)/u.test(ui)],
   ['상세가 탭과 컬럼을 분리해 표시함', ui.includes("['데이터 탭', '컬럼', '변경 전', '변경 후']")],

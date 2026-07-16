@@ -124,7 +124,12 @@ async function main() {
   assert(pendingBefore, 'Created approval request was not returned by data-management/status.');
   const changeItems = safeArray(pendingBefore.change_items);
   assert(changeItems.length === 1, 'Approval status did not include exact change_items.');
-  assert(!/undefined|null|multiple_fields|current values|requested values/iu.test(JSON.stringify(changeItems)), 'Approval change_items contain internal or summary-only values.');
+  assert(!/multiple_fields|current values|requested values/iu.test(JSON.stringify(changeItems)), 'Approval change_items contain summary-only values.');
+  assert(changeItems.every((item) => {
+    const tabLabel = text(item.tab_label);
+    const columnLabel = text(item.column_label || item.field_label);
+    return tabLabel && columnLabel && !['undefined', 'null'].includes(columnLabel.toLowerCase());
+  }), 'Approval change_items do not identify the Data Management tab and business column.');
   const requesterName = text(pendingBefore.requested_by_name || pendingBefore.requester_profile?.staff_name || pendingBefore.requester_profile?.name);
   const requesterEmail = text(pendingBefore.requested_by_email || pendingBefore.requester_profile?.email);
   assert(requesterName || requesterEmail, 'Approval status did not include a requester profile.');
@@ -204,7 +209,28 @@ async function main() {
   const statusAfter = await invoke(supabaseUrl, anonKey, auth.token, 'data-management/status', { limit: 120, row_limit: 20 });
   const afterRow = safeArray(statusAfter.data?.edit_requests).find((row) => text(row.request_id || row.id) === probe.editId);
   report.checks.status_written_after_approve = afterRow?.status === 'written' || afterRow?.write_status === 'readback_confirmed';
-  report.checks.no_internal_summary_values = !/multiple_fields|current values|requested values|undefined|null/iu.test(JSON.stringify(afterRow?.change_items || []));
+  const afterChangeItems = safeArray(afterRow?.change_items);
+  report.checks.no_internal_summary_values = !/multiple_fields|current values|requested values/iu.test(JSON.stringify(afterChangeItems));
+  report.checks.tab_and_column_labels_preserved = afterChangeItems.every((item) => {
+    const tabLabel = text(item.tab_label);
+    const columnLabel = text(item.column_label || item.field_label);
+    return tabLabel && columnLabel && !['undefined', 'null'].includes(columnLabel.toLowerCase());
+  });
+  const cleanupRows = runLinkedDbQuery(`
+with deleted_notifications as (
+  delete from public.ll_notifications
+  where dedupe_key like ${sqlLiteral(`edit-request:${probe.editId}:%`)}
+  returning notification_id
+), deleted_request as (
+  delete from public.ll_edit_requests
+  where id = ${sqlLiteral(probe.editId)}::uuid
+  returning id
+)
+select
+  (select count(*) from deleted_request)::integer as deleted_requests,
+  (select count(*) from deleted_notifications)::integer as deleted_notifications;
+`, 'approval-pending-live-smoke-cleanup');
+  report.checks.qa_rows_cleaned = Number(cleanupRows[0]?.deleted_requests || 0) === 1;
   report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;
 
   fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`);
