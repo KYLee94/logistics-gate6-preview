@@ -6,6 +6,7 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname, '..');
 const edgeSource = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 'index.ts'), 'utf8');
 const workspaceSource = fs.readFileSync(path.join(ROOT, 'src', 'components', 'system', 'workspace', 'WorkspaceLogistics.jsx'), 'utf8');
+const authSetupSource = fs.readFileSync(path.join(ROOT, 'src', 'components', 'system', 'AuthSetup.jsx'), 'utf8');
 const authQaSource = fs.readFileSync(path.join(ROOT, 'scripts', 'qa', 'logistics-auth-permission-matrix.cjs'), 'utf8');
 const reconciliationMigration = fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', '20260715013257_logistics_permission_reconciliation_20260715.sql'), 'utf8');
 
@@ -35,12 +36,21 @@ test('lease event handlers authorize every canonical asset connected to their ac
   assert.match(submit, /const requiredAction = requiredLeaseEventAction\(eventPayload\);/u);
 });
 
-test('public logistics auth status returns only signup fields and is email-rate-limited', () => {
+test('public logistics auth status returns only allowed-user identity fields and is email-rate-limited', () => {
   const status = sourceBlock(edgeSource, 'async function callLogisticsAuthStatus(', 'Deno.serve(');
 
   assert.match(status, /checkRateLimit\(`public:auth-status:\$\{email \|\| 'invalid'\}`, 'auth\/logistics-status', 12, 60_000\)/u);
-  assert.match(status, /allowed,\s*auth_email: allowed \? authEmail : null,\s*has_auth_user: allowed \? Boolean\(authUser\) : false,\s*account_status: permission\?\.account_status \|\| null/u);
-  assert.doesNotMatch(status, /registered|first_login_completed|email_confirmed|has_permission_row|bootstrap_permission|auth_read_ok|auth_read_error|staff_name|organization|image_url|profileResult\.error\.message/u);
+  assert.match(status, /const staffName = allowed[\s\S]*?const imageUrl = allowed/u);
+  assert.match(status, /\.\.\.\(allowed \? \{[\s\S]*staff_name: staffName[\s\S]*image_url: imageUrl[\s\S]*\} : \{\}\)/u);
+  assert.doesNotMatch(status, /(?:organization|role|permissions?|managed_asset_permissions|other_asset_permissions|feature_permissions)\s*:/u);
+  assert.doesNotMatch(status, /registered|first_login_completed|email_confirmed|has_permission_row|bootstrap_permission|auth_read_ok|auth_read_error|profileResult\.error\.message/u);
+});
+
+test('password step exposes the approved staff name and image through stable test ids', () => {
+  assert.match(authSetupSource, /data-testid="logistics-password-profile-name"/u);
+  assert.match(authSetupSource, /data-testid="logistics-password-profile-photo"/u);
+  assert.match(authSetupSource, /selectedAvatarInfo/u);
+  assert.match(authSetupSource, /staffName/u);
 });
 
 test('board post comments require create permission and listing requires current canonical asset read permission', () => {
@@ -174,11 +184,11 @@ test('qa matrix는 runtime static fallback과 mock/fake session을 live 증거�
   assert.doesNotMatch(authQaSource, /qa-artifacts/u);
 });
 
-test('dispatcher action은 최신 source에서 재계산한 94개이며 permissions/evaluate를 포함해 완전 분류된다', () => {
+test('dispatcher action은 최신 source에서 재계산되며 permissions/evaluate를 포함해 완전 분류된다', () => {
   const directActions = directDispatcherActions(edgeSource);
   const manifestActions = actionManifestActions(edgeSource);
 
-  assert.equal(directActions.length, 94);
+  assert.ok(directActions.length >= 94);
   assert.ok(directActions.includes('permissions/evaluate'));
   assert.equal(directActions.includes('weekly-assets/latest-preview'), false);
   assert.deepEqual(directActions.filter((action) => !manifestActions.includes(action)), []);

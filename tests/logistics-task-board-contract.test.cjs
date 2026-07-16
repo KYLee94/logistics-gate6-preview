@@ -9,6 +9,8 @@ const APP_PATH = path.join(ROOT, 'src', 'App.jsx');
 const ROUTES_PATH = path.join(ROOT, 'src', 'components', 'system', 'workspace', 'logisticsRoutes.js');
 const EDGE_PATH = path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 'index.ts');
 const MIGRATIONS_PATH = path.join(ROOT, 'supabase', 'migrations');
+const WORK_PLATFORM_SMOKE_PATH = path.join(ROOT, 'scripts', 'qa', 'logistics-work-platform-browser-smoke.cjs');
+const PACKAGE_PATH = path.join(ROOT, 'package.json');
 const SOURCE_EXTENSIONS = /\.(?:[cm]?js|jsx|tsx?)$/iu;
 
 function walkFiles(directory) {
@@ -125,6 +127,20 @@ function taskBoardMigration() {
   };
 }
 
+function taskBoardCommentsMigration() {
+  const candidates = fs.readdirSync(MIGRATIONS_PATH)
+    .filter((fileName) => fileName.endsWith('.sql'))
+    .filter((fileName) => {
+      const source = fs.readFileSync(path.join(MIGRATIONS_PATH, fileName), 'utf8');
+      return /\btask_comments\b/iu.test(source) && /\bll_task_board_append_comment\b/iu.test(source);
+    });
+  assert.equal(candidates.length, 1, 'one task-comment migration must own ll_work_items.task_comments');
+  return {
+    filePath: path.join(MIGRATIONS_PATH, candidates[0]),
+    source: fs.readFileSync(path.join(MIGRATIONS_PATH, candidates[0]), 'utf8'),
+  };
+}
+
 test('WorkspaceLogistics replaces the legacy home surface with the integrated task board', () => {
   const workspace = fs.readFileSync(WORKSPACE_PATH, 'utf8');
 
@@ -179,6 +195,85 @@ test('LogisticsTaskBoard exposes the planned board shape and mutation contract',
   assert.match(source, /(?:MAX_(?:TASK_)?SHARES|MAX_SHARED(?:_USERS)?|share(?:d|r)?[A-Za-z_]*\.slice\(0,\s*5\)|share(?:d|r)?[A-Za-z_]*\.length\s*<=\s*5)/u);
   assert.match(source, /recipient_user_ids:\s*\[\]/u);
   assert.match(source, /client_request_id/u);
+});
+
+test('LogisticsTaskBoard uses the five approved status labels and the spaced progress label', () => {
+  const { source } = taskBoardComponent();
+  const edge = fs.readFileSync(EDGE_PATH, 'utf8');
+  const { source: migration } = taskBoardCommentsMigration();
+
+  assert.match(source, /const TASK_BOARD_STATUSES = \['예정', '진행 중', '중단', '보류', '완료'\];/u);
+  assert.match(source, /const TASK_BOARD_COLUMNS = \[[^\]]*'진행 상황'/u);
+  assert.match(source, /<FieldLabel required>진행 상황<\/FieldLabel>/u);
+  assert.match(source, /label="진행 상황"/u);
+  assert.match(edge, /const TASK_BOARD_STATUSES = new Set\(\['예정', '진행 중', '중단', '보류', '완료'\]\)/u);
+  assert.match(migration, /status in \('예정', '진행 중', '중단', '보류', '완료'\)/u);
+});
+
+test('task-board maps canonical stakeholder_name throughout API and UI normalization', () => {
+  const { source } = taskBoardComponent();
+  const edge = fs.readFileSync(EDGE_PATH, 'utf8');
+  const publicRowStart = edge.indexOf('function taskBoardPublicRow(');
+  const publicRowEnd = edge.indexOf('\nfunction taskBoardText(', publicRowStart);
+  assert.ok(publicRowStart >= 0 && publicRowEnd > publicRowStart, 'taskBoardPublicRow must be present');
+  const publicRow = edge.slice(publicRowStart, publicRowEnd);
+
+  assert.match(source, /row\.stakeholder_name/u);
+  assert.match(source, /stakeholder_name: draft\.stakeholders\.trim\(\)/u);
+  assert.match(publicRow, /stakeholder_name:\s*safeText\(row\.stakeholder_name\)/u);
+});
+
+test('task drawer does not expose an internal Task ID or the fixed 업무 상세 heading', () => {
+  const { source } = taskBoardComponent();
+  const drawerStart = source.indexOf('data-testid="logistics-task-board-drawer"');
+  const drawerEnd = source.indexOf('{formMode ? (', drawerStart);
+  assert.ok(drawerStart >= 0 && drawerEnd > drawerStart, 'task drawer must be present');
+  const drawer = source.slice(drawerStart, drawerEnd);
+
+  assert.doesNotMatch(drawer, /Task ID/u);
+  assert.doesNotMatch(drawer, /<h3[^>]*>업무 상세<\/h3>/u);
+});
+
+test('task comments and replies use task_comments JSONB, one idempotent create mutation, and get readback', () => {
+  const { source } = taskBoardComponent();
+  const edge = fs.readFileSync(EDGE_PATH, 'utf8');
+  const { source: migration } = taskBoardCommentsMigration();
+  const createStart = edge.indexOf('async function createTaskBoardComment(');
+  const createEnd = edge.indexOf('\nfunction validatedTaskBoardFields(', createStart);
+  assert.ok(createStart >= 0 && createEnd > createStart, 'createTaskBoardComment must be present');
+  const createComment = edge.slice(createStart, createEnd);
+
+  for (const testId of ['logistics-task-board-comments', 'logistics-task-board-comment-input', 'logistics-task-board-reply-input']) {
+    assert.match(source, new RegExp(`data-testid=[\"']${testId}[\"']`, 'u'));
+  }
+  assert.match(source, /parent_comment_id/u);
+  assert.match(source, /work-platform\/task-board\/comments\/create/u);
+  assert.doesNotMatch(source, /work-platform\/task-board\/comments\/(?:list|delete)/u);
+  assert.match(edge, /['"]work-platform\/task-board\/comments\/create['"]/u);
+  assert.match(createComment, /taskBoardClientRequestId\(payload\.client_request_id\)/u);
+  assert.match(createComment, /id:\s*requestId/u);
+  assert.match(createComment, /comments:\s*comments/u);
+  assert.match(createComment, /task_comments:\s*comments/u);
+  assert.match(edge, /task_comments:\s*Array\.isArray\(row\.task_comments\) \? row\.task_comments : \[\]/u);
+  assert.match(migration, /add column if not exists task_comments jsonb default '\[\]'::jsonb/u);
+  assert.match(migration, /create or replace function public\.ll_task_board_append_comment\(/u);
+  assert.match(migration, /where existing\.comment->>'id' = p_comment->>'id'[\s\S]*return v_comments;/u);
+  assert.match(migration, /v_parent_id := nullif\(btrim\(p_comment->>'parent_comment_id'\), ''\)/u);
+});
+
+test('standard work-platform browser smoke stays read-only and CRUD is opt-in with finally cleanup', () => {
+  const smoke = fs.readFileSync(WORK_PLATFORM_SMOKE_PATH, 'utf8');
+  const packageJson = JSON.parse(fs.readFileSync(PACKAGE_PATH, 'utf8'));
+
+  assert.match(smoke, /const shouldExerciseCrud = hasFlag\('exercise-crud'\);/u);
+  assert.match(smoke, /if \(shouldExerciseCrud\) \{[\s\S]*await exerciseCrud\(session, report, stamp\);/u);
+  assert.match(smoke, /finally \{[\s\S]*await cleanup\(taskCode\);/u);
+  assert.match(smoke, /delete from public\.ll_work_items[\s\S]*client_request_id = \$\{sqlString\(taskRequestId\)\}::uuid/u);
+  assert.match(smoke, /database_readback/u);
+  assert.match(smoke, /physical_cleanup/u);
+  assert.equal(packageJson.scripts['test:work-platform:contract'], 'node --test tests/logistics-task-board-contract.test.cjs');
+  assert.equal(packageJson.scripts['qa:work-platform:browser'], 'node scripts/qa/logistics-work-platform-browser-smoke.cjs');
+  assert.equal(packageJson.scripts['qa:work-platform:crud-live'], 'node scripts/qa/logistics-work-platform-browser-smoke.cjs --exercise-crud');
 });
 
 test('LogisticsTaskBoard keeps the reference table shell with the requested compact controls', () => {

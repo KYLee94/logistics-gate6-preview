@@ -203,7 +203,10 @@ export default function AuthSetup({ onLogin }) {
             }
 
             const authEmail = String(remoteAuthStatus?.auth_email || normalizedEmail).trim().toLowerCase();
-            const remoteStaffName = remoteAuthStatus?.staff_name || remoteAuthStatus?.name || normalizedEmail;
+            const remoteStaffName = String(remoteAuthStatus?.staff_name || remoteAuthStatus?.name || '로그인 사용자').trim() || '로그인 사용자';
+            const remoteImageUrl = String(
+                remoteAuthStatus?.image_url || remoteAuthStatus?.avatar_url || remoteAuthStatus?.profile_image_url || '',
+            ).trim();
             setStaffName(remoteStaffName);
             setSelectedMemberInfo({
                 ...remoteAuthStatus,
@@ -211,7 +214,8 @@ export default function AuthSetup({ onLogin }) {
                 name: remoteStaffName,
                 email: normalizedEmail,
                 permission_email: permissionEmail,
-                avatar_url: remoteAuthStatus?.image_url || remoteAuthStatus?.avatar_url || remoteAuthStatus?.profile_image_url,
+                image_url: remoteImageUrl,
+                avatar_url: remoteImageUrl,
             });
             setResolvedAuthEmail(authEmail);
             const remoteHasAuthUser = remoteAuthStatus?.has_auth_user;
@@ -578,9 +582,11 @@ export default function AuthSetup({ onLogin }) {
                     ) : step === 2 ? (
                         <>
                             <div className="flex items-center justify-between w-full mt-1 mb-6">
-                                <div className="flex items-center">
-                                    <UserAvatar memberInfo={selectedAvatarInfo} name={staffName} sizeClass="h-[36px] w-[36px]" textClass="text-[12px]" className="mr-3 bg-[#3c3c3c] shadow-sm" />
-                                    <span className="text-[#333] dark:text-[#E5E5E5] text-[16px] font-semibold tracking-tight transition-colors duration-300">
+                                <div className="flex items-center" data-testid="logistics-password-profile">
+                                    <div data-testid="logistics-password-profile-photo">
+                                        <UserAvatar memberInfo={selectedAvatarInfo} name={staffName} sizeClass="h-[36px] w-[36px]" textClass="text-[12px]" className="mr-3 bg-[#3c3c3c] shadow-sm" />
+                                    </div>
+                                    <span data-testid="logistics-password-profile-name" className="text-[#333] dark:text-[#E5E5E5] text-[16px] font-semibold tracking-tight transition-colors duration-300">
                                         {staffName}님 반갑습니다. 패스워드를 {isFirstTime ? '설정' : '입력'}해주세요.
                                     </span>
                                 </div>

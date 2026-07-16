@@ -519,7 +519,7 @@ const ACTION_MANIFEST = new Map<string, ActionClassification>([
     'work-platform/board-posts/update', 'work-platform/board-posts/delete', 'work-platform/board-posts/comment',
     'work-platform/board-posts/comment-delete', 'weekly-assets/replace-latest', 'weekly-assets/latest',
     'work-platform/task-board/list', 'work-platform/task-board/get', 'work-platform/task-board/create',
-    'work-platform/task-board/update', 'work-platform/task-board/delete',
+    'work-platform/task-board/update', 'work-platform/task-board/delete', 'work-platform/task-board/comments/create',
     'notifications/push/config', 'notifications/push/subscribe', 'notifications/push/unsubscribe',
     'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset',
     'funds/save-by-asset', 'opendart/company/cache-upsert', 'opendart/company', 'building-register/summary',
@@ -550,7 +550,7 @@ const ACTION_SCOPE_MANIFEST = new Map<string, ActionScopeContract>([
     'asset-spec/read', 'asset-spec/save', 'asset-admin/gyeongsan-coupang-floor-count-preview', 'operating-costs/read',
     'worklogs/list', 'worklogs', 'worklogs/update', 'worklogs/complete', 'worklogs/delete',
     'work-platform/tasks', 'work-platform/tasks/update', 'work-platform/tasks/complete', 'work-platform/tasks/delete', 'work-platform/tasks/archive-seed',
-    'work-platform/task-board/get', 'work-platform/task-board/create', 'work-platform/task-board/update', 'work-platform/task-board/delete',
+    'work-platform/task-board/get', 'work-platform/task-board/create', 'work-platform/task-board/update', 'work-platform/task-board/delete', 'work-platform/task-board/comments/create',
     'work-platform/board-posts', 'work-platform/board-posts/update', 'work-platform/board-posts/delete',
     'work-platform/board-posts/comment', 'work-platform/board-posts/comment-delete',
     'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset', 'funds/save-by-asset',
@@ -577,7 +577,7 @@ const ACTION_SCOPE_HANDLER_CONTRACTS = new Map<string, Extract<ActionScopeContra
     'asset-spec/read', 'asset-spec/save', 'asset-admin/gyeongsan-coupang-floor-count-preview', 'operating-costs/read',
     'worklogs/list', 'worklogs', 'worklogs/update', 'worklogs/complete', 'worklogs/delete',
     'work-platform/tasks', 'work-platform/tasks/update', 'work-platform/tasks/complete', 'work-platform/tasks/delete', 'work-platform/tasks/archive-seed',
-    'work-platform/task-board/get', 'work-platform/task-board/create', 'work-platform/task-board/update', 'work-platform/task-board/delete',
+    'work-platform/task-board/get', 'work-platform/task-board/create', 'work-platform/task-board/update', 'work-platform/task-board/delete', 'work-platform/task-board/comments/create',
     'work-platform/board-posts', 'work-platform/board-posts/update', 'work-platform/board-posts/delete',
     'work-platform/board-posts/comment', 'work-platform/board-posts/comment-delete',
     'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset', 'funds/save-by-asset',
@@ -16436,7 +16436,8 @@ const TASK_BOARD_CATEGORIES = new Set([
   '기타 자산관리',
   '기타 리스크 관리',
 ]);
-const TASK_BOARD_STATUSES = new Set(['예정', '진행중', '검토중', '보류', '완료']);
+const TASK_BOARD_STATUSES = new Set(['예정', '진행 중', '중단', '보류', '완료']);
+const TASK_BOARD_COMMENT_MAX_LENGTH = 2000;
 const TASK_BOARD_SELECT = [
   'id',
   'task_code',
@@ -16457,6 +16458,7 @@ const TASK_BOARD_SELECT = [
   'created_at',
   'updated_at',
 ].join(', ');
+const TASK_BOARD_DETAIL_SELECT = `${TASK_BOARD_SELECT}, task_comments`;
 
 function taskBoardPublicRow(row: Record<string, unknown>) {
   return stripUndefined({
@@ -16610,7 +16612,7 @@ async function readTaskBoardRow(ctx: Context, taskCode: unknown) {
   if (!/^T-\d{6,}$/u.test(code)) return { row: null, response: fail(400, 'Valid Task ID is required', ctx.origin) };
   const { data, error } = await ctx.serviceClient
     .from('ll_work_items')
-    .select(TASK_BOARD_SELECT)
+    .select(TASK_BOARD_DETAIL_SELECT)
     .eq('item_type', 'task')
     .eq('task_code', code)
     .is('deleted_at', null)
@@ -16625,7 +16627,68 @@ async function readTaskBoardRow(ctx: Context, taskCode: unknown) {
 async function getTaskBoard(ctx: Context, payload: Record<string, unknown>) {
   const result = await readTaskBoardRow(ctx, payload.task_code);
   if (result.response) return result.response;
-  return jsonResponse({ ok: true, data: taskBoardPublicRow(result.row as Record<string, unknown>) }, 200, ctx.origin);
+  const row = result.row as Record<string, unknown>;
+  return jsonResponse({
+    ok: true,
+    data: {
+      ...taskBoardPublicRow(row),
+      task_comments: Array.isArray(row.task_comments) ? row.task_comments : [],
+    },
+  }, 200, ctx.origin);
+}
+
+async function createTaskBoardComment(ctx: Context, payload: Record<string, unknown>) {
+  const current = await readTaskBoardRow(ctx, payload.task_code);
+  if (current.response) return current.response;
+  const requestId = taskBoardClientRequestId(payload.client_request_id);
+  if (!requestId) return fail(400, 'client_request_id must be a UUID', ctx.origin);
+
+  const rawText = safeText(firstDefined(payload.text, payload.content)).replace(/\s+/gu, ' ').trim();
+  if (!rawText) return fail(400, 'Comment text is required', ctx.origin);
+  if (rawText.length > TASK_BOARD_COMMENT_MAX_LENGTH) {
+    return fail(400, `Comment text must not exceed ${TASK_BOARD_COMMENT_MAX_LENGTH} characters`, ctx.origin);
+  }
+
+  const parentCommentId = safeText(payload.parent_comment_id);
+  if (parentCommentId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(parentCommentId)) {
+    return fail(400, 'parent_comment_id must be a UUID', ctx.origin);
+  }
+
+  const row = current.row as Record<string, unknown>;
+  const comment = {
+    id: requestId,
+    text: rawText,
+    parent_comment_id: parentCommentId || null,
+    author_user_id: ctx.user.id,
+    author_name: actorName(ctx),
+    author_email: actorEmail(ctx),
+    created_at: new Date().toISOString(),
+  };
+  const { data, error } = await ctx.serviceClient.rpc('ll_task_board_append_comment', {
+    p_task_code: safeText(row.task_code),
+    p_comment: comment,
+  });
+  if (error) {
+    if (error.message.includes('task_comment_parent_not_found')) return fail(400, 'Parent comment does not belong to this task', ctx.origin);
+    if (error.message.includes('task_comment_reply_depth_exceeded')) return fail(400, 'Replies can only be one level deep', ctx.origin);
+    if (error.message.includes('task_comment_not_found')) return fail(404, 'Task board row was not found', ctx.origin);
+    return fail(500, 'Failed to create task comment', ctx.origin);
+  }
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'work-platform/task-board/comments/create', 200, {
+    task_code: row.task_code,
+    asset_id: row.related_asset_id,
+    parent_comment_id: parentCommentId || null,
+    client_request_id: requestId,
+  });
+  const comments = Array.isArray(data) ? data : [];
+  return jsonResponse({
+    ok: true,
+    data: {
+      task_code: safeText(row.task_code),
+      comments,
+      task_comments: comments,
+    },
+  }, 200, ctx.origin);
 }
 
 function validatedTaskBoardFields(payload: Record<string, unknown>) {
@@ -25446,11 +25509,26 @@ async function callLogisticsAuthStatus(origin: string, payload: Record<string, u
       return fail(503, 'Enrollment status is temporarily unavailable', origin);
     }
   }
+  const metadata = authUser?.user_metadata && typeof authUser.user_metadata === 'object' && !Array.isArray(authUser.user_metadata)
+    ? authUser.user_metadata as Record<string, unknown>
+    : {};
+  const staffName = allowed
+    ? safeText(firstDefined(permission?.staff_name, permission?.name, metadata.staff_name, metadata.name, metadata.full_name, staffNameForEmail(authEmail))) || null
+    : null;
+  const imageUrl = allowed
+    ? logisticsProfileImageUrl(authEmail, firstDefined(permission?.image_url, permission?.avatar_url, metadata.image_url, metadata.avatar_url, metadata.picture)) || null
+    : null;
   return jsonResponse({
     allowed,
     auth_email: allowed ? authEmail : null,
     has_auth_user: allowed ? Boolean(authUser) : false,
     account_status: permission?.account_status || null,
+    ...(allowed ? {
+      staff_name: staffName,
+      name: staffName,
+      image_url: imageUrl,
+      avatar_url: imageUrl,
+    } : {}),
   }, 200, origin);
 }
 
@@ -25571,6 +25649,7 @@ Deno.serve(async (request): Promise<Response> => {
   if (action === 'work-platform/task-board/create') return createTaskBoard(ctx, payload);
   if (action === 'work-platform/task-board/update') return updateTaskBoard(ctx, payload);
   if (action === 'work-platform/task-board/delete') return deleteTaskBoard(ctx, payload);
+  if (action === 'work-platform/task-board/comments/create') return createTaskBoardComment(ctx, payload);
   if (action === 'work-platform/board-posts/list') return listWorkPlatformBoardPosts(ctx, payload);
   if (action === 'work-platform/board-posts') return saveWorkPlatformBoardPost(ctx, payload);
   if (action === 'work-platform/board-posts/update') return updateWorkPlatformBoardPost(ctx, payload);

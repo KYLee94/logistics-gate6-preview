@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { invokeDashboardApi } from '../../../utils/supabaseSession';
+import UserAvatar from '../UserAvatar';
 
 const PAGE_SIZE = 10;
 const MAX_TASK_SHARES = 5;
 const PRIMARY_BLUE_BUTTON_CLASS = 'border-[#3b82f6]/30 bg-[#3b82f6]/20 text-[#60a5fa] hover:bg-[#3b82f6]/30';
 
-const TASK_BOARD_COLUMNS = ['프로젝트', '업무 분류', '업무 요약', '담당자', '이해관계자', '진행상황', '등록일'];
+const TASK_BOARD_COLUMNS = ['프로젝트', '업무 분류', '업무 요약', '담당자', '이해관계자', '진행 상황', '등록일'];
 
 const TASK_BOARD_CATEGORIES = [
   '신규 투자 검토',
@@ -19,12 +20,12 @@ const TASK_BOARD_CATEGORIES = [
   '기타 리스크 관리',
 ];
 
-const TASK_BOARD_STATUSES = ['예정', '진행중', '검토중', '보류', '완료'];
+const TASK_BOARD_STATUSES = ['예정', '진행 중', '중단', '보류', '완료'];
 
 const STATUS_CLASS_NAMES = {
   예정: 'border-[#575b63] bg-[#2a2d31] text-[#c8cbd0]',
-  진행중: 'border-[#355c48] bg-[#1e342a] text-[#a8d6b5]',
-  검토중: 'border-[#64543a] bg-[#372f21] text-[#e2ca93]',
+  '진행 중': 'border-[#355c48] bg-[#1e342a] text-[#a8d6b5]',
+  중단: 'border-[#64543a] bg-[#372f21] text-[#e2ca93]',
   보류: 'border-[#65504a] bg-[#382a28] text-[#e1b4ab]',
   완료: 'border-[#3b5368] bg-[#22303b] text-[#a9c9dc]',
 };
@@ -80,9 +81,42 @@ function normalizeRecipient(recipient = {}) {
   };
 }
 
+function normalizeTaskComment(comment = {}, parentCommentId = '') {
+  const author = comment.author || comment.created_by || comment.user || comment.member || {};
+  return {
+    ...comment,
+    id: text(firstValue(comment, ['comment_id', 'id', 'commentId'])),
+    parent_comment_id: text(firstValue(comment, ['parent_comment_id', 'parentCommentId', 'parent_id']), parentCommentId),
+    text: text(firstValue(comment, ['text', 'comment_text', 'content', 'body'])),
+    author_name: text(firstValue(comment, ['author_name', 'created_by_name', 'staff_name', 'user_name', 'name']) || firstValue(author, ['staff_name', 'name', 'display_name', 'email']), '작성자 미확인'),
+    author_member_info: author,
+    created_at: text(firstValue(comment, ['created_at', 'createdAt', 'inserted_at'])),
+  };
+}
+
+function normalizeTaskComments(comments) {
+  const normalized = [];
+  const collect = (entries, parentCommentId = '') => {
+    if (!Array.isArray(entries)) return;
+    entries.forEach((entry) => {
+      const comment = normalizeTaskComment(entry, parentCommentId);
+      if (!comment.id) return;
+      normalized.push(comment);
+      collect(entry?.replies ?? entry?.children ?? entry?.comments, comment.id);
+    });
+  };
+  collect(comments);
+  return normalized;
+}
+
+function normalizeStatus(value) {
+  const status = text(value, '예정');
+  return status === '진행중' ? '진행 중' : status;
+}
+
 function normalizeTask(row = {}) {
   const assignee = row.assignee || row.owner || row.created_by || {};
-  const stakeholders = row.stakeholders ?? row.stakeholder_names ?? row.stakeholder ?? row.company_name ?? '';
+  const stakeholders = row.stakeholders ?? row.stakeholder_names ?? row.stakeholder_name ?? row.stakeholder ?? row.company_name ?? '';
   return {
     ...row,
     id: text(firstValue(row, ['task_code', 'task_id', 'id', 'taskId'])),
@@ -94,12 +128,13 @@ function normalizeTask(row = {}) {
       ? stakeholders.map((item) => text(item?.name || item?.staff_name || item)).filter(Boolean).join(', ')
       : text(stakeholders),
     detail: text(firstValue(row, ['detail', 'task_detail', 'description', 'content', 'body', 'notes'])),
-    status: text(firstValue(row, ['status', 'progress_status', 'issue_status']), '예정'),
+    status: normalizeStatus(firstValue(row, ['status', 'progress_status', 'issue_status'])),
     assignee_user_id: text(firstValue(row, ['assignee_user_id', 'owner_user_id', 'created_by_user_id']) || firstValue(assignee, ['user_id', 'id', 'email'])),
     assignee_name: text(firstValue(row, ['assignee_name', 'owner_name', 'created_by_name']) || firstValue(assignee, ['staff_name', 'name', 'display_name', 'email']), '담당자 미확인'),
     assignee_organization: text(firstValue(row, ['assignee_organization', 'owner_organization', 'created_by_organization']) || firstValue(assignee, ['organization', 'department', 'team_name'])),
     updated_at: text(firstValue(row, ['updated_at', 'updatedAt', 'created_at'])),
     created_at: text(firstValue(row, ['created_at', 'createdAt'])),
+    task_comments: normalizeTaskComments(row.task_comments ?? row.comments ?? []),
   };
 }
 
@@ -344,7 +379,7 @@ function TaskForm({ assets, draft, setDraft, recipients, memberInfo, mode, savin
           </div>
         </div>
         <div>
-          <FieldLabel required>진행상황</FieldLabel>
+          <FieldLabel required>진행 상황</FieldLabel>
           <select value={draft.status} onChange={(event) => updateField('status', event.target.value)} required disabled={saving} className="w-full rounded border border-[#4a4d52] bg-[#26272a] px-3 py-2 text-[13px] text-[#f2f2f3] outline-none focus:border-[#90949b] disabled:opacity-60">
             {TASK_BOARD_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
           </select>
@@ -418,6 +453,10 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [reply, setReply] = useState({ parentCommentId: '', text: '' });
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [commentError, setCommentError] = useState('');
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -518,13 +557,22 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
   };
 
   const openDrawer = async (task) => {
+    setCommentText('');
+    setReply({ parentCommentId: '', text: '' });
+    setCommentError('');
     setDrawer({ open: true, task, loading: true, error: '' });
     try {
       const response = await invokeDashboardApi('work-platform/task-board/get', {
         task_code: task.id,
       });
       const data = unwrapApiData(response);
-      setDrawer({ open: true, task: normalizeTask(data.item ?? data), loading: false, error: '' });
+      const taskData = data.item ?? data.task ?? data;
+      setDrawer({
+        open: true,
+        task: normalizeTask({ ...taskData, task_comments: data.task_comments ?? taskData?.task_comments ?? taskData?.comments ?? [] }),
+        loading: false,
+        error: '',
+      });
     } catch (error) {
       setDrawer((current) => ({ ...current, loading: false, error: text(error?.message, '업무 상세를 불러오지 못했습니다.') }));
     }
@@ -538,7 +586,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
     event.preventDefault();
     if (saving) return;
     if (!draft.asset_id || !draft.category || !draft.summary.trim() || !draft.status) {
-      setFormError('프로젝트, 업무 분류, 업무 요약, 진행상황은 필수입니다.');
+      setFormError('프로젝트, 업무 분류, 업무 요약, 진행 상황은 필수입니다.');
       return;
     }
     setSaving(true);
@@ -567,7 +615,12 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
       await notifyDataChanged();
       setFormMode('');
       if (!isCreate && savedTask && typeof savedTask === 'object') {
-        setDrawer({ open: true, task: normalizeTask(savedTask), loading: false, error: '' });
+        setDrawer((current) => ({
+          open: true,
+          task: normalizeTask({ ...savedTask, task_comments: savedTask.task_comments ?? current.task?.task_comments ?? [] }),
+          loading: false,
+          error: '',
+        }));
       }
     } catch (error) {
       setFormError(text(error?.message, '업무를 저장하지 못했습니다.'));
@@ -578,7 +631,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
 
   const deleteTask = async () => {
     const task = drawer.task;
-    if (!task || deleting || !window.confirm(`Task ID ${task.id} 업무를 삭제하시겠습니까?`)) return;
+    if (!task || deleting || !window.confirm(`"${text(task.summary, '선택한 업무')}"을(를) 삭제하시겠습니까?`)) return;
     setDeleting(true);
     try {
       const response = await invokeDashboardApi('work-platform/task-board/delete', {
@@ -597,6 +650,50 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
       setDeleting(false);
     }
   };
+
+  const submitComment = async (event, parentCommentId = '') => {
+    event.preventDefault();
+    const value = parentCommentId ? reply.text : commentText;
+    const taskCode = drawer.task?.id;
+    if (!taskCode || commentSubmitting || !value.trim()) return;
+    setCommentSubmitting(true);
+    setCommentError('');
+    try {
+      const response = await invokeDashboardApi('work-platform/task-board/comments/create', {
+        task_code: taskCode,
+        parent_comment_id: parentCommentId || null,
+        text: value.trim(),
+        client_request_id: requestId(),
+      }, { retryTimeout: false });
+      const data = unwrapApiData(response);
+      const nextComments = data.comments ?? data.task_comments;
+      setDrawer((current) => current.task ? {
+        ...current,
+        task: { ...current.task, task_comments: normalizeTaskComments(nextComments ?? current.task.task_comments) },
+      } : current);
+      if (parentCommentId) {
+        setReply({ parentCommentId: '', text: '' });
+      } else {
+        setCommentText('');
+      }
+    } catch (error) {
+      setCommentError(text(error?.message, '댓글을 저장하지 못했습니다.'));
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
+
+  const taskComments = useMemo(() => normalizeTaskComments(drawer.task?.task_comments ?? []), [drawer.task?.task_comments]);
+  const rootTaskComments = useMemo(() => {
+    const commentIds = new Set(taskComments.map((comment) => comment.id));
+    return taskComments.filter((comment) => !comment.parent_comment_id || !commentIds.has(comment.parent_comment_id));
+  }, [taskComments]);
+  const repliesByParent = useMemo(() => taskComments.reduce((result, comment) => {
+    if (comment.parent_comment_id) {
+      result[comment.parent_comment_id] = [...(result[comment.parent_comment_id] || []), comment];
+    }
+    return result;
+  }, {}), [taskComments]);
 
   return (
     <section data-testid="logistics-task-board" className="min-w-0 text-[#f0f0f1]">
@@ -633,7 +730,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
                   <th className="w-[23%] px-4 font-semibold">업무 요약</th>
                   <th className="w-[12%] px-4"><HeaderFilterDropdown filterKey="assignee" label="담당자" value={filters.assignee_user_id} options={assigneeOptions.map((assignee) => ({ value: assignee.user_id, label: assignee.name }))} onChange={(value) => changeFilter('assignee_user_id', value)} /></th>
                   <th className="w-[14%] px-4 font-semibold">이해관계자</th>
-                  <th className="w-[10%] px-2"><HeaderFilterDropdown filterKey="status" label="진행상황" value={filters.status} options={TASK_BOARD_STATUSES} onChange={(value) => changeFilter('status', value)} /></th>
+                  <th className="w-[10%] px-2"><HeaderFilterDropdown filterKey="status" label="진행 상황" value={filters.status} options={TASK_BOARD_STATUSES} onChange={(value) => changeFilter('status', value)} /></th>
                   <th className="w-[11%] px-4 text-left font-semibold">등록일</th>
                 </tr>
               </thead>
@@ -673,7 +770,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
         <div className="fixed inset-0 z-50 flex justify-end bg-black/45" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDrawer({ open: false, task: null, loading: false, error: '' }); }}>
           <aside data-testid="logistics-task-board-drawer" role="dialog" aria-modal="true" aria-label="업무 상세" className="flex h-full w-full max-w-[560px] flex-col border-l border-[#484b51] bg-[#202124] shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#3b3d42] px-5 py-4">
-              <div><p className="text-[11px] text-[#92959c]">Task ID {drawer.task?.id || '-'}</p><h3 className="mt-1 text-[17px] font-semibold text-[#f2f2f3]">업무 상세</h3></div>
+              <div className="min-w-0 pr-3"><h3 className="truncate text-[17px] font-semibold text-[#f2f2f3]">{drawer.task?.summary || '업무 상세'}</h3></div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => openEdit()} disabled={drawer.loading || deleting} className="rounded border border-[#52555b] px-2.5 py-1.5 text-[12px] text-[#d9dade] hover:bg-[#303135] disabled:opacity-50">수정</button>
                 <button type="button" onClick={() => void deleteTask()} disabled={drawer.loading || deleting} className="rounded border border-[#76504b] px-2.5 py-1.5 text-[12px] text-[#e5b8b1] hover:bg-[#382a28] disabled:opacity-50">{deleting ? '삭제 중...' : '삭제'}</button>
@@ -689,11 +786,63 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
                   <dt className="text-[#94979e]">업무 요약</dt><dd className="min-w-0 break-words font-medium text-[#f2f2f3]">{drawer.task?.summary || '-'}</dd>
                   <dt className="text-[#94979e]">담당자</dt><dd className="min-w-0 break-words text-[#e7e8ea]">{drawer.task?.assignee_name || '-'}{drawer.task?.assignee_organization ? ` / ${drawer.task.assignee_organization}` : ''}</dd>
                   <dt className="text-[#94979e]">이해관계자</dt><dd className="min-w-0 break-words text-[#e7e8ea]">{drawer.task?.stakeholders || '-'}</dd>
-                  <dt className="text-[#94979e]">진행상황</dt><dd><StatusPill status={drawer.task?.status || '예정'} /></dd>
+                  <dt className="text-[#94979e]">진행 상황</dt><dd><StatusPill status={drawer.task?.status || '예정'} /></dd>
                   <dt className="text-[#94979e]">등록일</dt><dd className="text-[#c4c6cb]">{formatCreatedDateWithAge(drawer.task?.created_at)}</dd>
                   <dt className="text-[#94979e]">최근 수정</dt><dd className="text-[#c4c6cb]">{formatDateTime(drawer.task?.updated_at)}</dd>
                   <dt className="text-[#94979e]">업무 내용 상세</dt><dd className="whitespace-pre-wrap break-words rounded border border-[#3d4045] bg-[#242529] px-3 py-3 leading-6 text-[#e2e3e6]">{drawer.task?.detail || '등록된 상세 내용이 없습니다.'}</dd>
                 </dl>
+                <section data-testid="logistics-task-board-comments" className="mt-6 border-t border-[#3d4045] pt-5" aria-label="댓글">
+                  <h4 className="text-[14px] font-semibold text-[#f2f2f3]">댓글</h4>
+                  <div className="mt-3 space-y-1">
+                    {rootTaskComments.length ? rootTaskComments.map((comment) => (
+                      <div key={comment.id} className="border-b border-[#34363b] py-4 last:border-b-0">
+                        <div className="flex gap-2.5">
+                          <UserAvatar memberInfo={{ ...comment.author_member_info, staff_name: comment.author_name }} name={comment.author_name} sizeClass="h-7 w-7" textClass="text-[10px]" className="bg-[#3c3c3c]" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                              <span className="text-[12px] font-semibold text-[#e7e8ea]">{comment.author_name}</span>
+                              <time className="text-[11px] text-[#878b92]">{formatDateTime(comment.created_at)}</time>
+                            </div>
+                            <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-5 text-[#d7d9dd]">{comment.text || '-'}</p>
+                            <button type="button" onClick={() => setReply((current) => current.parentCommentId === comment.id ? { parentCommentId: '', text: '' } : { parentCommentId: comment.id, text: '' })} disabled={commentSubmitting} className="mt-2 text-[11px] font-medium text-[#aab8c8] hover:text-white disabled:opacity-50">답글</button>
+                          </div>
+                        </div>
+                        {(repliesByParent[comment.id] || []).map((childComment) => (
+                          <div key={childComment.id} className="ml-9 mt-3 border-l border-[#4a4d52] pl-3">
+                            <div className="flex gap-2.5">
+                              <UserAvatar memberInfo={{ ...childComment.author_member_info, staff_name: childComment.author_name }} name={childComment.author_name} sizeClass="h-6 w-6" textClass="text-[9px]" className="bg-[#3c3c3c]" />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                  <span className="text-[12px] font-semibold text-[#e7e8ea]">{childComment.author_name}</span>
+                                  <time className="text-[11px] text-[#878b92]">{formatDateTime(childComment.created_at)}</time>
+                                </div>
+                                <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-5 text-[#d7d9dd]">{childComment.text || '-'}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {reply.parentCommentId === comment.id ? (
+                          <form className="ml-9 mt-3" onSubmit={(event) => void submitComment(event, comment.id)}>
+                            <label className="sr-only" htmlFor={`task-comment-reply-${comment.id}`}>답글 작성</label>
+                            <textarea data-testid="logistics-task-board-reply-input" id={`task-comment-reply-${comment.id}`} value={reply.text} onChange={(event) => setReply((current) => ({ ...current, text: event.target.value }))} maxLength={2000} rows={2} disabled={commentSubmitting} placeholder="답글을 입력하세요" className="w-full resize-y rounded border border-[#4a4d52] bg-[#242529] px-3 py-2 text-[12px] text-[#f2f2f3] outline-none placeholder:text-[#81848a] focus:border-[#90949b] disabled:opacity-60" />
+                            <div className="mt-2 flex justify-end gap-2">
+                              <button type="button" onClick={() => setReply({ parentCommentId: '', text: '' })} disabled={commentSubmitting} className="rounded border border-[#52555b] px-2.5 py-1.5 text-[11px] text-[#d9dade] hover:bg-[#303135] disabled:opacity-50">취소</button>
+                              <button type="submit" disabled={commentSubmitting || !reply.text.trim()} className={`rounded border px-2.5 py-1.5 text-[11px] font-semibold disabled:opacity-50 ${PRIMARY_BLUE_BUTTON_CLASS}`}>{commentSubmitting ? '등록 중...' : '답글 등록'}</button>
+                            </div>
+                          </form>
+                        ) : null}
+                      </div>
+                    )) : <p className="py-4 text-[12px] text-[#92959c]">등록된 댓글이 없습니다.</p>}
+                  </div>
+                  {commentError ? <p role="alert" className="mt-3 rounded border border-[#67413d] bg-[#352523] px-3 py-2 text-[12px] text-[#e4b4ad]">{commentError}</p> : null}
+                  <form className="mt-4" onSubmit={(event) => void submitComment(event)}>
+                    <label className="sr-only" htmlFor="task-comment-create">댓글 작성</label>
+                    <textarea data-testid="logistics-task-board-comment-input" id="task-comment-create" value={commentText} onChange={(event) => setCommentText(event.target.value)} maxLength={2000} rows={3} disabled={commentSubmitting} placeholder="댓글을 입력하세요" className="w-full resize-y rounded border border-[#4a4d52] bg-[#242529] px-3 py-2 text-[13px] text-[#f2f2f3] outline-none placeholder:text-[#81848a] focus:border-[#90949b] disabled:opacity-60" />
+                    <div className="mt-2 flex justify-end">
+                      <button type="submit" disabled={commentSubmitting || !commentText.trim()} className={`rounded border px-3 py-1.5 text-[12px] font-semibold disabled:opacity-50 ${PRIMARY_BLUE_BUTTON_CLASS}`}>{commentSubmitting ? '등록 중...' : '댓글 등록'}</button>
+                    </div>
+                  </form>
+                </section>
               </div>
             )}
           </aside>
