@@ -5,6 +5,7 @@ import { invokeDashboardApi } from '../../utils/supabaseSession';
 import {
     getLogisticsPushSubscriptionStatus,
     isLogisticsPushSupported,
+    prepareLogisticsPushNotifications,
     showLogisticsPushSetupConfirmation,
     subscribeLogisticsPushNotifications,
     unsubscribeLogisticsPushNotifications,
@@ -737,6 +738,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const [notificationsLoading, setNotificationsLoading] = useState(false);
     const [notificationsError, setNotificationsError] = useState('');
     const [pushEnabled, setPushEnabled] = useState(false);
+    const [pushReady, setPushReady] = useState(false);
     const [pushBusy, setPushBusy] = useState(false);
     const [pushMessage, setPushMessage] = useState('');
     const [notifications, setNotifications] = useState(() => readCachedNotifications());
@@ -755,7 +757,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
     });
 
     const toggleWindowsNotifications = useCallback(async () => {
-        if (!isLogisticsPushSupported() || pushBusy) return;
+        if (!isLogisticsPushSupported() || pushBusy || !pushReady) return;
         setPushBusy(true);
         setPushMessage('');
         try {
@@ -778,17 +780,25 @@ export default function IotaLeftNav({ currentPath = '' }) {
         } finally {
             setPushBusy(false);
         }
-    }, [pushBusy, pushEnabled]);
+    }, [pushBusy, pushEnabled, pushReady]);
 
     useEffect(() => {
         if (!showNotificationsPanel || !isLogisticsPushSupported()) return undefined;
         let cancelled = false;
-        getLogisticsPushSubscriptionStatus()
+        setPushReady(false);
+        prepareLogisticsPushNotifications()
+            .then(() => getLogisticsPushSubscriptionStatus())
             .then((status) => {
-                if (!cancelled) setPushEnabled(status.subscribed && status.permission === 'granted');
+                if (!cancelled) {
+                    setPushEnabled(status.subscribed && status.permission === 'granted');
+                    setPushReady(true);
+                }
             })
             .catch(() => {
-                if (!cancelled) setPushEnabled(false);
+                if (!cancelled) {
+                    setPushEnabled(false);
+                    setPushReady(false);
+                }
             });
         return () => {
             cancelled = true;
@@ -1562,10 +1572,10 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                             type="button"
                                             data-testid="logistics-windows-push-toggle"
                                             onClick={toggleWindowsNotifications}
-                                            disabled={pushBusy}
+                                            disabled={pushBusy || !pushReady}
                                             className={`shrink-0 rounded-[8px] border px-2.5 py-1.5 text-[11px] font-semibold disabled:cursor-wait disabled:opacity-50 ${pushEnabled ? 'border-[#355C48] bg-[#1E342A] text-[#A8D6B5]' : 'border-[#3A3A3C] text-[#E5E5E5] hover:bg-white/5'}`}
                                         >
-                                            {pushBusy ? '처리 중' : pushEnabled ? '끄기' : '켜기'}
+                                            {pushBusy ? '처리 중' : !pushReady ? '준비 중' : pushEnabled ? '끄기' : '켜기'}
                                         </button>
                                     </div>
                                 ) : null}

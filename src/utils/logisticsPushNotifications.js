@@ -5,6 +5,8 @@ const PUSH_SUBSCRIBE_ACTION = 'notifications/push/subscribe';
 const PUSH_UNSUBSCRIBE_ACTION = 'notifications/push/unsubscribe';
 
 let registrationPromise = null;
+let pushPreparationPromise = null;
+let preparedPushState = null;
 
 function pushUnavailableError() {
   return new Error('Push notifications are unavailable in this browser or connection.');
@@ -134,22 +136,48 @@ export async function getLogisticsPushConfig() {
   return config;
 }
 
-export async function subscribeLogisticsPushNotifications() {
-  const permission = await requestLogisticsPushPermission();
-  if (permission !== 'granted') return { permission, subscribed: false };
-
-  const [registration, config] = await Promise.all([
-    registerLogisticsPushServiceWorker(),
-    getLogisticsPushConfig(),
-  ]);
-  let subscription = await registration.pushManager.getSubscription();
-  if (!subscription) {
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(config.public_key),
+export async function prepareLogisticsPushNotifications() {
+  assertPushSupport();
+  if (!pushPreparationPromise) {
+    pushPreparationPromise = Promise.all([
+      registerLogisticsPushServiceWorker(),
+      getLogisticsPushConfig(),
+    ]).then(async ([registration, config]) => {
+      const subscription = await registration.pushManager.getSubscription();
+      preparedPushState = { registration, config, subscription };
+      return preparedPushState;
+    }).catch((error) => {
+      pushPreparationPromise = null;
+      preparedPushState = null;
+      throw error;
     });
   }
+  return pushPreparationPromise;
+}
 
+export async function subscribeLogisticsPushNotifications() {
+  assertPushSupport();
+  const prepared = preparedPushState;
+  if (!prepared) throw new Error('시스템 알림 준비가 끝난 뒤 다시 시도해 주세요.');
+
+  let subscription = prepared.subscription;
+  if (!subscription) {
+    try {
+      const subscriptionPromise = prepared.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(prepared.config.public_key),
+      });
+      subscription = await subscriptionPromise;
+      preparedPushState = { ...prepared, subscription };
+    } catch (error) {
+      const permission = Notification.permission;
+      if (permission !== 'granted') return { permission, subscribed: false };
+      throw error;
+    }
+  }
+
+  const permission = Notification.permission;
+  if (permission !== 'granted') return { permission, subscribed: false };
   const payload = serializeSubscription(subscription);
   if (!payload.endpoint || !payload.p256dh_key || !payload.auth_key) {
     throw new Error('The browser returned an incomplete push subscription.');
@@ -160,18 +188,18 @@ export async function subscribeLogisticsPushNotifications() {
 
 export async function getLogisticsPushSubscriptionStatus() {
   if (!isLogisticsPushSupported()) return { supported: false, subscribed: false, permission: 'unsupported' };
-  const registration = await registerLogisticsPushServiceWorker();
-  const subscription = await registration.pushManager.getSubscription();
-  return { supported: true, subscribed: Boolean(subscription), permission: Notification.permission };
+  const prepared = await prepareLogisticsPushNotifications();
+  return { supported: true, subscribed: Boolean(prepared.subscription), permission: Notification.permission };
 }
 
 export async function unsubscribeLogisticsPushNotifications() {
   assertPushSupport();
-  const registration = await registerLogisticsPushServiceWorker();
-  const subscription = await registration.pushManager.getSubscription();
+  const prepared = await prepareLogisticsPushNotifications();
+  const subscription = prepared.subscription;
   if (!subscription) return { subscribed: false, alreadyUnsubscribed: true };
 
   await invokePushApi(PUSH_UNSUBSCRIBE_ACTION, { endpoint: subscription.endpoint });
   const unsubscribed = await subscription.unsubscribe();
+  if (unsubscribed) preparedPushState = { ...prepared, subscription: null };
   return { subscribed: false, unsubscribed };
 }

@@ -485,9 +485,12 @@ test('system push supports Windows and macOS and surfaces every delivered notifi
   assert.match(worker, /renotify:\s*true/u);
   assert.doesNotMatch(worker, /tag:\s*['"]logistics-push-notification['"]/u);
   assert.match(utility, /registration\.update\(\)/u);
+  assert.match(utility, /prepareLogisticsPushNotifications/u);
+  assert.match(utility, /const subscriptionPromise = prepared\.registration\.pushManager\.subscribe/u);
   assert.match(utility, /showLogisticsPushSetupConfirmation/u);
   assert.match(utility, /Safari/iu);
   assert.match(leftNav, /showLogisticsPushSetupConfirmation/u);
+  assert.match(leftNav, /prepareLogisticsPushNotifications/u);
   assert.match(leftNav, /시스템 알림/u);
   assert.doesNotMatch(leftNav, />Windows 알림</u);
   assert.match(leftNav, /status\.subscribed && status\.permission === 'granted'/u);
