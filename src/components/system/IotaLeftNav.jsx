@@ -785,7 +785,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         let cancelled = false;
         getLogisticsPushSubscriptionStatus()
             .then((status) => {
-                if (!cancelled) setPushEnabled(status.subscribed);
+                if (!cancelled) setPushEnabled(status.subscribed && status.permission === 'granted');
             })
             .catch(() => {
                 if (!cancelled) setPushEnabled(false);

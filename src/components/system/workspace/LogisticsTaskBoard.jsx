@@ -751,7 +751,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
     const nextAncestorIds = new Set(ancestorIds);
     nextAncestorIds.add(comment.id);
     const isReply = level >= 1;
-    const canToggleChildren = isReply && childComments.length > 0;
+    const canToggleChildren = childComments.length > 0;
     const childrenCollapsed = collapsedReplyIds.has(comment.id);
     const isEditing = editingComment.commentId === comment.id;
     const isOwnComment = Boolean(currentUserId && comment.author_user_id && comment.author_user_id === currentUserId);
@@ -783,7 +783,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
                 setReply({ parentCommentId: '', text: '' });
                 setEditingComment((current) => current.commentId === comment.id ? { commentId: '', text: '' } : { commentId: comment.id, text: comment.text });
               }} disabled={commentSubmitting} className="text-[11px] font-medium text-[#aab8c8] hover:text-white disabled:opacity-50">수정</button> : null}
-              {canToggleChildren ? <button type="button" onClick={() => toggleCollapsedReplies(comment.id)} aria-expanded={!childrenCollapsed} className="text-[11px] font-medium text-[#aab8c8] hover:text-white">{childrenCollapsed ? `하위 답글 ${childComments.length}개 펼치기` : '하위 답글 접기'}</button> : null}
+              {canToggleChildren ? <button type="button" onClick={() => toggleCollapsedReplies(comment.id)} aria-expanded={!childrenCollapsed} className="text-[11px] font-medium text-[#aab8c8] hover:text-white">{childrenCollapsed ? `답글 ${childComments.length}개 펼치기` : `답글 ${childComments.length}개 접기`}</button> : null}
             </div>
           </div>
         </div>
@@ -877,11 +877,11 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
         <div className="fixed inset-0 z-50 flex justify-end bg-black/45" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDrawer({ open: false, task: null, loading: false, error: '' }); }}>
           <aside data-testid="logistics-task-board-drawer" role="dialog" aria-modal="true" aria-label="업무 상세" className="flex h-full w-full max-w-[560px] flex-col border-l border-[#484b51] bg-[#202124] shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#3b3d42] px-5 py-4">
-              <div className="min-w-0 pr-3"><h3 className="truncate text-[17px] font-semibold text-[#f2f2f3]">{drawer.task?.summary || '업무 상세'}</h3></div>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => openEdit()} disabled={drawer.loading || deleting} className="rounded border border-[#52555b] px-2.5 py-1.5 text-[12px] text-[#d9dade] hover:bg-[#303135] disabled:opacity-50">수정</button>
-                <button type="button" onClick={() => void deleteTask()} disabled={drawer.loading || deleting} className="rounded border border-[#76504b] px-2.5 py-1.5 text-[12px] text-[#e5b8b1] hover:bg-[#382a28] disabled:opacity-50">{deleting ? '삭제 중...' : '삭제'}</button>
-                <button type="button" aria-label="업무 상세 닫기" onClick={() => setDrawer({ open: false, task: null, loading: false, error: '' })} className="rounded border border-[#52555b] px-2.5 py-1.5 text-[12px] text-[#d9dade] hover:bg-[#303135]">닫기</button>
+              <div className="min-w-0 flex-1 pr-3"><h3 className="truncate text-[17px] font-semibold text-[#f2f2f3]" title={drawer.task?.summary || '업무 상세'}>{drawer.task?.summary || '업무 상세'}</h3></div>
+              <div className="flex shrink-0 flex-nowrap gap-2">
+                <button type="button" onClick={() => openEdit()} disabled={drawer.loading || deleting} className="inline-flex h-8 min-w-[48px] shrink-0 items-center justify-center whitespace-nowrap rounded border border-[#52555b] px-3 text-[12px] text-[#d9dade] hover:bg-[#303135] disabled:opacity-50">수정</button>
+                <button type="button" onClick={() => void deleteTask()} disabled={drawer.loading || deleting} className="inline-flex h-8 min-w-[48px] shrink-0 items-center justify-center whitespace-nowrap rounded border border-[#76504b] px-3 text-[12px] text-[#e5b8b1] hover:bg-[#382a28] disabled:opacity-50">{deleting ? '삭제 중...' : '삭제'}</button>
+                <button type="button" aria-label="업무 상세 닫기" onClick={() => setDrawer({ open: false, task: null, loading: false, error: '' })} className="inline-flex h-8 min-w-[48px] shrink-0 items-center justify-center whitespace-nowrap rounded border border-[#52555b] px-3 text-[12px] text-[#d9dade] hover:bg-[#303135]">닫기</button>
               </div>
             </div>
             {drawer.loading ? <div className="flex flex-1 items-center justify-center text-[13px] text-[#9ca0a6]">업무 상세를 불러오는 중입니다.</div> : (

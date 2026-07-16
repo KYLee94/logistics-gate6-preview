@@ -274,6 +274,10 @@ test('task drawer does not expose an internal Task ID or the fixed 업무 상세
 
   assert.doesNotMatch(drawer, /Task ID/u);
   assert.doesNotMatch(drawer, /<h3[^>]*>업무 상세<\/h3>/u);
+  assert.match(drawer, /className="min-w-0 flex-1 pr-3"/u);
+  assert.match(drawer, /<h3 className="truncate[^>]+title=\{drawer\.task\?\.summary/u);
+  assert.match(drawer, /className="flex shrink-0 flex-nowrap gap-2"/u);
+  assert.match(drawer, /whitespace-nowrap/u);
 });
 
 test('task comments support recursive replies, author edits, idempotency, and get readback', () => {
@@ -292,6 +296,8 @@ test('task comments support recursive replies, author edits, idempotency, and ge
   assert.match(source, /parent_comment_id/u);
   assert.match(source, /renderCommentTree/u);
   assert.match(source, /collapsedReplyIds/u);
+  assert.match(source, /const canToggleChildren = childComments\.length > 0/u);
+  assert.match(source, /`답글 \$\{childComments\.length\}개 펼치기`/u);
   assert.match(source, /work-platform\/task-board\/comments\/create/u);
   assert.match(source, /work-platform\/task-board\/comments\/update/u);
   assert.doesNotMatch(source, /work-platform\/task-board\/comments\/(?:list|delete)/u);
@@ -484,6 +490,8 @@ test('system push supports Windows and macOS and surfaces every delivered notifi
   assert.match(leftNav, /showLogisticsPushSetupConfirmation/u);
   assert.match(leftNav, /시스템 알림/u);
   assert.doesNotMatch(leftNav, />Windows 알림</u);
+  assert.match(leftNav, /status\.subscribed && status\.permission === 'granted'/u);
+  assert.match(worker, /IGIS Logistics Platform/u);
   assert.match(pushEdge, /notification_id:\s*taskShare\.notification_id/u);
 });
 
