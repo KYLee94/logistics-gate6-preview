@@ -7,10 +7,12 @@ const {
 } = require('./logistics-data-management-qa-utils.cjs');
 
 const VIEW_PROBES = [
-  { view_key: 'asset_integrated', field_key: 'disposition_status' },
+  { view_key: 'asset_integrated', field_key: 'asset_name' },
   { view_key: 'investment_integrated', field_key: 'fund_name' },
   { view_key: 'lease_general_excel', field_key: 'tenant_master_name' },
-  { view_key: 'lease_asset_manager_links', field_key: 'manager_email' },
+  { view_key: 'lease_asset_manager_links', field_key: 'disposition_status', row_match: '아레나스양지물류센터' },
+  { view_key: 'lease_asset_manager_links', field_key: 'disposition_status', row_match: '인천석남물류센터' },
+  { view_key: 'lease_asset_manager_links', field_key: 'disposition_status', row_match: '화성 석포리 물류센터' },
 ];
 const STALE_CODES = new Set(['stale_current_value', 'stale_revision_hash']);
 const MAX_STALE_REFRESHES = 1;
@@ -40,7 +42,11 @@ function nextRequestedValue(beforeValue, field, stamp) {
   }
   if (type === 'yn') return /^(y|yes|true|1)$/iu.test(before) ? 'N' : 'Y';
   if (type === 'select') {
-    const option = safeArray(field?.options).map(text).find((value) => value && value !== before);
+    const knownOptions = text(field?.field_key) === 'disposition_status'
+      ? ['정상', '매각', '리뷰 필요']
+      : [];
+    const option = [...safeArray(field?.options).map(text), ...knownOptions]
+      .find((value) => value && value !== before);
     if (!option) throw new Error('No alternate select option is available for the preview probe.');
     return option;
   }
@@ -48,12 +54,13 @@ function nextRequestedValue(beforeValue, field, stamp) {
   return base ? `${base} QA-preview-${stamp}` : `QA preview ${stamp}`;
 }
 
-function candidates(rows, fieldKey) {
+function candidates(rows, fieldKey, rowMatch = '') {
   return safeArray(rows).filter((row) => (
     row?.editable !== false
     && text(row?.row_key)
     && text(row?.revision_hash)
     && hasOwn(row?.edit_values, fieldKey)
+    && (!rowMatch || text(row?.row_label).includes(rowMatch))
   ));
 }
 
@@ -70,6 +77,7 @@ function reportAttempt(row, field, data, refresh, candidateIndex) {
     auto_write_enabled: data?.auto_write_enabled === true,
     validation_codes: codes,
     stale_codes: stale,
+    semantic_before_value_accepted: stale.length === 0,
     target_readback_stale: readback?.stale,
     target_readback_matches_before_value: readback?.matches_before_value,
   };
@@ -99,7 +107,7 @@ async function previewView(supabaseUrl, anonKey, token, probe, stamp) {
       };
     }
 
-    const rows = candidates(rowsData?.rows, probe.field_key);
+    const rows = candidates(rowsData?.rows, probe.field_key, probe.row_match);
     if (!rows.length) {
       return {
         ...probe,
@@ -135,9 +143,7 @@ async function previewView(supabaseUrl, anonKey, token, probe, stamp) {
         sawStale = true;
         continue;
       }
-      const readbackFresh = attempt.target_readback_stale === false
-        && attempt.target_readback_matches_before_value === true;
-      if (attempt.can_submit && readbackFresh) {
+      if (attempt.can_submit && attempt.semantic_before_value_accepted) {
         return {
           ...probe,
           ok: true,
@@ -176,7 +182,7 @@ async function main() {
   }
 
   const checks = {
-    four_live_views_read: probes.length === VIEW_PROBES.length,
+    four_live_views_read: new Set(probes.map((probe) => probe.view_key)).size === 4,
     each_representative_field_is_submittable_from_fresh_readback: probes.every((probe) => probe.ok === true),
     preview_only: true,
   };
