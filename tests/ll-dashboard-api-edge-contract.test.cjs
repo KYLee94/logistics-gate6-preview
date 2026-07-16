@@ -131,3 +131,59 @@ test('OpenDART cache-only reads never call the provider and report fallback stat
   assert.match(handlerSource, /status: 'cache_miss'/u);
   assert.match(handlerSource, /if \(!apiKey && !proxyUrl\)[\s\S]*const query = apiKey/u);
 });
+
+test('Data Management compares business values without confusing display labels with stored values', () => {
+  assert.match(edgeSource, /function dataManagementFieldValuesEqual\(fieldName: unknown, a: unknown, b: unknown\)/u);
+  assert.match(edgeSource, /dataManagementReviewStatusComparable/u);
+  assert.match(edgeSource, /review_required/u);
+  assert.match(edgeSource, /dataManagementLeasePurposeLabel/u);
+  assert.match(edgeSource, /dataManagementBooleanComparable/u);
+
+  const previewStart = edgeSource.indexOf('async function callDataManagementPreviewTableCell(');
+  const previewEnd = edgeSource.indexOf('async function callDataManagementSubmitTableCell(', previewStart);
+  const submitStart = previewEnd;
+  const submitEnd = edgeSource.indexOf('async function dataManagementResolveViewFieldPayload(', submitStart);
+  const batchStart = edgeSource.indexOf('async function callDataManagementSubmitViewFieldBatch(');
+  const batchEnd = edgeSource.indexOf('async function callDataManagementCoverage(', batchStart);
+  const previewSource = edgeSource.slice(previewStart, previewEnd);
+  const submitSource = edgeSource.slice(submitStart, submitEnd);
+  const batchSource = edgeSource.slice(batchStart, batchEnd);
+
+  assert.match(previewSource, /dataManagementFieldValuesEqual\(input\.fieldName, currentValue, input\.beforeValue\)/u);
+  assert.match(submitSource, /dataManagementFieldValuesEqual\(input\.fieldName, currentValue, input\.beforeValue\)/u);
+  assert.match(batchSource, /dataManagementFieldValuesEqual\(input\.fieldName, currentValue, effectiveBeforeValue\)/u);
+});
+
+test('Data Management view edits retain the fresh view revision and persist the actual target before value', () => {
+  const integratedStart = edgeSource.indexOf('async function dataManagementResolveIntegratedViewEdit(');
+  const integratedEnd = edgeSource.indexOf('async function dataManagementResolveDetailFieldEdit(', integratedStart);
+  const leaseStart = edgeSource.indexOf('async function dataManagementResolveLeaseViewEdit(');
+  const leaseEnd = edgeSource.indexOf('async function dataManagementResolveDetailFieldEdit(', leaseStart);
+  const batchStart = edgeSource.indexOf('async function callDataManagementSubmitViewFieldBatch(');
+  const batchEnd = edgeSource.indexOf('async function callDataManagementCoverage(', batchStart);
+  const submitStart = edgeSource.indexOf('async function callDataManagementSubmitTableCell(');
+  const submitEnd = edgeSource.indexOf('async function dataManagementResolveViewFieldPayload(', submitStart);
+
+  for (const source of [edgeSource.slice(integratedStart, integratedEnd), edgeSource.slice(leaseStart, leaseEnd)]) {
+    assert.match(source, /revision_hash: safeText\(payload\.revision_hash \|\| payload\.revisionHash\)/u);
+    assert.match(source, /view_revision_hash: safeText\(row\.revision_hash\)/u);
+  }
+  assert.match(edgeSource.slice(batchStart, batchEnd), /const beforeValue = currentValue;/u);
+  assert.match(edgeSource.slice(submitStart, submitEnd), /const beforeValue = currentValue;/u);
+});
+
+test('Data Management approval writes use compare-and-swap and rollback cannot overwrite a newer value', () => {
+  const writeStart = edgeSource.indexOf('async function writeTargetCell(');
+  const writeEnd = edgeSource.indexOf('async function resolveExistingSourceCellId(', writeStart);
+  const approveStart = edgeSource.indexOf('async function approveEdit(');
+  const approveEnd = edgeSource.indexOf('async function rejectEdit(', approveStart);
+  const writeSource = edgeSource.slice(writeStart, writeEnd);
+  const approveSource = edgeSource.slice(approveStart, approveEnd);
+
+  assert.match(writeSource, /expectedValue/u);
+  assert.match(writeSource, /\.is\(cell\.fieldName, null\)|\.eq\(cell\.fieldName, expectedValue\)/u);
+  assert.match(writeSource, /\.select\(cell\.primaryKeyField\)/u);
+  assert.match(approveSource, /writeTargetCell\(ctx\.serviceClient, cell, coerced, beforeReadback\)/u);
+  assert.match(approveSource, /writtenValue: coerced/u);
+  assert.match(edgeSource, /writeTargetCell\(client, item\.cell, item\.previousValue, item\.writtenValue\)/u);
+});

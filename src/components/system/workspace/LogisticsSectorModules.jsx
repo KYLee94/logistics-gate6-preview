@@ -9021,6 +9021,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           view_key: effectiveViewKey,
           row_key: selectedRow.row_key,
           field_key: selectedFieldKey,
+          before_value: beforeValue,
           requested_value: draftValue,
           revision_hash: selectedRow.revision_hash,
           bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
@@ -9037,7 +9038,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [hasChange, canEditSelected, effectiveViewKey, selectedRow?.row_key, selectedRow?.revision_hash, selectedFieldKey, draftValue, bundleKey, reason]);
+  }, [hasChange, canEditSelected, effectiveViewKey, selectedRow?.row_key, selectedRow?.revision_hash, selectedFieldKey, beforeValue, draftValue, bundleKey, reason]);
 
   const changeSort = (columnKey) => {
     if (!columnKey) return;
@@ -9078,6 +9079,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
         view_key: effectiveViewKey,
         row_key: selectedRow.row_key,
         field_key: selectedFieldKey,
+        before_value: beforeValue,
         requested_value: normalizedDraftValue,
         revision_hash: selectedRow.revision_hash,
         bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',

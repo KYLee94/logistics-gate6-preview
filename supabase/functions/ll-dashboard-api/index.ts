@@ -765,6 +765,61 @@ function valuesEqual(a: unknown, b: unknown) {
   return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) && Math.abs(leftNumber - rightNumber) < 0.000001;
 }
 
+const DATA_MANAGEMENT_BOOLEAN_FIELDS = new Set([
+  'is_preleased',
+  'is_3pl',
+  'is_single_tenant',
+  'sublease_yn',
+  'is_subleased',
+  'office_use_yn',
+  'prelease_yn',
+  'third_party_logistics_yn',
+  'single_tenant_yn',
+]);
+
+function dataManagementBooleanComparable(value: unknown) {
+  const normalized = normalizeComparableEditValue(value).toLowerCase();
+  if (['true', '1', 'y', 'yes', '예'].includes(normalized)) return 'true';
+  if (['false', '0', 'n', 'no', '아니오', ''].includes(normalized)) return 'false';
+  return normalized;
+}
+
+function dataManagementReviewStatusComparable(value: unknown) {
+  const normalized = normalizeComparableEditValue(value).toLowerCase();
+  if (/매각|sold|disposed|archived/iu.test(normalized)) return 'sold';
+  if (/리뷰|검토|review_required|suspected_error/iu.test(normalized)) return 'review';
+  if ([
+    '',
+    'normal',
+    '정상',
+    'active',
+    'source_repaired',
+    'dashboard_latest_history_applied',
+    '검토 완료',
+  ].includes(normalized)) return 'normal';
+  return `raw:${normalized}`;
+}
+
+function dataManagementFieldValuesEqual(fieldName: unknown, a: unknown, b: unknown) {
+  const field = safeText(fieldName).toLowerCase();
+  if (field === 'review_status' || field === 'disposition_status') {
+    return dataManagementReviewStatusComparable(a) === dataManagementReviewStatusComparable(b);
+  }
+  if (DATA_MANAGEMENT_BOOLEAN_FIELDS.has(field)) {
+    return dataManagementBooleanComparable(a) === dataManagementBooleanComparable(b);
+  }
+  if (field === 'temperature_type') {
+    return dataManagementLeasePurposeLabel(a) === dataManagementLeasePurposeLabel(b);
+  }
+  if (field === 'current_manager_name' || field === 'current_manager_email') {
+    const left = normalizeComparableEditValue(a);
+    const right = normalizeComparableEditValue(b);
+    const normalizeUnassigned = (value: string) => (/^(?:미지정|없음)$/u.test(value) ? '' : value);
+    return normalizeUnassigned(left) === normalizeUnassigned(right);
+  }
+  return valuesEqual(a, b);
+}
+
 function parseJsonValue(value: unknown, fallback: unknown = null): unknown {
   if (value === undefined || value === null || value === '') return fallback;
   if (typeof value !== 'string') return value;
@@ -3743,15 +3798,31 @@ async function readTargetCell(ctx: Context, cell: ReturnType<typeof normalizeEdi
   return row[cell.fieldName];
 }
 
-async function writeTargetCell(client: SupabaseClient, cell: ReturnType<typeof normalizeEditCells>[number], nextValue: unknown) {
+const DATA_MANAGEMENT_NO_EXPECTED_VALUE = Symbol('data-management-no-expected-value');
+
+async function writeTargetCell(
+  client: SupabaseClient,
+  cell: ReturnType<typeof normalizeEditCells>[number],
+  nextValue: unknown,
+  expectedValue: unknown = DATA_MANAGEMENT_NO_EXPECTED_VALUE,
+) {
   const tableName = clientTableName(cell.targetTable);
-  const { error } = await client
+  let query = client
     .from(tableName)
     .update({
       [cell.fieldName]: nextValue,
     })
     .eq(cell.primaryKeyField, cell.targetRowId);
+  if (expectedValue !== DATA_MANAGEMENT_NO_EXPECTED_VALUE) {
+    query = expectedValue === null
+      ? query.is(cell.fieldName, null)
+      : query.eq(cell.fieldName, expectedValue);
+  }
+  const { data, error } = await query
+    .select(cell.primaryKeyField)
+    .maybeSingle();
   if (error) throw new Error(`Write failed: ${error.message}`);
+  if (!data) throw new Error('Write blocked because the current value changed after approval started');
 }
 
 async function resolveExistingSourceCellId(client: SupabaseClient, value: unknown) {
@@ -3760,9 +3831,13 @@ async function resolveExistingSourceCellId(client: SupabaseClient, value: unknow
   return null;
 }
 
-async function rollbackAppliedEdits(client: SupabaseClient, applied: Array<{ cell: ReturnType<typeof normalizeEditCells>[number]; previousValue: unknown }>) {
+async function rollbackAppliedEdits(client: SupabaseClient, applied: Array<{
+  cell: ReturnType<typeof normalizeEditCells>[number];
+  previousValue: unknown;
+  writtenValue: unknown;
+}>) {
   for (const item of [...applied].reverse()) {
-    await writeTargetCell(client, item.cell, item.previousValue);
+    await writeTargetCell(client, item.cell, item.previousValue, item.writtenValue);
   }
 }
 
@@ -4629,24 +4704,25 @@ async function applyContractData(ctx: Context, payload: Record<string, unknown>)
   if (requestError) return fail(500, 'Failed to create contract data auto-write request', ctx.origin);
   const editRequestId = String(requestData.id);
   const rollbackAfterWrite = payload.rollback_after_write === true;
-  const appliedDirect: Array<{ cell: NormalizedEditCell; previousValue: unknown }> = [];
+  const appliedDirect: Array<{ cell: NormalizedEditCell; previousValue: unknown; writtenValue: unknown }> = [];
   const appliedSourceOnly: Array<{ cell: NormalizedEditCell; previous: Record<string, unknown> | null; insertedId: unknown }> = [];
   const readbacks: Record<string, unknown>[] = [];
 
   try {
     for (const cell of directCells) {
       const beforeReadback = await readTargetCell(ctx, cell);
-      if (!valuesEqual(beforeReadback, cell.beforeValue)) {
+      if (!dataManagementFieldValuesEqual(cell.fieldName, beforeReadback, cell.beforeValue)) {
         const error = new Error('Stale value blocked before write') as Error & { status?: number; detail?: unknown };
         error.status = 409;
         error.detail = { cell: publicEditCell(cell), readback: beforeReadback };
         throw error;
       }
       const coerced = coerceDataManagementEditValue(cell, cell.afterValue, beforeReadback);
-      await writeTargetCell(ctx.serviceClient, cell, coerced);
-      appliedDirect.push({ cell, previousValue: beforeReadback });
+      await writeTargetCell(ctx.serviceClient, cell, coerced, beforeReadback);
+      appliedDirect.push({ cell, previousValue: beforeReadback, writtenValue: coerced });
       const afterReadback = await readTargetCell(ctx, cell);
-      if (!valuesEqual(afterReadback, cell.afterValue) && !valuesEqual(afterReadback, coerced)) {
+      if (!dataManagementFieldValuesEqual(cell.fieldName, afterReadback, cell.afterValue)
+        && !dataManagementFieldValuesEqual(cell.fieldName, afterReadback, coerced)) {
         const error = new Error('Write readback failed') as Error & { status?: number; detail?: unknown };
         error.status = 500;
         error.detail = { cell: publicEditCell(cell), readback: afterReadback };
@@ -9022,7 +9098,10 @@ async function dataManagementResolveFallbackViewEdit(ctx: Context, payload: Reco
       target_field: fieldKey,
       before_value: (row.edit_values as Record<string, unknown> | undefined)?.[fieldKey],
       requested_value: requestedValue,
-      revision_hash: payload.revision_hash || payload.revisionHash || row.revision_hash,
+      revision_hash: safeText(payload.revision_hash || payload.revisionHash),
+      view_revision_hash: safeText(row.revision_hash),
+      client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+      resolved_view_edit: true,
       reason: payload.reason,
       target_name: row.row_label,
       bundle_key: payload.bundle_key || payload.bundleKey || row.bundle_key || null,
@@ -9284,27 +9363,41 @@ function dataManagementParseViewRequestedValue(value: unknown, field: Record<str
   }
   if (value === null || value === undefined || value === '') return null;
   if (type === 'yn') return ['true', '1', 'y', 'yes', '예', 'Y'].includes(safeText(value).trim().toLowerCase());
-  if (type === 'krw' || type === 'krw_per_py') return parseKrwAmount(value);
-  if (type === 'area_sqm') {
+  const requireNumericText = () => {
     const textValue = safeText(value);
+    if (!/[0-9]/u.test(textValue)) throw new Error('숫자 형식으로 입력해 주세요.');
     const numeric = Number(textValue.replace(/[^0-9.-]/gu, ''));
-    if (!Number.isFinite(numeric)) return value;
+    if (!Number.isFinite(numeric)) throw new Error('숫자 형식으로 입력해 주세요.');
+    return { textValue, numeric };
+  };
+  if (type === 'krw' || type === 'krw_per_py') {
+    requireNumericText();
+    const parsed = parseKrwAmount(value);
+    if (parsed === null) throw new Error('금액을 숫자 형식으로 입력해 주세요.');
+    return parsed;
+  }
+  if (type === 'area_sqm') {
+    const { textValue, numeric } = requireNumericText();
     return /평/u.test(textValue) ? numeric * 3.305785 : numeric;
   }
   if (type === 'percent') {
-    const numeric = Number(safeText(value).replace(/[^0-9.-]/gu, ''));
-    if (!Number.isFinite(numeric)) return value;
-    return /%/u.test(safeText(value)) || Math.abs(numeric) > 1 ? numeric / 100 : numeric;
+    const { textValue, numeric } = requireNumericText();
+    return /%/u.test(textValue) || Math.abs(numeric) > 1 ? numeric / 100 : numeric;
   }
   if (type === 'months') {
-    const numeric = Number(safeText(value).replace(/[^0-9.-]/gu, ''));
-    return Number.isFinite(numeric) ? numeric : value;
+    return requireNumericText().numeric;
   }
   if (type === 'number') {
-    const numeric = Number(safeText(value).replace(/[^0-9.-]/gu, ''));
-    return Number.isFinite(numeric) ? numeric : value;
+    return requireNumericText().numeric;
   }
-  if (type === 'date') return safeDateText(value);
+  if (type === 'date') {
+    const dateText = safeDateText(value);
+    const date = dateText ? new Date(`${dateText}T00:00:00Z`) : null;
+    if (!dateText || !date || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== dateText) {
+      throw new Error('날짜를 YYYY-MM-DD 형식의 실제 날짜로 입력해 주세요.');
+    }
+    return dateText;
+  }
   return value;
 }
 
@@ -11089,8 +11182,10 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
         field_name: targetField,
         before_value: currentRawValue,
         requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
-        revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
-        view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+        revision_hash: safeText(payload.revision_hash || payload.revisionHash),
+        view_revision_hash: safeText(row.revision_hash),
+        client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+        resolved_view_edit: true,
         target_name: row.row_label,
         asset_id: safeText(rowMeta.asset_id),
         asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
@@ -11126,8 +11221,10 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
         field_name: targetField,
         before_value: currentRawValue,
         requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
-        revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
-        view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+        revision_hash: safeText(payload.revision_hash || payload.revisionHash),
+        view_revision_hash: safeText(row.revision_hash),
+        client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+        resolved_view_edit: true,
         target_name: row.row_label,
         asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
         reason: payload.reason,
@@ -11171,8 +11268,10 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
       field_name: targetField,
       before_value: currentRawValue,
       requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
-      revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
-      view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+      revision_hash: safeText(payload.revision_hash || payload.revisionHash),
+      view_revision_hash: safeText(row.revision_hash),
+      client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+      resolved_view_edit: true,
       target_name: row.row_label,
       asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
       reason: payload.reason,
@@ -11299,8 +11398,10 @@ async function dataManagementResolveIntegratedViewEdit(ctx: Context, payload: Re
       field_name: targetField,
       before_value: currentRawValue,
       requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
-      revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
-      view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+      revision_hash: safeText(payload.revision_hash || payload.revisionHash),
+      view_revision_hash: safeText(row.revision_hash),
+      client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+      resolved_view_edit: true,
       target_name: row.row_label,
       asset_id: relatedAssetIdForEdit,
       asset_name: relatedAssetNameForEdit,
@@ -11326,7 +11427,9 @@ async function dataManagementResolveDetailFieldEdit(ctx: Context, payload: Recor
     throw new Error('상세 수정 대상 행과 필드를 선택해 주세요.');
   }
   let result: Record<string, unknown>;
-  if (viewKey === 'investment_integrated') {
+  if (viewKey === 'asset_integrated') {
+    result = await dataManagementAssetIntegratedRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, viewKey);
+  } else if (viewKey === 'investment_integrated') {
     result = await dataManagementInvestmentIntegratedRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, viewKey);
   } else if (DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey) || viewKey === 'lease_general_excel') {
     result = await dataManagementLeaseContractRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, viewKey);
@@ -11404,8 +11507,10 @@ async function dataManagementResolveDetailFieldEdit(ctx: Context, payload: Recor
         field_name: targetField,
         before_value: firstDefined(detailMeta.special_terms_raw, dataManagementJoinSpecialTermItems(rawItems)),
         requested_value: dataManagementJoinSpecialTermItems(currentItems),
-        revision_hash: safeText(payload.revision_hash || payload.revisionHash || detailRow.revision_hash),
-        view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+        revision_hash: safeText(payload.revision_hash || payload.revisionHash),
+        view_revision_hash: safeText(detailRow.revision_hash),
+        client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+        resolved_view_edit: true,
         target_name: [row.row_label, `${index + 1}. 특수 계약 조건`].map((item) => safeText(item)).filter(Boolean).join(' · '),
         asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
         reason: payload.reason,
@@ -11438,8 +11543,10 @@ async function dataManagementResolveDetailFieldEdit(ctx: Context, payload: Recor
       field_name: targetField,
       before_value: currentRawValue,
       requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), detailColumn),
-      revision_hash: safeText(payload.revision_hash || payload.revisionHash || detailRow.revision_hash),
-      view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+      revision_hash: safeText(payload.revision_hash || payload.revisionHash),
+      view_revision_hash: safeText(detailRow.revision_hash),
+      client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+      resolved_view_edit: true,
       target_name: [row.row_label, detailRow.row_label].map((item) => safeText(item)).filter(Boolean).join(' · '),
       asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
       reason: payload.reason,
@@ -12177,6 +12284,8 @@ async function callDataManagementPreviewTableCell(ctx: Context, payload: Record<
   let row: Record<string, unknown> | null = null;
   let currentValue: unknown = null;
   let currentRevisionHash = '';
+  const resolvedViewEdit = payload.resolved_view_edit === true;
+  const clientBeforeValue = firstPresent(payload.client_before_value, payload.clientBeforeValue);
   if (!validationError) {
     try {
       row = autoWriteCapable ? await readTargetRow(ctx.serviceClient, cell) : await readDataManagementTableCellRow(ctx, input);
@@ -12186,12 +12295,20 @@ async function callDataManagementPreviewTableCell(ctx: Context, payload: Record<
       }
       currentValue = row[cell.fieldName];
       currentRevisionHash = await dataManagementRevisionHash(row);
-      if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(currentValue, input.beforeValue)) {
+      const staleValue = resolvedViewEdit
+        ? clientBeforeValue !== undefined && clientBeforeValue !== null
+          && !dataManagementFieldValuesEqual(input.fieldName, input.beforeValue, clientBeforeValue)
+        : input.beforeValue !== undefined && input.beforeValue !== null
+          && !dataManagementFieldValuesEqual(input.fieldName, currentValue, input.beforeValue);
+      if (staleValue) {
         validations.push({ level: 'error', code: 'stale_current_value', message: '현재 DB값이 사용자가 본 변경 전 값과 다릅니다. 데이터를 다시 읽은 후 수정해 주세요.' });
       }
       const requestedRevisionHash = safeText(payload.revision_hash || payload.revisionHash);
       const requestedViewRevisionHash = safeText(payload.view_revision_hash || payload.viewRevisionHash);
-      if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash) {
+      const staleRevision = resolvedViewEdit
+        ? Boolean(requestedRevisionHash && requestedRevisionHash !== requestedViewRevisionHash)
+        : Boolean(requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash);
+      if (staleRevision) {
         validations.push({ level: 'error', code: 'stale_revision_hash', message: '현재 행 버전이 화면에 표시된 버전과 다릅니다. 데이터를 다시 읽은 후 수정해 주세요.' });
       }
       validations.push(...dataManagementConsistencyWarningsForTableCell(input, row, input.requestedValue));
@@ -12199,14 +12316,15 @@ async function callDataManagementPreviewTableCell(ctx: Context, payload: Record<
       validations.push({ level: 'error', code: 'target_readback_failed', message: error instanceof Error ? error.message : 'Target readback failed' });
     }
   }
-  if (valuesEqual(input.beforeValue, input.requestedValue) || valuesEqual(currentValue, input.requestedValue)) {
+  if (dataManagementFieldValuesEqual(input.fieldName, input.beforeValue, input.requestedValue)
+    || dataManagementFieldValuesEqual(input.fieldName, currentValue, input.requestedValue)) {
     validations.push({ level: 'error', code: 'no_change', message: '변경 전후 값이 같습니다.' });
   }
   const canSubmit = !validations.some((item) => item.level === 'error');
   const readback = {
     current_value: currentValue,
-    matches_before_value: input.beforeValue === undefined || input.beforeValue === null ? null : valuesEqual(currentValue, input.beforeValue),
-    stale: input.beforeValue === undefined || input.beforeValue === null ? null : !valuesEqual(currentValue, input.beforeValue),
+    matches_before_value: input.beforeValue === undefined || input.beforeValue === null ? null : dataManagementFieldValuesEqual(input.fieldName, currentValue, input.beforeValue),
+    stale: input.beforeValue === undefined || input.beforeValue === null ? null : !dataManagementFieldValuesEqual(input.fieldName, currentValue, input.beforeValue),
     current_revision_hash: currentRevisionHash || null,
   };
   return jsonResponse({ ok: true, data: {
@@ -12219,7 +12337,7 @@ async function callDataManagementPreviewTableCell(ctx: Context, payload: Record<
       label: dataManagementFieldLabel(input.fieldName),
       before_value: input.beforeValue,
       requested_value: input.requestedValue,
-      changed: !valuesEqual(input.beforeValue, input.requestedValue),
+      changed: !dataManagementFieldValuesEqual(input.fieldName, input.beforeValue, input.requestedValue),
     },
     target: {
       target_table: input.targetTable,
@@ -12276,19 +12394,32 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
   }
   const currentValue = row[cell.fieldName];
   const currentRevisionHash = await dataManagementRevisionHash(row);
-  const currentMatchesRequested = valuesEqual(currentValue, input.requestedValue);
-  const clientSawChangedValue = input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(input.beforeValue, input.requestedValue);
+  const resolvedViewEdit = payload.resolved_view_edit === true;
+  const clientBeforeValue = firstPresent(payload.client_before_value, payload.clientBeforeValue);
+  const observedBeforeValue = clientBeforeValue !== undefined && clientBeforeValue !== null ? clientBeforeValue : input.beforeValue;
+  const currentMatchesRequested = dataManagementFieldValuesEqual(input.fieldName, currentValue, input.requestedValue);
+  const clientSawChangedValue = observedBeforeValue !== undefined && observedBeforeValue !== null
+    && !dataManagementFieldValuesEqual(input.fieldName, observedBeforeValue, input.requestedValue);
   const alreadyCurrent = currentMatchesRequested && clientSawChangedValue;
-  if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(currentValue, input.beforeValue) && !currentMatchesRequested) {
+  const staleValue = resolvedViewEdit
+    ? clientBeforeValue !== undefined && clientBeforeValue !== null
+      && !dataManagementFieldValuesEqual(input.fieldName, input.beforeValue, clientBeforeValue)
+    : input.beforeValue !== undefined && input.beforeValue !== null
+      && !dataManagementFieldValuesEqual(input.fieldName, currentValue, input.beforeValue)
+      && !currentMatchesRequested;
+  if (staleValue) {
     return fail(409, 'Stale value blocked before submit', ctx.origin, { current_value: currentValue });
   }
   const requestedRevisionHash = safeText(payload.revision_hash || payload.revisionHash);
   const requestedViewRevisionHash = safeText(payload.view_revision_hash || payload.viewRevisionHash);
-  if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash) {
+  const staleRevision = resolvedViewEdit
+    ? Boolean(requestedRevisionHash && requestedRevisionHash !== requestedViewRevisionHash)
+    : Boolean(requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash);
+  if (staleRevision) {
     return fail(409, 'Stale row revision blocked before submit', ctx.origin, { current_revision_hash: currentRevisionHash });
   }
   if (currentMatchesRequested && !clientSawChangedValue) return fail(400, '변경된 값이 없습니다. 표에서 값을 수정한 뒤 다시 요청해 주세요.', ctx.origin);
-  const beforeValue = input.beforeValue === undefined || input.beforeValue === null ? currentValue : input.beforeValue;
+  const beforeValue = currentValue;
   const cellEdit = {
     target_table: input.targetTable,
     primary_key_field: input.primaryKeyField,
@@ -12317,7 +12448,7 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
       target_row_id: input.targetRowId,
       field_name: input.fieldName,
       submit_readback_value: currentValue,
-      stale_at_submit: !valuesEqual(currentValue, beforeValue),
+      stale_at_submit: !dataManagementFieldValuesEqual(input.fieldName, currentValue, beforeValue),
       already_current: alreadyCurrent || undefined,
     }],
     cell_edits: autoWriteCapable ? [cellEdit] : [],
@@ -12482,23 +12613,33 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       revisionHashCache.set(targetRowCacheKey, currentRevisionHash);
     }
     const effectiveBeforeValue = clientBeforeValue !== undefined && clientBeforeValue !== null ? clientBeforeValue : input.beforeValue;
-    if (effectiveBeforeValue !== undefined && effectiveBeforeValue !== null && !valuesEqual(currentValue, effectiveBeforeValue) && !valuesEqual(currentValue, input.requestedValue)) {
+    const resolvedViewEdit = tablePayload.resolved_view_edit === true;
+    const staleValue = resolvedViewEdit
+      ? effectiveBeforeValue !== undefined && effectiveBeforeValue !== null
+        && !dataManagementFieldValuesEqual(input.fieldName, input.beforeValue, effectiveBeforeValue)
+      : effectiveBeforeValue !== undefined && effectiveBeforeValue !== null
+        && !dataManagementFieldValuesEqual(input.fieldName, currentValue, effectiveBeforeValue)
+        && !dataManagementFieldValuesEqual(input.fieldName, currentValue, input.requestedValue);
+    if (staleValue) {
       return fail(409, 'Stale value blocked before submit', ctx.origin, { field_name: input.fieldName, current_value: currentValue });
     }
     const requestedRevisionHash = safeText(tablePayload.revision_hash || tablePayload.revisionHash);
     const requestedViewRevisionHash = safeText(tablePayload.view_revision_hash || tablePayload.viewRevisionHash);
-    if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash) {
+    const staleRevision = resolvedViewEdit
+      ? Boolean(requestedRevisionHash && requestedRevisionHash !== requestedViewRevisionHash)
+      : Boolean(requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash);
+    if (staleRevision) {
       return fail(409, 'Stale row revision blocked before submit', ctx.origin, { field_name: input.fieldName, current_revision_hash: currentRevisionHash });
     }
-    if (valuesEqual(currentValue, input.requestedValue)) {
-      if (effectiveBeforeValue !== undefined && effectiveBeforeValue !== null && !valuesEqual(effectiveBeforeValue, input.requestedValue)) {
+    if (dataManagementFieldValuesEqual(input.fieldName, currentValue, input.requestedValue)) {
+      if (effectiveBeforeValue !== undefined && effectiveBeforeValue !== null && !dataManagementFieldValuesEqual(input.fieldName, effectiveBeforeValue, input.requestedValue)) {
         alreadyCurrentCount += 1;
         cellEdits.push({
           target_table: input.targetTable,
           primary_key_field: input.primaryKeyField,
           target_row_id: input.targetRowId,
           field_name: input.fieldName,
-          before_value: effectiveBeforeValue,
+          before_value: currentValue,
           after_value: input.requestedValue,
           asset_id: tablePayload.asset_id || tablePayload.assetId || row.asset_id || row.assetId || null,
           asset_name: tablePayload.asset_name || tablePayload.assetName || row.asset_name || row.assetName || null,
@@ -12519,7 +12660,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       }
       continue;
     }
-    const beforeValue = effectiveBeforeValue === undefined || effectiveBeforeValue === null ? currentValue : effectiveBeforeValue;
+    const beforeValue = currentValue;
     cellEdits.push({
       target_table: input.targetTable,
       primary_key_field: input.primaryKeyField,
@@ -12537,7 +12678,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       target_row_id: input.targetRowId,
       field_name: input.fieldName,
       submit_readback_value: currentValue,
-      stale_at_submit: !valuesEqual(currentValue, beforeValue),
+      stale_at_submit: !dataManagementFieldValuesEqual(input.fieldName, currentValue, beforeValue),
       current_revision_hash: currentRevisionHash,
     });
     labels.push(safeText(tablePayload.target_name || tablePayload.targetName || dataManagementRowLabelForTable(input.tableName, row)));
@@ -16232,7 +16373,11 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
   if (runningError) return fail(500, 'Failed to mark edit request as running', ctx.origin);
   if (!runningRequest) return fail(409, 'Edit request is already being processed or is no longer submitted', ctx.origin);
 
-  const applied: Array<{ cell: ReturnType<typeof normalizeEditCells>[number]; previousValue: unknown }> = [];
+  const applied: Array<{
+    cell: ReturnType<typeof normalizeEditCells>[number];
+    previousValue: unknown;
+    writtenValue: unknown;
+  }> = [];
   const readbacks: Record<string, unknown>[] = [];
   const targetRowCache = new Map<string, Record<string, unknown>>();
   const auditJobs: Array<() => Promise<void>> = [];
@@ -16263,8 +16408,8 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
   try {
     for (const cell of cells) {
       const beforeReadback = await readTargetCellCached(cell);
-      if (!valuesEqual(beforeReadback, cell.beforeValue)) {
-        if (valuesEqual(beforeReadback, cell.afterValue)) {
+      if (!dataManagementFieldValuesEqual(cell.fieldName, beforeReadback, cell.beforeValue)) {
+        if (dataManagementFieldValuesEqual(cell.fieldName, beforeReadback, cell.afterValue)) {
           auditJobs.push(() => writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, beforeReadback, 'already_current', requesterId));
           readbacks.push({
             target_table: cell.targetTable,
@@ -16289,7 +16434,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
         return fail(409, 'Stale value blocked before write', ctx.origin, { cell, readback: beforeReadback });
       }
 
-      if (valuesEqual(beforeReadback, cell.afterValue)) {
+      if (dataManagementFieldValuesEqual(cell.fieldName, beforeReadback, cell.afterValue)) {
         auditJobs.push(() => writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, beforeReadback, 'already_current', requesterId));
         readbacks.push({
           target_table: cell.targetTable,
@@ -16302,11 +16447,12 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
       }
 
       const coerced = coerceDataManagementEditValue(cell, cell.afterValue, beforeReadback);
-      await writeTargetCell(ctx.serviceClient, cell, coerced);
-      applied.push({ cell, previousValue: beforeReadback });
+      await writeTargetCell(ctx.serviceClient, cell, coerced, beforeReadback);
+      applied.push({ cell, previousValue: beforeReadback, writtenValue: coerced });
       patchCachedCell(cell, coerced);
       const afterReadback = await readBackCellAfterWrite(cell);
-      if (!valuesEqual(afterReadback, cell.afterValue) && !valuesEqual(afterReadback, coerced)) {
+      if (!dataManagementFieldValuesEqual(cell.fieldName, afterReadback, cell.afterValue)
+        && !dataManagementFieldValuesEqual(cell.fieldName, afterReadback, coerced)) {
         await rollbackAppliedEdits(ctx.serviceClient, applied);
         await ctx.serviceClient.from('ll_edit_requests').update({
           status: 'readback_failed',
