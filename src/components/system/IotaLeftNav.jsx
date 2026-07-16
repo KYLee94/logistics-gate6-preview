@@ -6,6 +6,7 @@ import {
     getLogisticsPushSubscriptionStatus,
     isLogisticsPushSupported,
     prepareLogisticsPushNotifications,
+    requestLogisticsPushPermission,
     showLogisticsPushSetupConfirmation,
     subscribeLogisticsPushNotifications,
     unsubscribeLogisticsPushNotifications,
@@ -767,6 +768,11 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 setPushEnabled(false);
                 setPushMessage('시스템 알림을 껐습니다.');
             } else {
+                const permission = await requestLogisticsPushPermission();
+                if (permission !== 'granted') {
+                    setPushMessage(permission === 'denied' ? '브라우저 설정에서 시스템 알림 권한을 허용해 주세요.' : '시스템 알림 권한이 허용되지 않았습니다.');
+                    return;
+                }
                 const result = await subscribeLogisticsPushNotifications();
                 if (!result.subscribed) {
                     setPushMessage(result.permission === 'denied' ? '브라우저 설정에서 시스템 알림 권한을 허용해 주세요.' : '시스템 알림 권한이 허용되지 않았습니다.');

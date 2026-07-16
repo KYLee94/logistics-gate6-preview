@@ -503,6 +503,8 @@ test('system push supports Windows and macOS and surfaces every delivered notifi
   assert.match(utility, /showLogisticsPushSetupConfirmation/u);
   assert.match(utility, /Safari/iu);
   assert.match(leftNav, /showLogisticsPushSetupConfirmation/u);
+  assert.match(leftNav, /const permission = await requestLogisticsPushPermission\(\)/u);
+  assert.match(leftNav, /permission !== 'granted'/u);
   assert.match(leftNav, /prepareLogisticsPushNotifications/u);
   assert.match(leftNav, /시스템 알림/u);
   assert.doesNotMatch(leftNav, />Windows 알림</u);
