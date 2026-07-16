@@ -1,8 +1,8 @@
 /* global clients */
 'use strict';
 
-const GENERIC_NOTIFICATION_TITLE = 'IGIS Logistics Leasing';
-const GENERIC_NOTIFICATION_BODY = 'A new notification is ready. Open the app to view it.';
+const GENERIC_NOTIFICATION_TITLE = 'IGIS Logistics Platform';
+const GENERIC_NOTIFICATION_BODY = '새 알림이 있습니다. 플랫폼에서 내용을 확인해 주세요.';
 
 function readPushPayload(event) {
   if (!event.data) return {};
