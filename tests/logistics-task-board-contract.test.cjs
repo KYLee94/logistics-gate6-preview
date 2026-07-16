@@ -508,6 +508,7 @@ test('system push supports Windows and macOS and surfaces every delivered notifi
   assert.match(leftNav, /prepareLogisticsPushNotifications/u);
   assert.match(leftNav, /시스템 알림/u);
   assert.doesNotMatch(leftNav, />Windows 알림</u);
+  assert.doesNotMatch(fs.readFileSync(EDGE_PATH, 'utf8'), /Windows notifications/u);
   assert.match(leftNav, /status\.subscribed && status\.permission === 'granted'/u);
   assert.match(worker, /IGIS Logistics Platform/u);
   assert.match(pushEdge, /notification_id:\s*taskShare\.notification_id/u);

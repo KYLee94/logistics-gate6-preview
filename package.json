@@ -99,6 +99,7 @@
     "qa:access-ui:refresh-stability": "node scripts/qa/logistics-access-modal-refresh-stability.cjs",
     "qa:feature-access:save-readback": "node scripts/qa/logistics-feature-access-save-readback.cjs",
     "qa:notifications:readback": "node scripts/qa/logistics-notification-readback.cjs",
+    "qa:notifications:system-live": "node scripts/qa/logistics-system-push-live-smoke.cjs",
     "qa:auth-permission-matrix": "node scripts/qa/logistics-auth-permission-matrix.cjs",
     "qa:logistics-permission-live-readback": "node scripts/qa/logistics-permission-live-readback.cjs",
     "test:auth-permission:unit": "node --test tests/logistics-permission-manifest.test.cjs",

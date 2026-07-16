@@ -17213,8 +17213,8 @@ async function pushNotificationConfig(ctx: Context) {
   const { data, error } = await ctx.serviceClient.rpc('ll_web_push_runtime_config');
   const config = Array.isArray(data) ? data[0] : data;
   const publicKey = safeText(config?.public_key);
-  if (error) return fail(503, 'Windows notifications are not configured', ctx.origin, { code: 'push_config_read_failed' });
-  if (!publicKey) return fail(503, 'Windows notifications are not configured', ctx.origin, { code: 'push_not_configured' });
+  if (error) return fail(503, '시스템 알림 설정을 확인하지 못했습니다.', ctx.origin, { code: 'push_config_read_failed' });
+  if (!publicKey) return fail(503, '시스템 알림이 아직 설정되지 않았습니다.', ctx.origin, { code: 'push_not_configured' });
   return jsonResponse({ ok: true, data: { public_key: publicKey } }, 200, ctx.origin);
 }
 
@@ -17242,7 +17242,7 @@ async function subscribePushNotifications(ctx: Context, payload: Record<string, 
     .select('user_id')
     .eq('endpoint', endpoint)
     .maybeSingle();
-  if (existing.error) return fail(500, 'Failed to check Windows notification subscription owner', ctx.origin);
+  if (existing.error) return fail(500, '시스템 알림 구독 정보를 확인하지 못했습니다.', ctx.origin);
   if (existing.data && safeText(existing.data.user_id) !== ctx.user.id) {
     return fail(409, 'This browser push subscription belongs to another user', ctx.origin);
   }
@@ -17253,7 +17253,7 @@ async function subscribePushNotifications(ctx: Context, payload: Record<string, 
       .update(row)
       .eq('endpoint', endpoint)
       .eq('user_id', ctx.user.id);
-    if (error) return fail(500, 'Failed to save Windows notification subscription', ctx.origin);
+    if (error) return fail(500, '시스템 알림 구독 정보를 저장하지 못했습니다.', ctx.origin);
   } else {
     const { error } = await ctx.serviceClient.from('ll_notification_subscriptions').insert(row);
     if (error) {
@@ -17263,7 +17263,7 @@ async function subscribePushNotifications(ctx: Context, payload: Record<string, 
         .select('user_id')
         .eq('endpoint', endpoint)
         .maybeSingle();
-      if (owner.error) return fail(500, 'Failed to check Windows notification subscription owner', ctx.origin);
+      if (owner.error) return fail(500, '시스템 알림 구독 정보를 확인하지 못했습니다.', ctx.origin);
       if (!owner.data) return fail(500, 'Push subscription conflict could not be resolved', ctx.origin);
       if (safeText(owner.data.user_id) !== ctx.user.id) {
         return fail(409, 'This browser push subscription belongs to another user', ctx.origin);
@@ -17273,7 +17273,7 @@ async function subscribePushNotifications(ctx: Context, payload: Record<string, 
         .update(row)
         .eq('endpoint', endpoint)
         .eq('user_id', ctx.user.id);
-      if (updateError) return fail(500, 'Failed to save Windows notification subscription', ctx.origin);
+      if (updateError) return fail(500, '시스템 알림 구독 정보를 저장하지 못했습니다.', ctx.origin);
     }
   }
   return jsonResponse({ ok: true, data: { subscribed: true } }, 200, ctx.origin);
@@ -17284,7 +17284,7 @@ async function unsubscribePushNotifications(ctx: Context, payload: Record<string
   let query = ctx.serviceClient.from('ll_notification_subscriptions').delete().eq('user_id', ctx.user.id);
   if (endpoint) query = query.eq('endpoint', endpoint);
   const { error } = await query;
-  if (error) return fail(500, 'Failed to remove Windows notification subscription', ctx.origin);
+  if (error) return fail(500, '시스템 알림 구독 정보를 해제하지 못했습니다.', ctx.origin);
   return jsonResponse({ ok: true, data: { subscribed: false } }, 200, ctx.origin);
 }
 
