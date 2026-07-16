@@ -7782,6 +7782,168 @@ export function AssetSpecDashboard() {
 
 const MANAGEMENT_ALL_OPTION = '전체';
 
+function DataManagementBundleSelector({ value, bundles, onChange }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const triggerRef = useRef(null);
+  const optionRefs = useRef([]);
+  const options = useMemo(() => [
+    {
+      bundle_key: MANAGEMENT_ALL_OPTION,
+      fundLabel: '전체 자산·펀드',
+      assetLabel: '',
+      isAll: true,
+    },
+    ...bundles.map((bundle) => {
+      const fund = bundle?.fund || {};
+      const asset = bundle?.asset || {};
+      return {
+        ...bundle,
+        fundLabel: text(firstText(fund?.short_name, fund?.fund_name, fund?.fund_code, fund?.label, bundle?.selection_label), '-'),
+        assetLabel: text(firstText(asset?.asset_name, asset?.asset_code, asset?.label), '-'),
+      };
+    }),
+  ], [bundles]);
+  const selectedIndex = Math.max(options.findIndex((option) => option.bundle_key === value), 0);
+  const selectedOption = options[selectedIndex] || options[0];
+
+  const focusOption = useCallback((index) => {
+    const nextIndex = Math.max(0, Math.min(index, options.length - 1));
+    setOpen(true);
+    window.requestAnimationFrame(() => optionRefs.current[nextIndex]?.focus());
+  }, [options.length]);
+
+  const selectOption = useCallback((option) => {
+    onChange(option.bundle_key);
+    setOpen(false);
+    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  }, [onChange]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointerDown = (event) => {
+      if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [open]);
+
+  const handleTriggerKeyDown = (event) => {
+    if (event.key === 'Escape') {
+      setOpen(false);
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusOption(open ? selectedIndex + 1 : selectedIndex);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusOption(open ? selectedIndex - 1 : selectedIndex);
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      focusOption(0);
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      focusOption(options.length - 1);
+    }
+  };
+
+  const handleOptionKeyDown = (event, index, option) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusOption(index + 1);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusOption(index - 1);
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      focusOption(0);
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      focusOption(options.length - 1);
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectOption(option);
+    }
+  };
+
+  return (
+    <div ref={rootRef} className="relative mt-2" data-testid="data-management-bundle-selector">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={handleTriggerKeyDown}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls="data-management-bundle-listbox"
+        data-testid="data-management-bundle-trigger"
+        className="grid h-10 w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_14px] items-center gap-3 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-left text-[13px] outline-none focus:border-[#8E8E93]"
+      >
+        <span className="truncate font-semibold text-white">{selectedOption?.fundLabel || '전체 자산·펀드'}</span>
+        <span className="truncate text-[#A1A1AA]">{selectedOption?.assetLabel}</span>
+        <span aria-hidden="true" className={`text-center text-[11px] text-[#A1A1AA] transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▼</span>
+      </button>
+      {open ? (
+        <div
+          id="data-management-bundle-listbox"
+          role="listbox"
+          aria-label="자산과 펀드 선택"
+          className="custom-scrollbar absolute left-0 right-0 z-50 mt-2 max-h-80 overflow-auto rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] py-1 shadow-[0_18px_50px_rgba(0,0,0,0.45)]"
+          data-testid="data-management-bundle-listbox"
+        >
+          <div className="grid grid-cols-2 gap-3 border-b border-[#333333] px-3 py-2 text-left text-[11px] font-semibold text-[#8E8E93]" role="presentation">
+            <span>펀드 약칭</span>
+            <span>자산</span>
+          </div>
+          {options.map((option, index) => (
+            <div
+              key={option.bundle_key}
+              ref={(element) => { optionRefs.current[index] = element; }}
+              role="option"
+              aria-selected={option.bundle_key === value}
+              tabIndex={index === selectedIndex ? 0 : -1}
+              onClick={() => selectOption(option)}
+              onKeyDown={(event) => handleOptionKeyDown(event, index, option)}
+              data-testid={option.isAll ? 'data-management-bundle-option-all' : `data-management-bundle-option-${option.bundle_key}`}
+              className={`grid cursor-pointer grid-cols-2 gap-3 px-3 py-2 text-left text-[12px] outline-none ${option.bundle_key === value ? 'bg-[#243044] text-white' : 'text-[#E5E5E5] hover:bg-[#2A2A29] focus:bg-[#2A2A29]'}`}
+            >
+              {option.isAll ? (
+                <span className="col-span-2 truncate text-left font-semibold">{option.fundLabel}</span>
+              ) : (
+                <>
+                  <span className="truncate text-left font-semibold">{option.fundLabel}</span>
+                  <span className="truncate text-left text-[#C7C7CC]">{option.assetLabel}</span>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function DataManagementApprovalDashboard() {
   const { loading, error, data, reload, loadingStage, loadingTrace } = useEdgeData('data-management/status', { limit: 120, row_limit: 20 });
   const [selectedRequestId, setSelectedRequestId] = useState('');
@@ -7794,6 +7956,14 @@ function DataManagementApprovalDashboard() {
     || row?.status === 'submitted'
     || row?.status === 'approval_required'
     || row?.write_status === 'approval_required';
+  const approvalTabLabelFor = (row, item = {}) => {
+    const viewKey = text(item?.view_key || row?.request_payload?.view_key, '');
+    if (['investment_integrated', 'fund_master', 'fund_asset_links', 'fund_capital_tranches'].includes(viewKey)) return '투자 데이터';
+    if (viewKey === 'lease_asset_manager_links') return '담당자 데이터';
+    if (['lease_general_excel', 'lease_rent_history_excel', 'lease_contracts', 'lease_attributes', 'lease_space_specs', 'tenant_master'].includes(viewKey)) return '임대차계약 데이터';
+    if (['asset_integrated', 'asset_master', 'asset_specs', 'operating_costs'].includes(viewKey)) return '자산 데이터';
+    return text(item?.tab_label || row?.tab_label, '자산 데이터');
+  };
   const changeItemsFor = (row) => {
     const items = safeArray(row?.change_items);
     if (items.length) return items;
@@ -7803,6 +7973,8 @@ function DataManagementApprovalDashboard() {
         target_name: cell?.asset_name || row?.target_name,
         field_name: cell?.field_name,
         field_label: fieldDisplayLabel(cell?.source_header || cell?.field_name),
+        column_label: fieldDisplayLabel(cell?.view_field_label || cell?.source_header || cell?.field_name),
+        tab_label: approvalTabLabelFor(row, cell),
         before_value: cell?.before_value,
         requested_value: cell?.after_value ?? cell?.requested_value,
       }));
@@ -7811,6 +7983,8 @@ function DataManagementApprovalDashboard() {
       target_name: row?.target_name,
       field_name: row?.field_name,
       field_label: row?.field_label || fieldDisplayLabel(row?.field_name),
+      column_label: row?.column_label || row?.field_label || fieldDisplayLabel(row?.field_name),
+      tab_label: approvalTabLabelFor(row),
       before_value: row?.before_value,
       requested_value: row?.requested_value,
     }];
@@ -7824,6 +7998,19 @@ function DataManagementApprovalDashboard() {
     const items = changeItemsFor(row);
     if (items.length > 1) return `${items.length}개 항목`;
     return text(items[0]?.field_label || row?.field_label || fieldDisplayLabel(items[0]?.field_name || row?.field_name), '-');
+  };
+  const locationSummaryFor = (row) => {
+    const groups = new Map();
+    changeItemsFor(row).forEach((item) => {
+      const tabLabel = text(item?.tab_label, approvalTabLabelFor(row, item));
+      const columnLabel = text(item?.column_label || item?.field_label || fieldDisplayLabel(item?.field_name), '-');
+      const columns = groups.get(tabLabel) || [];
+      if (!columns.includes(columnLabel)) columns.push(columnLabel);
+      groups.set(tabLabel, columns);
+    });
+    return [...groups.entries()]
+      .map(([tabLabel, columns]) => `${tabLabel} · ${columns.join(', ')}`)
+      .join(' / ') || fieldSummaryFor(row);
   };
   const valueSummaryFor = (row, key) => {
     const items = changeItemsFor(row);
@@ -7922,7 +8109,7 @@ function DataManagementApprovalDashboard() {
           <table className="w-full min-w-[1120px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
             <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[#A1A1AA]">
               <tr>
-                {['요청 대상', '요청자', '변경 항목', '변경 전', '변경 후', '상태', '요청일', '처리'].map((header) => (
+                {['요청 대상', '요청자', '변경 위치', '변경 전', '변경 후', '상태', '요청일', '처리'].map((header) => (
                   <th key={`approval-head-${header}`} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">{header}</th>
                 ))}
               </tr>
@@ -7959,7 +8146,7 @@ function DataManagementApprovalDashboard() {
                         </div>
                       </div>
                     </td>
-                    <td className="border-r border-[#242426] px-3 py-2" title={fieldSummaryFor(row)}>{fieldSummaryFor(row)}</td>
+                    <td className="max-w-[360px] whitespace-normal break-keep border-r border-[#242426] px-3 py-2 leading-5" title={locationSummaryFor(row)}>{locationSummaryFor(row)}</td>
                     <td className="max-w-[260px] truncate border-r border-[#242426] px-3 py-2 text-[#C7C7CC]" title={valueSummaryFor(row, 'before_value')}>{valueSummaryFor(row, 'before_value') || '-'}</td>
                     <td className="max-w-[260px] truncate border-r border-[#242426] px-3 py-2 font-semibold text-[#B5E48C]" title={valueSummaryFor(row, 'requested_value')}>{valueSummaryFor(row, 'requested_value') || '-'}</td>
                     <td className="border-r border-[#242426] px-3 py-2">{statusLabelFor(row)}</td>
@@ -8023,7 +8210,7 @@ function DataManagementApprovalDashboard() {
               <table className="w-full min-w-[900px] border-separate text-left" style={{ borderSpacing: 0 }}>
                 <thead className="sticky top-0 z-10 bg-[#1F1F1E] text-[#A1A1AA]">
                   <tr>
-                    {['항목', '변경 전', '변경 후'].map((header) => (
+                    {['데이터 탭', '컬럼', '변경 전', '변경 후'].map((header) => (
                       <th key={`approval-detail-${header}`} className="border-b border-r border-[#333333] px-3 py-2 text-[12px] font-semibold">{header}</th>
                     ))}
                   </tr>
@@ -8031,7 +8218,8 @@ function DataManagementApprovalDashboard() {
                 <tbody className="divide-y divide-[#303033]">
                   {changeItemsFor(detailRequest).map((item, index) => (
                     <tr key={`approval-detail-row-${index}`} className="bg-[#171717]">
-                      <td className="border-r border-[#242426] px-3 py-3 font-semibold text-white">{text(item.field_label || fieldDisplayLabel(item.field_name), '-')}</td>
+                      <td className="border-r border-[#242426] px-3 py-3 font-semibold text-white">{text(item.tab_label, approvalTabLabelFor(detailRequest, item))}</td>
+                      <td className="border-r border-[#242426] px-3 py-3 font-semibold text-white">{text(item.column_label || item.field_label || fieldDisplayLabel(item.field_name), '-')}</td>
                       <td className="border-r border-[#242426] px-3 py-3 text-[#C7C7CC]">{approvalValue(item.before_value, item.field_name) || '-'}</td>
                       <td className="border-r border-[#242426] px-3 py-3 font-semibold text-[#B5E48C]">{approvalValue(item.requested_value, item.field_name) || '-'}</td>
                     </tr>
@@ -9208,15 +9396,14 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
             </label>
           ) : null}
           {activeTabConfig.showBundle ? (
-            <label className="text-[12px] font-semibold text-[#A1A1AA]">
-              자산·펀드 선택
-              <select value={bundleKey} onChange={(event) => { setBundleKey(event.target.value); setPage(1); setSelectedRowKey(''); }} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]">
-                <option value={MANAGEMENT_ALL_OPTION}>전체 자산·펀드</option>
-                {bundles.map((bundle) => (
-                  <option key={bundle.bundle_key} value={bundle.bundle_key}>{bundle.selection_label}</option>
-                ))}
-              </select>
-            </label>
+            <div className="text-[12px] font-semibold text-[#A1A1AA]">
+              <div>자산·펀드 선택</div>
+              <DataManagementBundleSelector
+                value={bundleKey}
+                bundles={bundles}
+                onChange={(nextKey) => { setBundleKey(nextKey); setPage(1); setSelectedRowKey(''); }}
+              />
+            </div>
           ) : null}
           <label className="relative text-[12px] font-semibold text-[#A1A1AA]">
             검색

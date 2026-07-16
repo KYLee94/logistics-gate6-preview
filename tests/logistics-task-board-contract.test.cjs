@@ -514,6 +514,9 @@ test('system push supports Windows and macOS and surfaces every delivered notifi
 test('system push database gateway tolerates Edge cold starts', () => {
   const migrations = walkFiles(MIGRATIONS_PATH)
     .map((filePath) => ({ filePath, source: fs.readFileSync(filePath, 'utf8') }))
-    .filter(({ source }) => /ll_queue_web_push_notification/iu.test(source) && /timeout_milliseconds\s*:=\s*10000/iu.test(source));
-  assert.equal(migrations.length, 1, 'one follow-up migration must raise the push gateway timeout to 10 seconds');
+    .filter(({ source }) => /ll_queue_web_push_notification/iu.test(source))
+    .sort((left, right) => left.filePath.localeCompare(right.filePath));
+  const latestMigration = migrations.at(-1);
+  assert.ok(latestMigration, 'a web push trigger migration must exist');
+  assert.match(latestMigration.source, /timeout_milliseconds\s*:=\s*10000/iu);
 });

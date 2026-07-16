@@ -36,6 +36,7 @@ type PushRuntimeConfig = {
 };
 
 const encoder = new TextEncoder();
+const BUSINESS_NOTIFICATION_TYPES = ['task_share', 'data_update', 'lease_maturity', 'loan_maturity', 'system'];
 
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -106,9 +107,10 @@ Deno.serve(async (request) => {
 
   const { data: notification, error: notificationError } = await serviceClient
     .from('ll_notifications')
-    .select('notification_id,recipient_user_id,notification_type,title,body,payload')
+    .select('notification_id,recipient_user_id,notification_type,title,body,payload,delivery_status')
     .eq('notification_id', notificationId)
-    .eq('notification_type', 'task_share')
+    .in('notification_type', BUSINESS_NOTIFICATION_TYPES)
+    .neq('delivery_status', 'dismissed')
     .maybeSingle();
   if (notificationError) return json(500, { error: 'notification_read_failed' });
   if (!notification) return json(202, { ok: true, ignored: true });

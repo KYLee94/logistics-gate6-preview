@@ -34,7 +34,7 @@ const forbiddenVisibleLabels = [
 
 const checks = [
   ['dashboard_visible_items_korean', /label:\s*'대시보드 홈'/u.test(dashboardItemsBlock) && /label:\s*'자산'/u.test(dashboardItemsBlock) && /label:\s*'기업'/u.test(dashboardItemsBlock)],
-  ['market_visible_items_korean', /label:\s*'시장 개요'/u.test(marketItemsBlock) && /label:\s*'임대 시장'/u.test(marketItemsBlock) && /label:\s*'공급 예정'/u.test(marketItemsBlock) && /label:\s*'업데이트'/u.test(marketItemsBlock)],
+  ['market_visible_items_korean', /label:\s*'시장 데이터 홈'/u.test(marketItemsBlock) && /label:\s*'임대 시장'/u.test(marketItemsBlock) && /label:\s*'공급 예정'/u.test(marketItemsBlock) && /label:\s*'업데이트'/u.test(marketItemsBlock)],
   ['data_management_visible_items_korean', /label:\s*'자산 데이터'/u.test(dataManagementItemsBlock) && /label:\s*'투자 데이터'/u.test(dataManagementItemsBlock) && /label:\s*'임대차계약 데이터'/u.test(dataManagementItemsBlock) && /label:\s*'담당자 데이터'/u.test(dataManagementItemsBlock) && /label:\s*'데이터 품질'/u.test(dataManagementItemsBlock)],
   ['nav_items_no_english_primary_labels', forbiddenVisibleLabels.every((pattern) => !pattern.test(dashboardItemsBlock) && !pattern.test(marketItemsBlock) && !pattern.test(dataManagementItemsBlock))],
   ['data_quality_under_data_management', /data-management\/data-quality/u.test(dataManagementItemsBlock) && !/dashboard\/quality/u.test(dashboardItemsBlock)],

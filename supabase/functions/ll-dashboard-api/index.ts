@@ -3706,6 +3706,9 @@ function normalizeEditCells(record: Record<string, unknown>) {
       sourceSheet: String(firstDefined(cell.source_sheet, cell.sourceSheet, '')),
       sourceColumnLetter: String(firstDefined(cell.source_column_letter, cell.sourceColumnLetter, '')),
       sourceHeader: String(firstDefined(cell.source_header, cell.sourceHeader, '')),
+      viewKey: String(firstDefined(cell.view_key, cell.viewKey, requestPayload.view_key, requestPayload.viewKey, '')),
+      viewFieldKey: String(firstDefined(cell.view_field_key, cell.viewFieldKey, requestPayload.field_key, requestPayload.fieldKey, '')),
+      viewFieldLabel: String(firstDefined(cell.view_field_label, cell.viewFieldLabel, '')),
     };
   });
 }
@@ -4927,6 +4930,33 @@ function notificationPublicBusinessText(value: unknown, fallback = '업무 알�
   return text;
 }
 
+function editRequestNotificationRoute(_row: Record<string, unknown>) {
+  return 'data-management/approval';
+}
+
+function notificationPublicPayload(value: unknown, row: Record<string, unknown> = {}) {
+  const payload = parseJsonValue(value, {}) as Record<string, unknown>;
+  let route = safeText(firstDefined(payload.route, payload.path));
+  route = route
+    .replace(/^https?:\/\/[^/]+/iu, '')
+    .replace(/^\/?logistics-gate6-preview\//u, '')
+    .replace(/^\/+/, '')
+    .split(/[?#]/u)[0];
+  if (!route) {
+    const title = safeText(row.title);
+    const type = safeText(row.notification_type);
+    if (/통합업무보드/u.test(title) || type === 'task_share') route = 'work-platform';
+    else if (/임대차계약/u.test(title) || /lease|rent|contract/iu.test(type)) route = 'data-management/lease-contracts';
+    else if (/데이터 수정 요청/u.test(title) || type === 'data_update') route = 'data-management/approval';
+  }
+  const root = route.split('/')[0];
+  if (!['work-platform', 'dashboard', 'market-data', 'data-management', 'pdf-report'].includes(root)) return {};
+  return stripUndefined({
+    route,
+    task_code: safeText(payload.task_code) || undefined,
+  });
+}
+
 function editRequestBusinessNotification(row: Record<string, unknown>, recipientEmail: string, recipientUserId: string) {
   const requestId = safeText(row.id);
   if (!requestId) return null;
@@ -4955,6 +4985,7 @@ function editRequestBusinessNotification(row: Record<string, unknown>, recipient
     recipient_user_id: recipientUserId || null,
     recipient_email: recipientEmail,
     recipient_name: safeText(firstDefined(row.requested_by_name, row.requested_by_email)) || null,
+    payload: { route: editRequestNotificationRoute(row) },
     delivery_status: 'unread',
     read_at: null,
     dismissed_at: null,
@@ -4977,6 +5008,7 @@ function leaseEventBusinessNotification(row: Record<string, unknown>, recipientE
     recipient_user_id: recipientUserId || null,
     recipient_email: recipientEmail,
     recipient_name: null,
+    payload: { route: 'data-management/lease-contracts' },
     delivery_status: 'unread',
     read_at: null,
     dismissed_at: null,
@@ -5060,7 +5092,7 @@ async function listCanonicalNotifications(ctx: Context, limit: number) {
   if (!email) return [] as Record<string, unknown>[];
   const { data, error } = await ctx.serviceClient
     .from('ll_notifications')
-    .select('notification_id,notification_type,title,body,due_date,lead_days,asset_id,fund_id,recipient_email,delivery_status,read_at,dismissed_at,notified_at')
+    .select('notification_id,notification_type,title,body,due_date,lead_days,asset_id,fund_id,recipient_email,delivery_status,read_at,dismissed_at,notified_at,payload')
     .eq('recipient_email', email)
     .neq('delivery_status', 'dismissed')
     .order('notified_at', { ascending: false })
@@ -5082,7 +5114,7 @@ async function listCanonicalNotifications(ctx: Context, limit: number) {
       delivery_status: safeText(row.delivery_status),
       read_at: safeText(row.read_at),
       created_at: safeText(row.notified_at),
-      payload: {},
+      payload: notificationPublicPayload(row.payload, row),
     };
   });
 }
@@ -12421,6 +12453,11 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
   }
   if (currentMatchesRequested && !clientSawChangedValue) return fail(400, '변경된 값이 없습니다. 표에서 값을 수정한 뒤 다시 요청해 주세요.', ctx.origin);
   const beforeValue = currentValue;
+  const requestViewKey = safeText(payload.view_key || payload.viewKey);
+  const requestViewFieldKey = safeText(payload.field_key || payload.fieldKey);
+  const requestViewField = requestViewKey && requestViewFieldKey
+    ? dataManagementViewFieldFor(requestViewKey, requestViewFieldKey)
+    : undefined;
   const cellEdit = {
     target_table: input.targetTable,
     primary_key_field: input.primaryKeyField,
@@ -12432,6 +12469,9 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
     asset_name: payload.asset_name || payload.assetName || row.asset_name || row.assetName || null,
     source_row_id: payload.source_row_id || payload.sourceRowId || null,
     source_header: input.fieldName,
+    view_key: requestViewKey || null,
+    view_field_key: requestViewFieldKey || null,
+    view_field_label: safeText(requestViewField?.label) || null,
     already_current: alreadyCurrent || undefined,
   };
   const requestPayload = redactSensitivePayload({
@@ -12440,6 +12480,8 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
     client_request_id: clientRequestId || null,
     table_key: payload.table_key || payload.tableKey || dataManagementTableKey(input.tableName),
     internal_table: input.targetTable,
+    view_key: requestViewKey || null,
+    field_key: requestViewFieldKey || null,
     bundle_key: payload.bundle_key || payload.bundleKey || null,
     reason: payload.reason || null,
     revision_hash: requestedRevisionHash || null,
@@ -12576,6 +12618,12 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
     if (!dataManagementEditableField(input.targetTable, input.fieldName)) return fail(403, 'This field is not editable through Data Management', ctx.origin);
     const capability = dataManagementCapabilityForTable(input.tableName);
     if (capability !== 'approval_required') return fail(400, 'Batch approval supports mapped operational fields only', ctx.origin);
+    const resolvedViewKey = safeText(tablePayload.view_key || tablePayload.viewKey || mergedPayload.view_key || mergedPayload.viewKey);
+    const resolvedViewFieldKey = safeText(tablePayload.field_key || tablePayload.fieldKey || mergedPayload.field_key || mergedPayload.fieldKey);
+    const resolvedViewField = resolvedViewKey && resolvedViewFieldKey
+      ? dataManagementViewFieldFor(resolvedViewKey, resolvedViewFieldKey)
+      : undefined;
+    const resolvedViewFieldLabel = safeText(resolvedViewField?.label);
     const cell = {
       targetTable: input.targetTable,
       primaryKeyField: input.primaryKeyField,
@@ -12596,6 +12644,9 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       sourceSheet: '',
       sourceColumnLetter: '',
       sourceHeader: input.fieldName,
+      viewKey: resolvedViewKey,
+      viewFieldKey: resolvedViewFieldKey,
+      viewFieldLabel: resolvedViewFieldLabel,
     } as ReturnType<typeof normalizeEditCells>[number];
     const validationError = validateEditCell(ctx, cell);
     if (validationError) return fail(400, validationError, ctx.origin);
@@ -12646,6 +12697,9 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
           asset_name: tablePayload.asset_name || tablePayload.assetName || row.asset_name || row.assetName || null,
           source_row_id: tablePayload.source_row_id || tablePayload.sourceRowId || null,
           source_header: input.fieldName,
+          view_key: resolvedViewKey || null,
+          view_field_key: resolvedViewFieldKey || null,
+          view_field_label: resolvedViewFieldLabel || null,
           already_current: true,
         });
         submitReadbacks.push({
@@ -12673,6 +12727,9 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       asset_name: tablePayload.asset_name || tablePayload.assetName || row.asset_name || row.assetName || null,
       source_row_id: tablePayload.source_row_id || tablePayload.sourceRowId || null,
       source_header: input.fieldName,
+      view_key: resolvedViewKey || null,
+      view_field_key: resolvedViewFieldKey || null,
+      view_field_label: resolvedViewFieldLabel || null,
     });
     submitReadbacks.push({
       target_table: input.targetTable,
@@ -12901,18 +12958,98 @@ function editRequestStatusLabel(row: Record<string, unknown>) {
   return '상태 확인 필요';
 }
 
+const DATA_MANAGEMENT_APPROVAL_TAB_BY_VIEW_KEY: Record<string, { key: string; label: string }> = {
+  asset_integrated: { key: 'asset', label: '자산 데이터' },
+  asset_master: { key: 'asset', label: '자산 데이터' },
+  asset_specs: { key: 'asset', label: '자산 데이터' },
+  operating_costs: { key: 'asset', label: '자산 데이터' },
+  investment_integrated: { key: 'investment', label: '투자 데이터' },
+  fund_master: { key: 'investment', label: '투자 데이터' },
+  fund_asset_links: { key: 'investment', label: '투자 데이터' },
+  fund_capital_tranches: { key: 'investment', label: '투자 데이터' },
+  lease_general_excel: { key: 'lease', label: '임대차계약 데이터' },
+  lease_rent_history_excel: { key: 'lease', label: '임대차계약 데이터' },
+  lease_contracts: { key: 'lease', label: '임대차계약 데이터' },
+  lease_attributes: { key: 'lease', label: '임대차계약 데이터' },
+  lease_space_specs: { key: 'lease', label: '임대차계약 데이터' },
+  tenant_master: { key: 'lease', label: '임대차계약 데이터' },
+  lease_asset_manager_links: { key: 'managers', label: '담당자 데이터' },
+};
+
+function dataManagementApprovalTabMeta(row: Record<string, unknown>, cell: NormalizedEditCell) {
+  const payload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
+  const viewKey = safeText(firstDefined(cell.viewKey, payload.view_key, payload.viewKey));
+  const mappedView = DATA_MANAGEMENT_APPROVAL_TAB_BY_VIEW_KEY[viewKey];
+  if (mappedView) return mappedView;
+
+  const targetTable = normalizePublicLlTable(firstDefined(cell.targetTable, row.source_table));
+  const reasonSignal = normalizeKey([
+    row.target_type,
+    row.reason_code,
+    payload.kind,
+    payload.source_domain,
+    payload.sourceDomain,
+  ].map((value) => safeText(value)).join(' '));
+  if (reasonSignal.includes('manager') || reasonSignal.includes('permission') || reasonSignal.includes('staff')) {
+    return { key: 'managers', label: '담당자 데이터' };
+  }
+  if (reasonSignal.includes('fund') || reasonSignal.includes('investment') || reasonSignal.includes('tranche')) {
+    return { key: 'investment', label: '투자 데이터' };
+  }
+  if (reasonSignal.includes('lease') || reasonSignal.includes('tenant') || reasonSignal.includes('rent')) {
+    return { key: 'lease', label: '임대차계약 데이터' };
+  }
+  if (['public.ll_funds', 'public.ll_fund_asset_links', 'public.ll_fund_capital_tranches'].includes(targetTable)) {
+    return { key: 'investment', label: '투자 데이터' };
+  }
+  if (['public.ll_leases', 'public.ll_lease_spaces', 'public.ll_lease_attributes', 'public.ll_rent_history', 'public.ll_tenants'].includes(targetTable)) {
+    return { key: 'lease', label: '임대차계약 데이터' };
+  }
+  if (['public.ll_staff_profiles', 'public.ll_user_permissions'].includes(targetTable)) {
+    return { key: 'managers', label: '담당자 데이터' };
+  }
+  return { key: 'asset', label: '자산 데이터' };
+}
+
+function dataManagementApprovalColumnLabel(row: Record<string, unknown>, cell: NormalizedEditCell) {
+  const explicitLabel = safeText(cell.viewFieldLabel);
+  if (explicitLabel) return explicitLabel;
+  const payload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
+  const viewKey = safeText(firstDefined(cell.viewKey, payload.view_key, payload.viewKey));
+  const viewFieldKey = safeText(firstDefined(cell.viewFieldKey, payload.field_key, payload.fieldKey));
+  const fields = viewKey ? dataManagementFieldsForViewKey(viewKey) as Record<string, unknown>[] : [];
+  const exactViewField = viewFieldKey
+    ? fields.find((field) => safeText(field.field_key) === viewFieldKey)
+    : undefined;
+  const targetTable = normalizePublicLlTable(cell.targetTable);
+  const targetField = safeText(cell.fieldName);
+  const matchingTargetField = fields.find((field) => (
+    normalizePublicLlTable(field.target_table) === targetTable
+    && safeText(field.target_field || field.field_key) === targetField
+  ));
+  return safeText(firstDefined(
+    exactViewField?.label,
+    matchingTargetField?.label,
+    dataManagementFieldLabel(cell.sourceHeader),
+    dataManagementFieldLabel(cell.fieldName),
+    cell.fieldName,
+  ));
+}
+
 function editRequestChangeItems(row: Record<string, unknown>) {
   return normalizeEditCells(row).map((cell, index) => {
-    const sourceHeaderLabel = dataManagementFieldLabel(cell.sourceHeader);
-    const fieldNameLabel = dataManagementFieldLabel(cell.fieldName);
+    const tabMeta = dataManagementApprovalTabMeta(row, cell);
+    const columnLabel = dataManagementApprovalColumnLabel(row, cell);
     return stripUndefined({
       index: index + 1,
       target_name: safeText(firstDefined(cell.assetName, row.target_name)),
       field_name: cell.fieldName,
-      field_label: firstDefined(sourceHeaderLabel, fieldNameLabel, safeText(cell.fieldName)),
+      field_label: columnLabel,
+      column_label: columnLabel,
+      tab_key: tabMeta.key,
+      tab_label: tabMeta.label,
       before_value: cell.beforeValue,
       requested_value: cell.afterValue,
-      source_header: sourceHeaderLabel ? cell.sourceHeader : undefined,
     });
   }) as Record<string, unknown>[];
 }
@@ -16940,7 +17077,7 @@ async function taskBoardNotificationRows(ctx: Context, task: Record<string, unkn
       asset_id: safeText(task.related_asset_id),
       title: '통합업무보드 공유',
       body: `${actorName(ctx)}님이 업무를 공유했습니다.`,
-      payload: { task_code: taskCode, route: `/logistics-gate6-preview/work-platform?task=${encodeURIComponent(taskCode)}` },
+      payload: { task_code: taskCode, route: 'work-platform' },
       recipient_user_id: safeText(profile.user_id),
       recipient_email: normalizeAuthEmail(profile.email),
       recipient_name: safeText(firstDefined(profile.staff_name, staffNameForEmail(profile.email))) || null,

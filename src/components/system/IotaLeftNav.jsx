@@ -132,6 +132,7 @@ const workspaceItems = [
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
 const LOGISTICS_FEATURE_ACCESS_USERS_CACHE_KEY = 'logisticsFeatureAccessUsers:v1';
 const LOGISTICS_LOGIN_HISTORY_CACHE_KEY = 'logisticsLoginHistory:v2';
+const LOGISTICS_NAV_AUTO_COLLAPSE_MS = 60_000;
 const HAYUN_PROFILE_IMAGE_URL = 'hayun-jeong.jpg';
 const LOGISTICS_FEATURES = [
     { key: 'ai_chat', label: 'AI 챗봇', description: '워크 플랫폼 우측 AI 챗봇 열기 및 질문' },
@@ -634,7 +635,7 @@ const featureForLogisticsPath = (path) => {
 };
 const logisticsMarketDataItems = [
     {
-        label: '시장 개요',
+        label: '시장 데이터 홈',
         path: `${LOGISTICS_INTERNAL_BASE}/market-data/overview`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4" /></svg>,
     },
@@ -839,27 +840,56 @@ export default function IotaLeftNav({ currentPath = '' }) {
         const saved = sessionStorage.getItem('isVehicleOpen');
         return saved !== null ? saved === 'true' : false;
     });
-    const [isLogisticsDashboardOpen, setIsLogisticsDashboardOpen] = useState(() => {
-        const saved = sessionStorage.getItem('isLogisticsDashboardOpen');
-        return saved !== null ? saved === 'true' : true;
-    });
-    const [isLogisticsMarketDataOpen, setIsLogisticsMarketDataOpen] = useState(() => {
-        const saved = sessionStorage.getItem('isLogisticsMarketDataOpen');
-        return saved !== null ? saved === 'true' : true;
-    });
-    const [isLogisticsDataManagementOpen, setIsLogisticsDataManagementOpen] = useState(() => {
-        const saved = sessionStorage.getItem('isLogisticsDataManagementOpen');
-        return saved !== null ? saved === 'true' : true;
-    });
+    const [isLogisticsDashboardOpen, setIsLogisticsDashboardOpen] = useState(false);
+    const [isLogisticsMarketDataOpen, setIsLogisticsMarketDataOpen] = useState(false);
+    const [isLogisticsDataManagementOpen, setIsLogisticsDataManagementOpen] = useState(false);
+    const logisticsNavAutoCollapseTimersRef = useRef({});
 
     useEffect(() => { sessionStorage.setItem('iotaLeftNavCollapsed', isCollapsed); }, [isCollapsed]);
     useEffect(() => { sessionStorage.setItem('isWorkspaceOpen', isWorkspaceOpen); }, [isWorkspaceOpen]);
     useEffect(() => { sessionStorage.setItem('isStakeholderOpen', isStakeholderOpen); }, [isStakeholderOpen]);
     useEffect(() => { sessionStorage.setItem('isGovOpen', isGovOpen); }, [isGovOpen]);
     useEffect(() => { sessionStorage.setItem('isVehicleOpen', isVehicleOpen); }, [isVehicleOpen]);
-    useEffect(() => { sessionStorage.setItem('isLogisticsDashboardOpen', isLogisticsDashboardOpen); }, [isLogisticsDashboardOpen]);
-    useEffect(() => { sessionStorage.setItem('isLogisticsMarketDataOpen', isLogisticsMarketDataOpen); }, [isLogisticsMarketDataOpen]);
-    useEffect(() => { sessionStorage.setItem('isLogisticsDataManagementOpen', isLogisticsDataManagementOpen); }, [isLogisticsDataManagementOpen]);
+    const setLogisticsNavGroupOpen = useCallback((group, isOpen) => {
+        if (group === 'dashboard') setIsLogisticsDashboardOpen(isOpen);
+        if (group === 'marketData') setIsLogisticsMarketDataOpen(isOpen);
+        if (group === 'dataManagement') setIsLogisticsDataManagementOpen(isOpen);
+    }, []);
+
+    const clearLogisticsNavAutoCollapseTimer = useCallback((group) => {
+        const timer = logisticsNavAutoCollapseTimersRef.current[group];
+        if (timer) {
+            window.clearTimeout(timer);
+            delete logisticsNavAutoCollapseTimersRef.current[group];
+        }
+    }, []);
+
+    const resetLogisticsNavAutoCollapseTimer = useCallback((group) => {
+        clearLogisticsNavAutoCollapseTimer(group);
+        logisticsNavAutoCollapseTimersRef.current[group] = window.setTimeout(() => {
+            setLogisticsNavGroupOpen(group, false);
+            delete logisticsNavAutoCollapseTimersRef.current[group];
+        }, LOGISTICS_NAV_AUTO_COLLAPSE_MS);
+    }, [clearLogisticsNavAutoCollapseTimer, setLogisticsNavGroupOpen]);
+
+    const handleLogisticsNavGroupInteraction = useCallback((group, isOpen) => {
+        if (isOpen) resetLogisticsNavAutoCollapseTimer(group);
+    }, [resetLogisticsNavAutoCollapseTimer]);
+
+    const toggleLogisticsNavGroup = useCallback((group, isOpen) => {
+        if (isOpen) {
+            clearLogisticsNavAutoCollapseTimer(group);
+            setLogisticsNavGroupOpen(group, false);
+            return;
+        }
+        setLogisticsNavGroupOpen(group, true);
+        resetLogisticsNavAutoCollapseTimer(group);
+    }, [clearLogisticsNavAutoCollapseTimer, resetLogisticsNavAutoCollapseTimer, setLogisticsNavGroupOpen]);
+
+    useEffect(() => () => {
+        Object.values(logisticsNavAutoCollapseTimersRef.current).forEach((timer) => window.clearTimeout(timer));
+        logisticsNavAutoCollapseTimersRef.current = {};
+    }, []);
 
     useEffect(() => {
         if (
@@ -1372,7 +1402,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
                             {renderCollapsedTooltip(logisticsRootItem.label)}
                         </div>
 
-                        <div className="mt-1">
+                        <div
+                            className="mt-1"
+                            onPointerEnter={() => handleLogisticsNavGroupInteraction('dashboard', isLogisticsDashboardOpen)}
+                            onFocusCapture={() => handleLogisticsNavGroupInteraction('dashboard', isLogisticsDashboardOpen)}
+                            onClickCapture={() => handleLogisticsNavGroupInteraction('dashboard', isLogisticsDashboardOpen)}
+                        >
                             <button
                                 type="button"
                                 title={isCollapsed ? '대시보드' : undefined}
@@ -1380,7 +1415,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     if (isCollapsed) {
                                         handleNavigation(`${LOGISTICS_INTERNAL_BASE}/dashboard/home`);
                                     } else {
-                                        setIsLogisticsDashboardOpen((value) => !value);
+                                        toggleLogisticsNavGroup('dashboard', isLogisticsDashboardOpen);
                                     }
                                 }}
                                 className={`group relative flex w-full items-center ${isCollapsed ? 'justify-center' : 'justify-between'} py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isDashboardActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}
@@ -1413,7 +1448,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                 </div>
                             </div>
                         </div>
-                        <div className="mt-1">
+                        <div
+                            className="mt-1"
+                            onPointerEnter={() => handleLogisticsNavGroupInteraction('marketData', isLogisticsMarketDataOpen)}
+                            onFocusCapture={() => handleLogisticsNavGroupInteraction('marketData', isLogisticsMarketDataOpen)}
+                            onClickCapture={() => handleLogisticsNavGroupInteraction('marketData', isLogisticsMarketDataOpen)}
+                        >
                             <button
                                 type="button"
                                 title={isCollapsed ? '시장 데이터' : undefined}
@@ -1421,7 +1461,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     if (isCollapsed) {
                                         handleNavigation(`${LOGISTICS_INTERNAL_BASE}/market-data/overview`);
                                     } else {
-                                        setIsLogisticsMarketDataOpen((value) => !value);
+                                        toggleLogisticsNavGroup('marketData', isLogisticsMarketDataOpen);
                                     }
                                 }}
                                 className={`group relative flex w-full items-center ${isCollapsed ? 'justify-center' : 'justify-between'} py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isMarketDataActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}
@@ -1454,7 +1494,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                 </div>
                             </div>
                         </div>
-                        <div className="mt-1">
+                        <div
+                            className="mt-1"
+                            onPointerEnter={() => handleLogisticsNavGroupInteraction('dataManagement', isLogisticsDataManagementOpen)}
+                            onFocusCapture={() => handleLogisticsNavGroupInteraction('dataManagement', isLogisticsDataManagementOpen)}
+                            onClickCapture={() => handleLogisticsNavGroupInteraction('dataManagement', isLogisticsDataManagementOpen)}
+                        >
                             <button
                                 type="button"
                                 title={isCollapsed ? '데이터 관리' : undefined}
@@ -1462,7 +1507,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     if (isCollapsed) {
                                         handleNavigation(`${LOGISTICS_INTERNAL_BASE}/data-management/lease-contracts`);
                                     } else {
-                                        setIsLogisticsDataManagementOpen((value) => !value);
+                                        toggleLogisticsNavGroup('dataManagement', isLogisticsDataManagementOpen);
                                     }
                                 }}
                                 className={`group relative flex w-full items-center ${isCollapsed ? 'justify-center' : 'justify-between'} py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isDataManagementActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}

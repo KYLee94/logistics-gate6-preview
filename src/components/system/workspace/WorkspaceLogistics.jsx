@@ -97,7 +97,7 @@ const WORK_PLATFORM_QUICK_TAB_OPTIONS = [
   { key: 'company', label: '기업', path: pathFor('dashboard/company') },
   { key: 'investment-index', label: '투자 정보', path: pathFor('dashboard/investment-index') },
   { key: 'asset-spec', label: '자산별 스펙 비교', path: pathFor('dashboard/asset-spec') },
-  { key: 'market-overview', label: '시장 개요', path: pathFor('market-data/overview') },
+  { key: 'market-overview', label: '시장 데이터 홈', path: pathFor('market-data/overview') },
   { key: 'lease-market', label: '임대 시장', path: pathFor('market-data/lease-market') },
   { key: 'supply-pipeline', label: '공급 예정', path: pathFor('market-data/supply-pipeline') },
   { key: 'transactions', label: '거래 사례', path: pathFor('market-data/transactions') },
@@ -5970,26 +5970,27 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         </div>
       </header>
 
-      <section className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-[18px]">
-        <div className="grid grid-cols-1 gap-4">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch">
-            <div className="flex min-w-[260px] items-center gap-4">
-              <MemberAvatar memberInfo={memberInfo} name={permission.name} />
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[16px] font-bold text-white">{permission.name}</span>
-                  <span className="rounded-full border border-[#333333] bg-[#1F1F1E] px-2.5 py-1 text-[12px] font-semibold text-[#A1A1AA]">{permission.organization}</span>
-                  {!permission.matched && <span className="rounded-full border border-[#4C4329] bg-[#2B2613] px-2.5 py-1 text-[12px] font-semibold text-[#FFD166]">Excel 권한 미매칭</span>}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2 text-[12px] text-[#86868B]">
-                  <span>팀 {permission.teamMembers.length}명</span>
-                  <span>담당 자산 {topAssets.length}개</span>
-                  <span>담당 펀드 {permission.managedFunds.length}개</span>
-                </div>
-              </div>
-            </div>
-            <div
-              className={`min-h-[48px] flex-1 rounded-[12px] border border-dashed px-3 py-2 transition-colors ${quickTabDragOver ? 'border-[#60A5FA] bg-[#3B82F6]/10' : 'border-[#3A3A3C] bg-[#1F1F1E]'}`}
+      <section className="mb-4 rounded-[24px] border border-[#333333] bg-[#252524] p-[18px]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,65fr)_minmax(280px,35fr)] lg:items-stretch">
+          <div className="min-w-0">
+            <label htmlFor="logistics-main-search-input" className="mb-2 block text-[14px] font-bold text-white">통합 검색</label>
+            <input
+              id="logistics-main-search-input"
+              data-testid="logistics-main-search-input"
+              value={mainSearchQuery}
+              onChange={(event) => setMainSearchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  if (searchResults[0]) setSelectedSearchResult(searchResults[0]);
+                }
+              }}
+              placeholder="자산명 또는 임차인명을 검색하세요"
+              className="h-10 w-full rounded-[999px] border border-[#3A3A3C] bg-[#1F1F1E] px-4 text-[14px] font-semibold text-white shadow-inner outline-none placeholder:text-[#6E6E73] focus:border-[#8E8E93]"
+            />
+          </div>
+          <div
+              className={`min-h-[48px] rounded-[12px] border border-dashed px-3 py-2 transition-colors ${quickTabDragOver ? 'border-[#60A5FA] bg-[#3B82F6]/10' : 'border-[#3A3A3C] bg-[#1F1F1E]'}`}
               data-work-platform-quick-tabs="true"
               onDragOver={(event) => {
                 event.preventDefault();
@@ -6032,56 +6033,37 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
                 )}
               </div>
             </div>
-          </div>
         </div>
-        <div className="mt-4 border-t border-[#333333] pt-4">
-          <div className="mx-auto grid w-full max-w-[1040px] grid-cols-1 items-center gap-4 md:grid-cols-[128px_minmax(0,1fr)]">
-            <h2 className="text-[18px] font-bold text-white md:text-left">통합 검색</h2>
-            <input
-              data-testid="logistics-main-search-input"
-              value={mainSearchQuery}
-              onChange={(event) => setMainSearchQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  if (searchResults[0]) setSelectedSearchResult(searchResults[0]);
-                }
-              }}
-              placeholder="자산명 또는 임차인명을 검색하세요"
-              className="h-12 w-full rounded-[999px] border border-[#3A3A3C] bg-[#1F1F1E] px-5 text-[15px] font-semibold text-white shadow-inner outline-none placeholder:text-[#6E6E73] focus:border-[#8E8E93]"
-            />
+        {mainSearchQuery.trim().length >= 2 ? (
+          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+            {searchResults.length ? searchResults.map((result) => (
+              <button
+                key={`${result.type}-${result.id}`}
+                type="button"
+                onClick={() => setSelectedSearchResult(result)}
+                className="cursor-pointer rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-left hover:bg-[#2A2A29]"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="truncate text-[14px] font-semibold text-white">{result.label}</span>
+                  <span className="shrink-0 rounded-full border border-[#3A3A3C] px-2 py-0.5 text-[11px] font-semibold text-[#A1A1AA]">{result.type === 'asset' ? '자산' : '임차인'}</span>
+                </div>
+                <div className="mt-1 truncate text-[12px] text-[#86868B]">{result.subtitle}</div>
+              </button>
+            )) : (
+              <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4 text-[13px] text-[#86868B] md:col-span-2">검색 결과가 없습니다.</div>
+            )}
           </div>
-          {mainSearchQuery.trim().length >= 2 ? (
-            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-              {searchResults.length ? searchResults.map((result) => (
-                <button
-                  key={`${result.type}-${result.id}`}
-                  type="button"
-                  onClick={() => setSelectedSearchResult(result)}
-                  className="cursor-pointer rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-left hover:bg-[#2A2A29]"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="truncate text-[14px] font-semibold text-white">{result.label}</span>
-                    <span className="shrink-0 rounded-full border border-[#3A3A3C] px-2 py-0.5 text-[11px] font-semibold text-[#A1A1AA]">{result.type === 'asset' ? '자산' : '임차인'}</span>
-                  </div>
-                  <div className="mt-1 truncate text-[12px] text-[#86868B]">{result.subtitle}</div>
-                </button>
-              )) : (
-                <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4 text-[13px] text-[#86868B] md:col-span-2">검색 결과가 없습니다.</div>
-              )}
-            </div>
-          ) : null}
-        </div>
+        ) : null}
         <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[#333333] pt-4 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9">
           {topAssets.map((asset) => (
-            <button key={asset.assetCode || asset.assetName} type="button" onClick={() => navigateToAsset(asset.assetName)} className="flex min-h-[48px] w-full items-center justify-start rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-2.5 py-2 text-left text-[12px] leading-[15px] text-[#D1D1D6] transition-colors hover:bg-[#2A2A29]">
+            <button key={asset.assetCode || asset.assetName} type="button" onClick={() => navigateToAsset(asset.assetName)} className="flex h-[48px] w-full items-center justify-start overflow-hidden rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-2.5 py-2 text-left text-[12px] leading-[15px] text-[#D1D1D6] transition-colors hover:bg-[#2A2A29]">
               <span className="block max-h-[32px] max-w-full overflow-hidden whitespace-normal break-keep text-left font-bold text-white [overflow-wrap:anywhere]" title={asset.assetName}>{asset.assetName}</span>
             </button>
           ))}
         </div>
       </section>
 
-      <section className="mb-[28px]">
+      <section>
         <LogisticsTaskBoard eligibleAssets={taskBoardAssets} memberInfo={memberInfo} />
       </section>
 
