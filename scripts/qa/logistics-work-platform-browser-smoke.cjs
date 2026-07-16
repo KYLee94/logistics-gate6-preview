@@ -330,19 +330,21 @@ async function main() {
       throw new Error('업무 플랫폼 헤더 레이아웃 측정 대상이 없습니다.');
     }
     const searchWidthRatio = searchRegionBox.width / (searchRegionBox.width + quickTabsBox.width);
-    const assetToBoardGap = boardBox.top - assetGridBox.bottom;
+    const assetGridBottom = assetGridBox.y + assetGridBox.height;
+    const taskBoardTop = boardBox.y;
+    const assetToBoardGap = taskBoardTop - assetGridBottom;
     report.layout = {
       search_region_width: searchRegionBox.width,
       quick_tabs_width: quickTabsBox.width,
       search_width_ratio: searchWidthRatio,
       header_profile_summary: headerProfileSummary,
-      asset_grid_bottom: assetGridBox.bottom,
-      task_board_top: boardBox.top,
+      asset_grid_bottom: assetGridBottom,
+      task_board_top: taskBoardTop,
       asset_to_board_gap: assetToBoardGap,
     };
     report.checks.header_search_quick_tabs_ratio = searchWidthRatio >= 0.60 && searchWidthRatio <= 0.70;
     report.checks.header_has_no_profile_identity_block = headerProfileSummary.image_count === 0 && headerProfileSummary.profile_label_count === 0;
-    report.checks.asset_grid_precedes_task_board = assetGridBox.bottom < boardBox.top && assetToBoardGap >= 0 && assetToBoardGap <= 96;
+    report.checks.asset_grid_precedes_task_board = assetGridBottom < taskBoardTop && assetToBoardGap >= 0 && assetToBoardGap <= 96;
 
     await board.getByRole('button', { name: '업무 분류 필터', exact: true }).click();
     const categoryFilterMenu = page.getByTestId('task-board-filter-menu-category');
