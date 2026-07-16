@@ -762,19 +762,19 @@ export default function IotaLeftNav({ currentPath = '' }) {
             if (pushEnabled) {
                 await unsubscribeLogisticsPushNotifications();
                 setPushEnabled(false);
-                setPushMessage('Windows 알림을 껐습니다.');
+                setPushMessage('시스템 알림을 껐습니다.');
             } else {
                 const result = await subscribeLogisticsPushNotifications();
                 if (!result.subscribed) {
-                    setPushMessage(result.permission === 'denied' ? '브라우저 설정에서 알림 권한을 허용해 주세요.' : '알림 권한이 허용되지 않았습니다.');
+                    setPushMessage(result.permission === 'denied' ? '브라우저 설정에서 시스템 알림 권한을 허용해 주세요.' : '시스템 알림 권한이 허용되지 않았습니다.');
                     return;
                 }
                 setPushEnabled(true);
                 await showLogisticsPushSetupConfirmation();
-                setPushMessage('Windows 알림을 켰습니다.');
+                setPushMessage('시스템 알림을 켰습니다.');
             }
         } catch (error) {
-            setPushMessage(error?.message || 'Windows 알림 설정을 변경하지 못했습니다.');
+            setPushMessage(error?.message || '시스템 알림 설정을 변경하지 못했습니다.');
         } finally {
             setPushBusy(false);
         }
@@ -1555,7 +1555,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                 {isLogisticsPushSupported() ? (
                                     <div className="flex items-center justify-between gap-3 border-b border-[#303033] px-4 py-2.5">
                                         <div className="min-w-0">
-                                            <div className="text-[12px] font-semibold text-[#E5E5E5]">Windows 알림</div>
+                                            <div className="text-[12px] font-semibold text-[#E5E5E5]">시스템 알림</div>
                                             {pushMessage ? <div data-testid="logistics-windows-push-message" className="mt-0.5 truncate text-[10px] text-[#8E8E93]">{pushMessage}</div> : null}
                                         </div>
                                         <button

@@ -60,6 +60,7 @@ function getBrowserFamily() {
   if (/Whale/iu.test(userAgent)) return 'whale';
   if (/Edg/iu.test(userAgent)) return 'edge';
   if (/Chrome/iu.test(userAgent)) return 'chrome';
+  if (/Safari/iu.test(userAgent)) return 'safari';
   return 'browser';
 }
 
@@ -113,7 +114,7 @@ export async function registerLogisticsPushServiceWorker() {
 export async function showLogisticsPushSetupConfirmation() {
   const registration = await registerLogisticsPushServiceWorker();
   await registration.showNotification('IGIS Logistics Platform', {
-    body: 'Windows 알림이 정상적으로 연결되었습니다.',
+    body: '시스템 알림이 정상적으로 연결되었습니다.',
     tag: `logistics-push-setup-${Date.now()}`,
     renotify: true,
   });

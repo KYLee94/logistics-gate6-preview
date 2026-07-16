@@ -467,7 +467,7 @@ test('service-worker and Windows notification opt-in implementation files are pr
   assert.match(secureWebhookMigration, /['"]Authorization['"][\s\S]{0,120}['"]Bearer ['"]/u);
 });
 
-test('Windows push refreshes the worker and surfaces every delivered notification', () => {
+test('system push supports Windows and macOS and surfaces every delivered notification', () => {
   const worker = fs.readFileSync(PUSH_SW_PATH, 'utf8');
   const utility = fs.readFileSync(PUSH_UTIL_PATH, 'utf8');
   const leftNav = fs.readFileSync(LEFT_NAV_PATH, 'utf8');
@@ -480,6 +480,16 @@ test('Windows push refreshes the worker and surfaces every delivered notificatio
   assert.doesNotMatch(worker, /tag:\s*['"]logistics-push-notification['"]/u);
   assert.match(utility, /registration\.update\(\)/u);
   assert.match(utility, /showLogisticsPushSetupConfirmation/u);
+  assert.match(utility, /Safari/iu);
   assert.match(leftNav, /showLogisticsPushSetupConfirmation/u);
+  assert.match(leftNav, /시스템 알림/u);
+  assert.doesNotMatch(leftNav, />Windows 알림</u);
   assert.match(pushEdge, /notification_id:\s*taskShare\.notification_id/u);
+});
+
+test('system push database gateway tolerates Edge cold starts', () => {
+  const migrations = walkFiles(MIGRATIONS_PATH)
+    .map((filePath) => ({ filePath, source: fs.readFileSync(filePath, 'utf8') }))
+    .filter(({ source }) => /ll_queue_web_push_notification/iu.test(source) && /timeout_milliseconds\s*:=\s*10000/iu.test(source));
+  assert.equal(migrations.length, 1, 'one follow-up migration must raise the push gateway timeout to 10 seconds');
 });
