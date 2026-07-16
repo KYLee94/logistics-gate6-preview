@@ -252,10 +252,26 @@ function normalizeWorkPlatformQuickTabKeys(keys) {
   return result.slice(0, WORK_PLATFORM_QUICK_TAB_LIMIT);
 }
 
-function readWorkPlatformQuickTabKeys() {
-  if (typeof window === 'undefined') return [];
+function workPlatformQuickTabCacheKey(identity) {
+  const normalizedIdentity = String(identity || '').trim().toLowerCase();
+  return normalizedIdentity
+    ? `${WORK_PLATFORM_QUICK_TAB_CACHE_KEY}:${encodeURIComponent(normalizedIdentity)}`
+    : '';
+}
+
+function readWorkPlatformQuickTabKeys(cacheKey) {
+  if (typeof window === 'undefined' || !cacheKey) return [];
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(WORK_PLATFORM_QUICK_TAB_CACHE_KEY) || '[]');
+    let storedValue = window.localStorage.getItem(cacheKey);
+    const legacyValue = window.localStorage.getItem(WORK_PLATFORM_QUICK_TAB_CACHE_KEY);
+    if (legacyValue !== null) {
+      if (storedValue === null) {
+        storedValue = legacyValue;
+        window.localStorage.setItem(cacheKey, legacyValue);
+      }
+      window.localStorage.removeItem(WORK_PLATFORM_QUICK_TAB_CACHE_KEY);
+    }
+    const parsed = JSON.parse(storedValue || '[]');
     return normalizeWorkPlatformQuickTabKeys(parsed);
   } catch {
     return [];
@@ -5471,17 +5487,31 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       && capability?.update === true
       && capability?.delete === true;
   }), [permission, topAssets]);
-  const [quickTabKeys, setQuickTabKeys] = useState(readWorkPlatformQuickTabKeys);
+  const quickTabCacheIdentity = String(
+    memberInfo?.auth_subject
+      || memberInfo?.user_id
+      || memberInfo?.id
+      || permission.email
+      || '',
+  ).trim().toLowerCase();
+  const quickTabCacheKey = useMemo(
+    () => workPlatformQuickTabCacheKey(quickTabCacheIdentity),
+    [quickTabCacheIdentity],
+  );
+  const [quickTabKeys, setQuickTabKeys] = useState([]);
   const [quickTabDragOver, setQuickTabDragOver] = useState(false);
+  useEffect(() => {
+    setQuickTabKeys(readWorkPlatformQuickTabKeys(quickTabCacheKey));
+  }, [quickTabCacheKey]);
   const persistQuickTabKeys = useCallback((updater) => {
     setQuickTabKeys((current) => {
       const next = normalizeWorkPlatformQuickTabKeys(typeof updater === 'function' ? updater(current) : updater);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(WORK_PLATFORM_QUICK_TAB_CACHE_KEY, JSON.stringify(next));
+      if (typeof window !== 'undefined' && quickTabCacheKey) {
+        window.localStorage.setItem(quickTabCacheKey, JSON.stringify(next));
       }
       return next;
     });
-  }, []);
+  }, [quickTabCacheKey]);
   const addQuickTab = useCallback((key) => {
     if (!WORK_PLATFORM_QUICK_TAB_MAP.has(key)) return;
     persistQuickTabKeys((current) => {
@@ -5972,8 +6002,8 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
 
       <section className="mb-4 rounded-[24px] border border-[#333333] bg-[#252524] p-[18px]">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,65fr)_minmax(280px,35fr)] lg:items-stretch">
-          <div className="min-w-0">
-            <label htmlFor="logistics-main-search-input" className="mb-2 block text-[14px] font-bold text-white">통합 검색</label>
+          <div data-testid="logistics-main-search-panel" className="flex min-h-[48px] min-w-0 items-center overflow-hidden rounded-[12px] border border-[#3A3A3C] bg-[#1F1F1E] transition-colors focus-within:border-[#8E8E93]">
+            <label htmlFor="logistics-main-search-input" className="flex min-h-[46px] shrink-0 self-stretch items-center border-r border-[#333333] px-4 text-[15px] font-bold text-white">통합 검색</label>
             <input
               id="logistics-main-search-input"
               data-testid="logistics-main-search-input"
@@ -5986,11 +6016,11 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
                 }
               }}
               placeholder="자산명 또는 임차인명을 검색하세요"
-              className="h-10 w-full rounded-[999px] border border-[#3A3A3C] bg-[#1F1F1E] px-4 text-[14px] font-semibold text-white shadow-inner outline-none placeholder:text-[#6E6E73] focus:border-[#8E8E93]"
+              className="h-10 min-w-0 flex-1 bg-transparent px-4 text-[14px] font-semibold text-white outline-none placeholder:text-[#6E6E73]"
             />
           </div>
           <div
-              className={`min-h-[48px] rounded-[12px] border border-dashed px-3 py-2 transition-colors ${quickTabDragOver ? 'border-[#60A5FA] bg-[#3B82F6]/10' : 'border-[#3A3A3C] bg-[#1F1F1E]'}`}
+              className={`flex min-h-[48px] items-center rounded-[12px] border border-dashed px-3 py-2 transition-colors ${quickTabDragOver ? 'border-[#60A5FA] bg-[#3B82F6]/10' : 'border-[#3A3A3C] bg-[#1F1F1E]'}`}
               data-work-platform-quick-tabs="true"
               onDragOver={(event) => {
                 event.preventDefault();
@@ -6004,10 +6034,6 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
                 addQuickTab(quickTabKeyFromDragEvent(event));
               }}
             >
-              <div className="mb-1.5 flex items-center justify-between gap-3">
-                <div className="text-[16px] font-bold text-white">빠른 탭</div>
-                <div className="text-[11px] text-[#86868B]">{quickTabs.length}/{WORK_PLATFORM_QUICK_TAB_LIMIT}</div>
-              </div>
               <div className="flex min-h-[28px] flex-wrap items-center gap-2">
                 {quickTabs.length ? quickTabs.map((item) => (
                   <span

@@ -285,6 +285,9 @@ async function main() {
       sessionStorage.setItem('sb-iota-auth-token', JSON.stringify(authSession));
       sessionStorage.setItem('logistics_preview_auth', JSON.stringify({ email: authSession.user.email }));
       localStorage.setItem('logisticsDashboardReadMode', 'primary-safe');
+      const quickTabIdentity = String(authSession.user.id || '').trim().toLowerCase();
+      localStorage.setItem(`logisticsWorkPlatformQuickTabs:v1:${encodeURIComponent(quickTabIdentity)}`, '[]');
+      localStorage.setItem('logisticsWorkPlatformQuickTabs:v1', '[]');
     }, session);
     const page = await context.newPage();
     page.on('pageerror', (error) => report.errors.push(`page: ${error.message}`));
@@ -330,6 +333,10 @@ async function main() {
       throw new Error('업무 플랫폼 헤더 레이아웃 측정 대상이 없습니다.');
     }
     const searchWidthRatio = searchRegionBox.width / (searchRegionBox.width + quickTabsBox.width);
+    const searchQuickTabsTopDelta = Math.abs(searchRegionBox.y - quickTabsBox.y);
+    const searchQuickTabsBottomDelta = Math.abs(
+      (searchRegionBox.y + searchRegionBox.height) - (quickTabsBox.y + quickTabsBox.height),
+    );
     const assetGridBottom = assetGridBox.y + assetGridBox.height;
     const taskBoardTop = boardBox.y;
     const assetToBoardGap = taskBoardTop - assetGridBottom;
@@ -337,14 +344,30 @@ async function main() {
       search_region_width: searchRegionBox.width,
       quick_tabs_width: quickTabsBox.width,
       search_width_ratio: searchWidthRatio,
+      search_quick_tabs_top_delta: searchQuickTabsTopDelta,
+      search_quick_tabs_bottom_delta: searchQuickTabsBottomDelta,
       header_profile_summary: headerProfileSummary,
       asset_grid_bottom: assetGridBottom,
       task_board_top: taskBoardTop,
       asset_to_board_gap: assetToBoardGap,
     };
     report.checks.header_search_quick_tabs_ratio = searchWidthRatio >= 0.60 && searchWidthRatio <= 0.70;
+    report.checks.header_search_quick_tabs_aligned = searchQuickTabsTopDelta <= 2 && searchQuickTabsBottomDelta <= 2;
     report.checks.header_has_no_profile_identity_block = headerProfileSummary.image_count === 0 && headerProfileSummary.profile_label_count === 0;
     report.checks.asset_grid_precedes_task_board = assetGridBottom < taskBoardTop && assetToBoardGap >= 0 && assetToBoardGap <= 96;
+    const quickTabsText = await quickTabs.innerText();
+    const quickTabItemCount = await quickTabs.locator('[draggable="true"]').count();
+    report.checks.quick_tabs_title_hidden = await quickTabs.locator('div', { hasText: /^빠른 탭$/u }).count() === 0;
+    report.checks.quick_tabs_hint_only_when_empty = quickTabItemCount === 0
+      ? quickTabsText.includes('좌측 메뉴에서 자주 쓰는 탭을 끌어오세요.')
+      : !quickTabsText.includes('좌측 메뉴에서 자주 쓰는 탭을 끌어오세요.');
+    report.checks.quick_tabs_legacy_cache_removed = await page.evaluate(() => (
+      window.localStorage.getItem('logisticsWorkPlatformQuickTabs:v1') === null
+    ));
+    report.checks.quick_tabs_user_cache_isolated = await page.evaluate((authUserId) => {
+      const expectedKey = `logisticsWorkPlatformQuickTabs:v1:${encodeURIComponent(String(authUserId || '').trim().toLowerCase())}`;
+      return window.localStorage.getItem(expectedKey) === '[]';
+    }, session.user.id);
 
     await board.getByRole('button', { name: '업무 분류 필터', exact: true }).click();
     const categoryFilterMenu = page.getByTestId('task-board-filter-menu-category');
