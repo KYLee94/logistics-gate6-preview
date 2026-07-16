@@ -4,14 +4,14 @@
 const GENERIC_NOTIFICATION_TITLE = 'IGIS Logistics Leasing';
 const GENERIC_NOTIFICATION_BODY = 'A new notification is ready. Open the app to view it.';
 
-function readPushPath(event) {
-  if (!event.data) return null;
+function readPushPayload(event) {
+  if (!event.data) return {};
 
   try {
     const payload = event.data.json();
-    return typeof payload?.path === 'string' ? payload.path : null;
+    return payload && typeof payload === 'object' ? payload : {};
   } catch {
-    return null;
+    return {};
   }
 }
 
@@ -27,13 +27,25 @@ function toSameOriginUrl(path) {
   }
 }
 
+self.addEventListener('install', (event) => {
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+});
+
 self.addEventListener('push', (event) => {
-  const target = toSameOriginUrl(readPushPath(event));
+  const payload = readPushPayload(event);
+  const target = toSameOriginUrl(payload.path);
+  const notificationId = typeof payload.notification_id === 'string' && payload.notification_id.trim()
+    ? payload.notification_id.trim()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const options = {
     body: GENERIC_NOTIFICATION_BODY,
     data: { path: `${target.pathname}${target.search}${target.hash}` },
-    tag: 'logistics-push-notification',
-    renotify: false,
+    tag: `logistics-push-${notificationId}`,
+    renotify: true,
   };
 
   event.waitUntil(self.registration.showNotification(GENERIC_NOTIFICATION_TITLE, options));
