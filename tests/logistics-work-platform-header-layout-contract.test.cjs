@@ -24,6 +24,7 @@ test('work-platform header keeps the compact search, quick-tab, and asset-grid c
   assert.match(header, /className="h-10 w-full/u);
   assert.match(header, /event\.key === 'Enter'[\s\S]{0,180}setSelectedSearchResult\(searchResults\[0\]\)/u);
   assert.match(header, /data-work-platform-quick-tabs="true"/u);
+  assert.match(header, /data-testid="logistics-managed-assets-grid"/u);
   assert.match(header, /onDragStart=/u);
   assert.match(header, /moveQuickTab\(quickTabKeyFromDragEvent\(event\), item\.key\)/u);
   assert.match(header, /removeQuickTab\(item\.key\)/u);

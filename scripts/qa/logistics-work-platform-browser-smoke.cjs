@@ -310,6 +310,40 @@ async function main() {
     report.checks.task_board_visible = (await board.innerText()).includes('통합 업무 보드');
     const boardText = await board.innerText();
     report.checks.task_board_columns = ['프로젝트', '업무 분류', '업무 요약', '담당자', '이해관계자', '진행 상황', '등록일'].every((label) => boardText.includes(label));
+
+    const searchInput = page.getByTestId('logistics-main-search-input');
+    const quickTabs = page.locator('[data-work-platform-quick-tabs="true"]');
+    const platformHeaderCard = searchInput.locator('xpath=ancestor::section[1]');
+    const [searchRegionBox, quickTabsBox, headerProfileSummary, assetGridBox, boardBox] = await Promise.all([
+      searchInput.locator('xpath=..').boundingBox(),
+      quickTabs.boundingBox(),
+      platformHeaderCard.evaluate((card) => ({
+        image_count: card.querySelectorAll('img').length,
+        profile_label_count: Array.from(card.querySelectorAll('*')).filter((element) => (
+          /^(사용자|조직)$/u.test((element.textContent || '').trim())
+        )).length,
+      })),
+      page.getByTestId('logistics-managed-assets-grid').boundingBox(),
+      board.boundingBox(),
+    ]);
+    if (!searchRegionBox || !quickTabsBox || !assetGridBox || !boardBox) {
+      throw new Error('업무 플랫폼 헤더 레이아웃 측정 대상이 없습니다.');
+    }
+    const searchWidthRatio = searchRegionBox.width / (searchRegionBox.width + quickTabsBox.width);
+    const assetToBoardGap = boardBox.top - assetGridBox.bottom;
+    report.layout = {
+      search_region_width: searchRegionBox.width,
+      quick_tabs_width: quickTabsBox.width,
+      search_width_ratio: searchWidthRatio,
+      header_profile_summary: headerProfileSummary,
+      asset_grid_bottom: assetGridBox.bottom,
+      task_board_top: boardBox.top,
+      asset_to_board_gap: assetToBoardGap,
+    };
+    report.checks.header_search_quick_tabs_ratio = searchWidthRatio >= 0.60 && searchWidthRatio <= 0.70;
+    report.checks.header_has_no_profile_identity_block = headerProfileSummary.image_count === 0 && headerProfileSummary.profile_label_count === 0;
+    report.checks.asset_grid_precedes_task_board = assetGridBox.bottom < boardBox.top && assetToBoardGap >= 0 && assetToBoardGap <= 96;
+
     await board.getByRole('button', { name: '업무 분류 필터', exact: true }).click();
     const categoryFilterMenu = page.getByTestId('task-board-filter-menu-category');
     await categoryFilterMenu.waitFor({ state: 'visible', timeout: 10000 });

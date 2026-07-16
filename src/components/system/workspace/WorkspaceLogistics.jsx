@@ -6054,7 +6054,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
             )}
           </div>
         ) : null}
-        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[#333333] pt-4 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9">
+        <div data-testid="logistics-managed-assets-grid" className="mt-4 grid grid-cols-2 gap-2 border-t border-[#333333] pt-4 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9">
           {topAssets.map((asset) => (
             <button key={asset.assetCode || asset.assetName} type="button" onClick={() => navigateToAsset(asset.assetName)} className="flex h-[48px] w-full items-center justify-start overflow-hidden rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-2.5 py-2 text-left text-[12px] leading-[15px] text-[#D1D1D6] transition-colors hover:bg-[#2A2A29]">
               <span className="block max-h-[32px] max-w-full overflow-hidden whitespace-normal break-keep text-left font-bold text-white [overflow-wrap:anywhere]" title={asset.assetName}>{asset.assetName}</span>
