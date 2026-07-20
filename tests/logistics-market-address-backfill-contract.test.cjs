@@ -143,6 +143,8 @@ test('empty Naver results stay empty and a verified current road-address alias i
   assert.match(geocode, /MARKET_BACKFILL_GEOCODE_QUERY_ALIASES/u);
   assert.match(geocode, /'경기도 화성시 정남면 고지리 115-1': \[/u);
   assert.match(geocode, /'경기도 화성시 효행구 정남면 가장로 285'/u);
+  assert.match(geocode, /'경기도 화성시 만세구 향남읍 서봉로 485-25'/u);
+  assert.match(geocode, /'경기도 화성시 만세구 팔탄면 3\.1만세로 625-23'/u);
   assert.match(geocode, /if \(!rows\.length\) \{/u);
   assert.match(geocode, /status: 'empty'/u);
   assert.match(geocode, /provider_query: providerQuery/u);

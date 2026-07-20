@@ -77,7 +77,7 @@ async function invoke(supabaseUrl, anonKey, token, action, payload = {}) {
   return {
     ok: response.ok && body?.ok !== false,
     status: response.status,
-    data: body.data || {},
+    data: body.data || body || {},
     error: response.ok ? (body.message || body.error || '') : `${action} failed (${response.status}): ${body.message || body.error || 'unknown error'}`,
   };
 }

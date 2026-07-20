@@ -5340,6 +5340,14 @@ const MARKET_BACKFILL_GEOCODE_QUERY_ALIASES: Record<string, string[]> = {
     '경기도 화성시 효행구 정남면 가장로 285',
     '경기도 화성시 정남면 가장로 285',
   ],
+  '경기도 화성시 향남읍 백토리 432-1': [
+    '경기도 화성시 만세구 향남읍 서봉로 485-25',
+    '경기도 화성시 향남읍 서봉로 485-25',
+  ],
+  '경기도 화성시 팔탄면 해창리 259-23': [
+    '경기도 화성시 만세구 팔탄면 3.1만세로 625-23',
+    '경기도 화성시 팔탄면 3.1만세로 625-23',
+  ],
 };
 
 async function marketBackfillGeocode(ctx: Context, address: string) {

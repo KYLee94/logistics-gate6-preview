@@ -46,6 +46,6 @@ test('until-complete halts on zero or repeated remaining progress and artifacts 
 test('non-2xx Edge responses retain structured failure details in the artifact', () => {
   assert.match(scriptSource, /ok: response\.ok && body\?\.ok !== false/u);
   assert.match(scriptSource, /status: response\.status/u);
-  assert.match(scriptSource, /data: body\.data \|\| \{\}/u);
+  assert.match(scriptSource, /data: body\.data \|\| body \|\| \{\}/u);
   assert.match(scriptSource, /error: response\.ok \?/u);
 });
