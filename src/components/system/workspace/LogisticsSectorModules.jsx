@@ -2062,7 +2062,7 @@ function SortableTable({
   );
 }
 
-function Modal({ title, onClose, children, width = 'max-w-[1180px]', fullscreen = false }) {
+function Modal({ title, onClose, children, width = 'max-w-[1180px]', fullscreen = false, headerActions = null, stackLevel = 0 }) {
   useEffect(() => {
     if (!title) return undefined;
     const handleKeyDown = (event) => {
@@ -2075,6 +2075,7 @@ function Modal({ title, onClose, children, width = 'max-w-[1180px]', fullscreen 
   const modal = (
     <div
       className={`fixed inset-0 isolate z-[2147483000] bg-black/70 px-4 ${fullscreen ? 'py-4' : 'py-8'}`}
+      style={{ zIndex: 2147483000 + Number(stackLevel || 0) }}
       role="dialog"
       aria-modal="true"
       data-testid="market-modal-backdrop"
@@ -2089,7 +2090,10 @@ function Modal({ title, onClose, children, width = 'max-w-[1180px]', fullscreen 
       >
         <div className="flex items-center justify-between gap-3 border-b border-[#333333] px-5 py-4">
           <h3 className="truncate text-[18px] font-semibold text-white">{title}</h3>
-          <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-[8px] border border-[#3A3A3C] text-[14px] font-bold text-white hover:bg-white/5">×</button>
+          <div className="flex shrink-0 items-center gap-2">
+            {headerActions}
+            <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-[8px] border border-[#3A3A3C] text-[14px] font-bold text-white hover:bg-white/5">×</button>
+          </div>
         </div>
         <div className={`custom-scrollbar ${fullscreen ? 'max-h-[calc(100vh-96px)]' : 'max-h-[calc(86vh-64px)]'} overflow-auto p-5`}>{children}</div>
       </div>
@@ -2577,6 +2581,25 @@ function marketMapCalloutContent(item, index) {
   };
 }
 
+function marketMapItemLookupKey(item, labelKey) {
+  if (item?.isCluster) return `cluster:${text(item.region)}`;
+  const rowKey = marketMapDetailPinKey(item?.row || {}, labelKey);
+  if (rowKey) return `point:${rowKey}`;
+  return `point:${text(item?.label)}|${Number(item?.lat).toFixed(6)}|${Number(item?.lng).toFixed(6)}`;
+}
+
+function isExactMarketAddressCoordinate(row) {
+  const latitude = Number(row?.latitude ?? row?.lat ?? row?.y_coord);
+  const longitude = Number(row?.longitude ?? row?.lng ?? row?.x_coord);
+  if (!isValidKoreanLatLng(latitude, longitude)) return false;
+  const source = text(row?.coordinate_source || row?.coordinateSource).toLowerCase();
+  const status = text(row?.coordinate_status || row?.geocode_status || row?.market_geocode_status || row?.status).toLowerCase();
+  const coordinateAddress = text(row?.coordinate_address || row?.coordinateAddress);
+  const provenance = `${source}|${status}`;
+  if (/(?:region|fallback|stale|missing|failed|failure|error|out_of_range|empty)/iu.test(provenance)) return false;
+  return Boolean(coordinateAddress) && /(?:market_geocode|geocod|naver|address)/iu.test(source);
+}
+
 function MarketMapPanel({
   title,
   rows,
@@ -2594,10 +2617,14 @@ function MarketMapPanel({
   const mapProviderRef = useRef('');
   const mapZoomListenerRef = useRef(null);
   const markersRef = useRef([]);
+  const markerRowLookupRef = useRef(new Map());
   const cadastralLayerRef = useRef(null);
   const naverListenerHandlesRef = useRef([]);
   const naverInfoWindowsRef = useRef([]);
   const naverMarkerTimersRef = useRef([]);
+  const mapResizeObserverRef = useRef(null);
+  const mapResizeFrameRef = useRef(null);
+  const mapCanvasSizeRef = useRef('');
   const destroyCurrentMapRef = useRef(() => {});
   const mapInstanceIdRef = useRef(nextMarketMapInstanceId());
   const mapInstanceId = mapInstanceIdRef.current;
@@ -2839,6 +2866,23 @@ function MarketMapPanel({
   const markerRows = useMemo(() => (
     plotRows.filter((item) => item.isCluster || (!item.fallback && isValidKoreanLatLng(item.lat, item.lng)))
   ), [plotRows]);
+  const markerSignature = useMemo(() => markerRows.map((item) => [
+    item.isCluster ? 'cluster' : 'point',
+    item.region,
+    item.label,
+    Number(item.lat).toFixed(6),
+    Number(item.lng).toFixed(6),
+    item.count || '',
+    item.area || '',
+    item.coordinateSource || '',
+    item.address || '',
+    item.coordinateAddress || '',
+  ].join('|')).join('||'), [markerRows]);
+  const markerRowLookup = useMemo(() => new Map(markerRows.map((item) => [
+    marketMapItemLookupKey(item, labelKey),
+    item,
+  ])), [markerRows, labelKey]);
+  markerRowLookupRef.current = markerRowLookup;
   const missingCoordinateCount = plotRows.filter((item) => item.fallback).length;
   const osmZoom = selectedMapRegion ? Math.max(9, Math.min(13, mapZoom)) : Math.max(7, Math.min(12, mapZoom));
   const osmLayout = useMemo(() => buildOsmTileLayout(markerRows, osmZoom), [markerRows, osmZoom]);
@@ -2850,12 +2894,13 @@ function MarketMapPanel({
     };
   };
   const openMapItem = (item) => {
-    if (item?.isCluster) {
+    const latestItem = markerRowLookupRef.current.get(marketMapItemLookupKey(item, labelKey)) || item;
+    if (latestItem?.isCluster) {
       fittedRegionRef.current = '';
-      setSelectedMapRegion(item.region);
+      setSelectedMapRegion(latestItem.region);
       return;
     }
-    onSelectRef.current?.(item.row);
+    onSelectRef.current?.(latestItem.row);
   };
   const clusterLabelParts = useCallback((item) => {
     const parts = regionDisplayParts(item.region);
@@ -3043,6 +3088,13 @@ function MarketMapPanel({
       naverHealthInterval = null;
       naverHealthTimeout = null;
     };
+    const clearMapResizeObserver = () => {
+      if (mapResizeFrameRef.current) window.cancelAnimationFrame(mapResizeFrameRef.current);
+      mapResizeFrameRef.current = null;
+      mapResizeObserverRef.current?.disconnect?.();
+      mapResizeObserverRef.current = null;
+      mapCanvasSizeRef.current = '';
+    };
     const clearNaverListeners = () => {
       const eventApi = window.naver?.maps?.Event;
       naverListenerHandlesRef.current.forEach((listener) => {
@@ -3115,6 +3167,7 @@ function MarketMapPanel({
     };
     const destroyCurrentMap = () => {
       clearNaverHealthMonitor();
+      clearMapResizeObserver();
       clearNaverListeners();
       clearNaverInfoWindows();
       clearNaverMarkerTimers();
@@ -3287,6 +3340,7 @@ function MarketMapPanel({
       const rect = target?.getBoundingClientRect?.();
       const width = Math.max(1, Math.round(rect?.width || mapCanvasRef.current?.clientWidth || 0));
       const height = Math.max(1, Math.round(rect?.height || mapCanvasRef.current?.clientHeight || 0));
+      mapCanvasSizeRef.current = `${width}x${height}`;
       if (width > 1 && height > 1 && typeof map.setSize === 'function' && window.naver?.maps?.Size) {
         try {
           map.setSize(new window.naver.maps.Size(width, height));
@@ -3304,6 +3358,26 @@ function MarketMapPanel({
       } catch {
         // Resize trigger is best effort only.
       }
+    };
+    const observeNaverMapResize = (map) => {
+      if (!map || mapProviderRef.current !== 'naver' || !mapCanvasRef.current || typeof ResizeObserver === 'undefined') return;
+      if (mapResizeObserverRef.current?.map === map) return;
+      clearMapResizeObserver();
+      const observer = new ResizeObserver((entries) => {
+        const rect = entries[0]?.contentRect;
+        const width = Math.max(0, Math.round(rect?.width || 0));
+        const height = Math.max(0, Math.round(rect?.height || 0));
+        const nextSize = `${width}x${height}`;
+        if (width < 2 || height < 2 || nextSize === mapCanvasSizeRef.current) return;
+        if (mapResizeFrameRef.current) window.cancelAnimationFrame(mapResizeFrameRef.current);
+        mapResizeFrameRef.current = window.requestAnimationFrame(() => {
+          mapResizeFrameRef.current = null;
+          if (mapInstanceRef.current === map && mapProviderRef.current === 'naver') refreshNaverMap(map);
+        });
+      });
+      observer.map = map;
+      observer.observe(mapCanvasRef.current);
+      mapResizeObserverRef.current = observer;
     };
     const waitForMapCanvasSize = async () => {
       for (let attempt = 0; attempt < 45; attempt += 1) {
@@ -3344,7 +3418,6 @@ function MarketMapPanel({
           clearNaverHealthMonitor();
           return;
         }
-        refreshNaverMap(map);
         const failedByText = hasNaverMapAuthFailure(mapCanvasRef.current);
         const stats = visibleMapTileCoverage(mapCanvasRef.current);
         const healthyTiles = stats.count >= 2 && stats.coverage >= 0.45;
@@ -3376,16 +3449,19 @@ function MarketMapPanel({
           await mountLeafletMap();
           return;
         }
-        setMapStatus({ status: 'checking', message: 'Naver Maps SDK 로딩 중' });
-        const clientId = await getNaverMapsClientId();
-        if (!clientId) {
-          if (!cancelled) await mountLeafletMap();
-          return;
+        const canReuseNaverMap = mapProviderRef.current === 'naver' && Boolean(mapInstanceRef.current) && Boolean(window.naver?.maps);
+        if (!canReuseNaverMap) {
+          setMapStatus({ status: 'checking', message: 'Naver Maps SDK 로딩 중' });
+          const clientId = await getNaverMapsClientId();
+          if (!clientId) {
+            if (!cancelled) await mountLeafletMap();
+            return;
+          }
+          await loadSharedNaverMapsSdk(clientId);
+          if (cancelled || !mapCanvasRef.current || !window.naver?.maps) return;
+          const hasStableSize = await waitForMapCanvasSize();
+          if (cancelled || !hasStableSize || !mapCanvasRef.current) return;
         }
-        await loadSharedNaverMapsSdk(clientId);
-        if (cancelled || !mapCanvasRef.current || !window.naver?.maps) return;
-        const hasStableSize = await waitForMapCanvasSize();
-        if (cancelled || !hasStableSize || !mapCanvasRef.current) return;
         if (mapProviderRef.current && mapProviderRef.current !== 'naver') destroyCurrentMap();
         const fitRows = isRegionMode ? mappableRows : mappableRows.filter((item) => !item.isCluster);
         const centerRows = fitRows.length ? fitRows : mappableRows;
@@ -3490,7 +3566,8 @@ function MarketMapPanel({
           map.setZoom(Math.max(10, Math.min(13, mapZoomRef.current || 11)), false);
           fittedRegionRef.current = selectedMapRegion;
         }
-        refreshNaverMap(map);
+        observeNaverMapResize(map);
+        if (createdNaverMap) refreshNaverMap(map);
         window.requestAnimationFrame(() => {
           clampRegionClusterMarkers();
           const nextZoom = Number(map.getZoom?.());
@@ -3498,12 +3575,14 @@ function MarketMapPanel({
         });
         setMapStatus({ status: 'ready', message: mapMessage('Naver Maps') });
         startNaverHealthMonitor(map);
-        [80, 260].forEach((delay) => window.setTimeout(() => {
-          if (!cancelled && mapProviderRef.current === 'naver' && !forceOsm) {
-            refreshNaverMap(map);
-            scheduleRegionClusterClamp();
-          }
-        }, delay));
+        if (createdNaverMap) {
+          [80, 260].forEach((delay) => window.setTimeout(() => {
+            if (!cancelled && mapProviderRef.current === 'naver' && !forceOsm) {
+              refreshNaverMap(map);
+              scheduleRegionClusterClamp();
+            }
+          }, delay));
+        }
       } catch {
         if (!cancelled) await mountLeafletMap();
       }
@@ -3513,7 +3592,7 @@ function MarketMapPanel({
       cancelled = true;
       clearNaverHealthMonitor();
     };
-  }, [markerRows, selectedMapRegion, forceOsm, isRegionMode, clusterIconHtml, clampRegionClusterMarkers, scheduleRegionClusterClamp]);
+  }, [markerSignature, selectedMapRegion, forceOsm, isRegionMode, clusterIconHtml, clampRegionClusterMarkers, scheduleRegionClusterClamp]);
 
   useEffect(() => {
     applyMapDisplayType(mapInstanceRef.current, mapDisplayType);
@@ -5569,6 +5648,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const marketReadPayload = useMemo(() => marketReadPayloadFor(currentTab), [currentTab]);
   const { loading, error, data, loadingStage, loadingTrace } = useEdgeData('sector-market/read', marketReadPayload);
   const [modal, setModal] = useState(null);
+  const [leaseCenterMapOpen, setLeaseCenterMapOpen] = useState(false);
   const [txnWindow, setTxnWindow] = useState('3y');
   const [txnRegion, setTxnRegion] = useState('전체');
   const [txnTemp, setTxnTemp] = useState('전체');
@@ -6378,6 +6458,23 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const centerHistoryRows = (row) => leases
     .filter((item) => text(item.center_name) === text(row.center_name))
     .sort((a, b) => text(b.report_period).localeCompare(text(a.report_period)));
+  const leaseCenterMapRow = (row, historyRows = centerHistoryRows(row)) => (
+    [row, ...historyRows].find((item) => isExactMarketAddressCoordinate(item)) || null
+  );
+  const openLeaseCenterModal = (row) => {
+    const historyRows = centerHistoryRows(row);
+    setLeaseCenterMapOpen(false);
+    setModal({
+      type: 'lease-center-detail',
+      title: text(row.center_name),
+      rows: historyRows,
+      columns: leaseHistoryColumns,
+      width: 'max-w-[calc(100vw-32px)]',
+      minWidth: 1320,
+      maxHeight: 680,
+      centerMapRow: leaseCenterMapRow(row, historyRows),
+    });
+  };
   const transactionColumns = [
     { key: 'transaction_period', label: '거래시점', width: 120, render: (row) => text(row.transaction_period || row.transaction_date) },
     { key: 'asset_name', label: '자산명', width: 190, render: (row) => text(row.asset_name) },
@@ -6818,13 +6915,13 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               </div>
             </div>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(420px,0.75fr)_minmax(560px,1.25fr)]">
-              <MarketMapPanel title="권역별 센터" rows={filteredLeaseRows} labelKey="center_name" onSelect={(row) => setModal({ title: text(row.center_name), rows: centerHistoryRows(row), columns: leaseHistoryColumns, width: 'max-w-[calc(100vw-32px)]', minWidth: 1320, maxHeight: 680 })} />
+              <MarketMapPanel title="권역별 센터" rows={filteredLeaseRows} labelKey="center_name" onSelect={openLeaseCenterModal} />
               <div className="min-w-0 space-y-3">
                 <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
                   자산 검색
                   <input value={leaseSearch} onChange={(event) => setLeaseSearch(event.target.value)} className="mt-2 h-9 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" placeholder="센터명 또는 주소" />
                 </label>
-                <SortableTable minWidth={1040} maxHeight={540} stickyCount={2} defaultSort={{ key: 'gross_area_py', direction: 'desc' }} columns={leaseColumns} rows={filteredLeaseRows} onRowClick={(row) => setModal({ title: text(row.center_name), rows: centerHistoryRows(row), columns: leaseHistoryColumns, width: 'max-w-[calc(100vw-32px)]', minWidth: 1320, maxHeight: 680 })} />
+                <SortableTable minWidth={1040} maxHeight={540} stickyCount={2} defaultSort={{ key: 'gross_area_py', direction: 'desc' }} columns={leaseColumns} rows={filteredLeaseRows} onRowClick={openLeaseCenterModal} />
               </div>
             </div>
           </section>
@@ -7012,7 +7109,33 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
         </section>
       ) : null}
 
-      <Modal title={modal?.title} onClose={() => setModal(null)} width={modal?.width || 'max-w-[1180px]'} fullscreen={modal?.fullscreen}>
+      <Modal
+        title={modal?.title}
+        onClose={() => {
+          if (leaseCenterMapOpen) return;
+          setLeaseCenterMapOpen(false);
+          setModal(null);
+        }}
+        width={modal?.width || 'max-w-[1180px]'}
+        fullscreen={modal?.fullscreen}
+        headerActions={modal?.type === 'lease-center-detail' ? (
+          <button
+            type="button"
+            data-testid="lease-center-map-button"
+            disabled={!modal.centerMapRow}
+            title={modal.centerMapRow ? '센터 위치 지도 보기' : '정확한 좌표가 없어 지도를 열 수 없습니다.'}
+            onClick={() => setLeaseCenterMapOpen(true)}
+            className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5 disabled:cursor-not-allowed disabled:border-[#303030] disabled:text-[#6D6D72]"
+          >
+            지도 보기
+          </button>
+        ) : null}
+      >
+        {modal?.type === 'lease-center-detail' && !modal.centerMapRow ? (
+          <div className={`${INNER} mb-4 px-3 py-2 text-[12px] text-[#A1A1AA]`}>
+            정확한 좌표가 없어 지도 보기를 사용할 수 없습니다.
+          </div>
+        ) : null}
         {modal?.type === 'lease-history' ? (
           <div className="mb-4 grid grid-cols-1 items-stretch gap-3 xl:grid-cols-[220px_1fr_320px]" data-market-filter-block="true">
             <FilterPills label="시점" value={leaseHistoryPeriod} onChange={setLeaseHistoryPeriod} options={leasePeriodOptions} />
@@ -7105,6 +7228,25 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
           empty="상세 데이터가 없습니다."
         />
       </Modal>
+      {leaseCenterMapOpen && modal?.type === 'lease-center-detail' && modal.centerMapRow ? (
+        <Modal
+          title={`${modal.title} 지도`}
+          onClose={() => setLeaseCenterMapOpen(false)}
+          width="max-w-[calc(100vw-32px)]"
+          fullscreen
+          stackLevel={1}
+        >
+          <MarketMapPanel
+            title="센터 위치"
+            rows={[modal.centerMapRow]}
+            labelKey="center_name"
+            showLargeButton={false}
+            mapHeightClass="h-[calc(100vh-170px)]"
+            initialSelectedRegion={regionValue(modal.centerMapRow.region)}
+            onSelect={() => {}}
+          />
+        </Modal>
+      ) : null}
     </div>
   );
 }
