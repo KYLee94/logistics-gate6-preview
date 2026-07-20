@@ -53,6 +53,7 @@
     "qa:market-map:pinpoint": "node scripts/qa/logistics-market-map-pinpoint.cjs",
     "qa:market-map:address-precision": "node scripts/qa/logistics-market-map-address-precision-audit.cjs",
     "qa:market-map:live-naver": "node scripts/qa/logistics-market-map-live-naver-region-flow.cjs",
+    "qa:market-map:lease-pin-coverage": "node scripts/qa/logistics-market-map-lease-pin-coverage.cjs",
     "qa:map-provider-matrix": "node scripts/qa/logistics-map-provider-matrix.cjs",
     "qa:market-map:flicker-scale": "node scripts/qa/logistics-market-map-flicker-scale.cjs",
     "qa:data-management:browser-readback": "node scripts/qa/logistics-data-management-browser-readback-smoke.cjs",
