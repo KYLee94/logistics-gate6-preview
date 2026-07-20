@@ -74,8 +74,12 @@ async function invoke(supabaseUrl, anonKey, token, action, payload = {}) {
     body: JSON.stringify({ action, payload }),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`${action} failed (${response.status}): ${body.message || body.error || 'unknown error'}`);
-  return { ok: body?.ok !== false, data: body.data || {}, error: body.message || body.error || '' };
+  return {
+    ok: response.ok && body?.ok !== false,
+    status: response.status,
+    data: body.data || {},
+    error: response.ok ? (body.message || body.error || '') : `${action} failed (${response.status}): ${body.message || body.error || 'unknown error'}`,
+  };
 }
 
 function wait(ms) {
