@@ -808,6 +808,30 @@ function dataManagementReviewStatusComparable(value: unknown) {
   return `raw:${normalized}`;
 }
 
+function dataManagementNormalizeFloorCountValue(value: unknown, strict = true) {
+  const original = safeText(value).trim();
+  if (!original) return null;
+  const compact = original.toUpperCase().replace(/\s+/gu, '');
+  const composite = compact.match(/^(\d+)F\/(?:B(\d+)|(\d+)B)$/u);
+  if (composite) {
+    const above = Number(composite[1]);
+    const below = Number(composite[2] ?? composite[3]);
+    if (Number.isInteger(above) && above > 0 && Number.isInteger(below) && below >= 0) {
+      return `${above}F / B${below}`;
+    }
+  }
+  const aboveOnly = compact.match(/^(\d+)F$/u);
+  if (aboveOnly && Number(aboveOnly[1]) > 0) return `${Number(aboveOnly[1])}F`;
+  const belowOnly = compact.match(/^(?:B(\d+)|(\d+)B)$/u);
+  if (belowOnly) return `B${Number(belowOnly[1] ?? belowOnly[2])}`;
+  if (!strict) return original.toUpperCase().replace(/\s+/gu, ' ');
+  throw new Error('층수는 4F / B2 형식으로 입력해 주세요.');
+}
+
+function dataManagementFloorCountComparable(value: unknown) {
+  return dataManagementNormalizeFloorCountValue(value, false);
+}
+
 function dataManagementFieldValuesEqual(fieldName: unknown, a: unknown, b: unknown) {
   const field = safeText(fieldName).toLowerCase();
   if (field === 'review_status' || field === 'disposition_status') {
@@ -818,6 +842,9 @@ function dataManagementFieldValuesEqual(fieldName: unknown, a: unknown, b: unkno
   }
   if (field === 'temperature_type') {
     return dataManagementLeasePurposeLabel(a) === dataManagementLeasePurposeLabel(b);
+  }
+  if (field === 'floor_count') {
+    return dataManagementFloorCountComparable(a) === dataManagementFloorCountComparable(b);
   }
   if (field === 'current_manager_name' || field === 'current_manager_email') {
     const left = normalizeComparableEditValue(a);
@@ -7774,7 +7801,7 @@ const DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS = [
   { field_key: 'current_manager_email', label: '담당자 이메일', group: '담당자', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'current_manager_email', width: 220 },
   { field_key: 'gross_floor_area_sqm', label: '연면적', group: '면적', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_assets', target_field: 'gross_floor_area_sqm', width: 130 },
   { field_key: 'land_area_sqm', label: '대지면적', group: '면적', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_assets', target_field: 'land_area_sqm', width: 130 },
-  { field_key: 'floor_count', label: '층수', group: '면적', type: 'number', editable: true, target_table: 'public.ll_assets', target_field: 'floor_count', width: 100 },
+  { field_key: 'floor_count', label: '층수', group: '면적', type: 'floor_count', editable: true, target_table: 'public.ll_assets', target_field: 'floor_count', width: 100 },
   { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적', type: 'area_sqm', editable: false, width: 130 },
   { field_key: 'exclusive_ratio', label: '전용률', group: '면적', type: 'percent', editable: false, width: 110 },
   { field_key: 'spec_summary', label: '주요 스펙', group: '자산 스펙', type: 'text', editable: false, width: 320 },
@@ -7813,7 +7840,7 @@ const DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS_V2 = [
   { field_key: 'address', label: '주소', group: '자산 기본정보', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'address', width: 300 },
   { field_key: 'gross_floor_area_sqm', label: '연면적', group: '면적', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_assets', target_field: 'gross_floor_area_sqm', width: 130 },
   { field_key: 'land_area_sqm', label: '대지면적', group: '면적', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_assets', target_field: 'land_area_sqm', width: 130 },
-  { field_key: 'floor_count', label: '층수', group: '면적', type: 'number', editable: true, target_table: 'public.ll_assets', target_field: 'floor_count', width: 100 },
+  { field_key: 'floor_count', label: '층수', group: '면적', type: 'floor_count', editable: true, target_table: 'public.ll_assets', target_field: 'floor_count', width: 100 },
   { field_key: 'spec_summary', label: '주요 스펙', group: '자산 스펙', type: 'text', editable: false, width: 320 },
   { field_key: 'operating_cost_period', label: '운영비용 기준', group: '운영비용', type: 'text', editable: false, width: 140 },
   { field_key: 'pm_cost_krw', label: 'PM 비용', group: '운영비용', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'pm_cost_krw', width: 130 },
@@ -9909,6 +9936,7 @@ function dataManagementParseViewRequestedValue(value: unknown, field: Record<str
     return '정상';
   }
   if (value === null || value === undefined || value === '') return null;
+  if (type === 'floor_count') return dataManagementNormalizeFloorCountValue(value);
   if (type === 'yn') return ['true', '1', 'y', 'yes', '예', 'Y'].includes(safeText(value).trim().toLowerCase());
   const requireNumericText = () => {
     const textValue = safeText(value);

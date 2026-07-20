@@ -831,7 +831,26 @@ function formatManagementCellInputValue(value, column) {
   return cleaned;
 }
 
+function normalizeFloorCountInputValue(value) {
+  const original = sanitizeDataManagementDisplayValue(value, '').trim();
+  const compact = original.toUpperCase().replace(/\s+/gu, '');
+  const composite = compact.match(/^(\d+)F\/(?:B(\d+)|(\d+)B)$/u);
+  if (composite) {
+    const above = Number(composite[1]);
+    const below = Number(composite[2] ?? composite[3]);
+    if (Number.isInteger(above) && above > 0 && Number.isInteger(below) && below >= 0) {
+      return `${above}F / B${below}`;
+    }
+  }
+  const aboveOnly = compact.match(/^(\d+)F$/u);
+  if (aboveOnly && Number(aboveOnly[1]) > 0) return `${Number(aboveOnly[1])}F`;
+  const belowOnly = compact.match(/^(?:B(\d+)|(\d+)B)$/u);
+  if (belowOnly) return `B${Number(belowOnly[1] ?? belowOnly[2])}`;
+  return original;
+}
+
 function normalizeManagementCellInputValue(value, column) {
+  if (column?.type === 'floor_count') return normalizeFloorCountInputValue(value);
   if (isWonAmountColumn(column)) return normalizeWonInputValue(value);
   return sanitizeDataManagementDisplayValue(value, '');
 }
