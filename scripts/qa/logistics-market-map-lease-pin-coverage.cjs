@@ -354,6 +354,45 @@ async function main() {
 
     report.hover_callout = await hoverRepresentativePinAndVerifyCallout(page);
     if (!report.hover_callout.ok) report.errors.push(report.hover_callout.error || 'Representative pin hover did not show a callout.');
+
+    await resetToOverview(page);
+    const leaseCenterTable = page.locator('table').filter({
+      has: page.getByRole('columnheader', { name: /센터명/u }),
+    }).last();
+    const firstLeaseCenterRow = leaseCenterTable.locator('tbody tr').first();
+    await firstLeaseCenterRow.click({ timeout: 15000 });
+    const detailDialog = page.locator('[role="dialog"]').last();
+    await detailDialog.waitFor({ state: 'visible', timeout: 15000 });
+    const detailMapButton = detailDialog.locator('[data-testid="lease-center-map-button"]');
+    const detailMapButtonEnabled = await detailMapButton.isEnabled().catch(() => false);
+    if (detailMapButtonEnabled) await detailMapButton.click({ timeout: 15000 });
+    const nestedMapDialog = page.locator('[role="dialog"]').last();
+    const nestedMapReady = detailMapButtonEnabled
+      ? await page.waitForFunction(() => {
+        const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+        const panel = dialogs.at(-1)?.querySelector('[data-testid="market-map-panel"]');
+        return dialogs.length >= 2
+          && panel?.getAttribute('data-map-provider') === 'naver'
+          && panel?.getAttribute('data-naver-map-ready') === 'true'
+          && panel?.getAttribute('data-osm-map-ready') === 'false'
+          && panel?.getAttribute('data-map-fallback-ready') === 'false'
+          && Number(panel?.getAttribute('data-map-point-count') || 0) === 1
+          && Number(panel?.getAttribute('data-map-fallback-count') || 0) === 0;
+      }, undefined, { timeout: 60000 }).then(() => true).catch(() => false)
+      : false;
+    let detailMapScreenshot = '';
+    if (nestedMapReady) {
+      fs.mkdirSync(OUT_DIR, { recursive: true });
+      detailMapScreenshot = path.join(OUT_DIR, `market-map-lease-center-detail-${timestampForFile()}.png`);
+      await nestedMapDialog.screenshot({ path: detailMapScreenshot });
+    }
+    report.lease_center_detail_map = {
+      button_enabled: detailMapButtonEnabled,
+      nested_dialog_visible: detailMapButtonEnabled && (await nestedMapDialog.isVisible().catch(() => false)),
+      naver_single_pin_ready: nestedMapReady,
+      screenshot: detailMapScreenshot ? path.relative(ROOT, detailMapScreenshot) : '',
+    };
+    if (!detailMapButtonEnabled || !nestedMapReady) report.errors.push('Lease center detail map did not open as an exact one-pin Naver map.');
   } catch (error) {
     report.errors.push(error?.stack || error?.message || String(error));
   } finally {
@@ -367,7 +406,8 @@ async function main() {
     && report.large_map?.ok === true
     && report.reentry?.overview_ok === true
     && report.reentry?.representative_ok === true
-    && report.hover_callout?.ok === true;
+    && report.hover_callout?.ok === true
+    && report.lease_center_detail_map?.naver_single_pin_ready === true;
   report.artifact = writeArtifact(report);
   console.log(`market map lease pin coverage ${report.ok ? 'PASS' : 'FAIL'}: ${report.artifact}`);
   if (!report.ok) process.exitCode = 1;
