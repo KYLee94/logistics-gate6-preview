@@ -5350,8 +5350,35 @@ const MARKET_BACKFILL_GEOCODE_QUERY_ALIASES: Record<string, string[]> = {
   ],
 };
 
+const HWASEONG_DISTRICT_BY_TOWNSHIP: Record<string, string> = {
+  우정읍: '만세구',
+  향남읍: '만세구',
+  남양읍: '만세구',
+  마도면: '만세구',
+  송산면: '만세구',
+  서신면: '만세구',
+  팔탄면: '만세구',
+  장안면: '만세구',
+  양감면: '만세구',
+  봉담읍: '효행구',
+  비봉면: '효행구',
+  매송면: '효행구',
+  정남면: '효행구',
+};
+
+function marketBackfillAdministrativeAddressAliases(address: string) {
+  const match = address.match(/^경기도\s+화성시\s+([^\s]+)\s+(.+)$/u);
+  if (!match) return [];
+  const district = HWASEONG_DISTRICT_BY_TOWNSHIP[match[1]];
+  return district ? [`경기도 화성시 ${district} ${match[1]} ${match[2]}`] : [];
+}
+
 async function marketBackfillGeocode(ctx: Context, address: string) {
-  const queries = [address, ...(MARKET_BACKFILL_GEOCODE_QUERY_ALIASES[address] || [])];
+  const queries = Array.from(new Set([
+    address,
+    ...marketBackfillAdministrativeAddressAliases(address),
+    ...(MARKET_BACKFILL_GEOCODE_QUERY_ALIASES[address] || []),
+  ]));
   let lastEmpty: Record<string, unknown> = { status: 'empty', message: 'Naver geocode returned no address' };
   for (let providerIndex = 0; providerIndex < queries.length; providerIndex += 1) {
     const providerQuery = queries[providerIndex];
