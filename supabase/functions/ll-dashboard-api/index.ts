@@ -5348,6 +5348,9 @@ const MARKET_BACKFILL_GEOCODE_QUERY_ALIASES: Record<string, string[]> = {
     '경기도 화성시 만세구 팔탄면 3.1만세로 625-23',
     '경기도 화성시 팔탄면 3.1만세로 625-23',
   ],
+  '인천광역시 서구 오류동 1578-6': [
+    '인천광역시 서구 정서진7로 18',
+  ],
 };
 
 const HWASEONG_DISTRICT_BY_TOWNSHIP: Record<string, string> = {
