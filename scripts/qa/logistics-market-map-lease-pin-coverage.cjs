@@ -172,7 +172,8 @@ async function waitForOverview(page, selector = MAP_SELECTOR) {
 }
 
 async function selectRegion(page, region, expectedPointCount, selector = MAP_SELECTOR) {
-  const button = page.locator(`${selector} [data-region-cluster-button="true"][data-region-name="${region}"]`).first();
+  const encodedRegion = encodeURIComponent(region);
+  const button = page.locator(`${selector} [data-region-cluster-button="true"][data-region-key="${encodedRegion}"]`).first();
   await button.waitFor({ state: 'visible', timeout: 30000 });
   await button.click({ timeout: 20000 }).catch(() => button.click({ force: true, timeout: 5000 }));
   await page.waitForFunction(({ target, expectedRegion, expectedCount }) => {

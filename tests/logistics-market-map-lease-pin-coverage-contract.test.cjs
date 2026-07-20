@@ -60,6 +60,8 @@ test('coverage QA checks every region, a single representative large map, tab re
   const source = scriptSource();
 
   assert.match(source, /for \(const \[region, expectedPointCount\] of Object\.entries\(EXPECTED_REGION_PIN_COUNTS\)\)/u);
+  assert.match(source, /encodeURIComponent\(region\)/u);
+  assert.match(source, /data-region-key/u);
   assert.match(source, /market-map-expand-button/u);
   assert.match(source, /representative_region/u);
   assert.match(source, /reentry/u);

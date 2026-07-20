@@ -22,6 +22,7 @@ test('system push live QA identifies and validates the requested browser executa
   assert.match(source, /executable_path/u);
   assert.match(source, /permission_mode/u);
   assert.match(source, /target_browser_verified/u);
+  assert.match(source, /naver_work\.exe/u);
 });
 
 test('system push live QA proves subscription persistence and notification identity with server readback', () => {
@@ -63,4 +64,40 @@ test('system push live QA keeps server, service worker, and OS display verdicts 
   assert.match(source, /process\.platform === 'darwin'/u);
   assert.match(source, /report\.ok\s*=\s*report\.actual_system_notification_success/u);
   assert.doesNotMatch(source, /desktop_screenshots_written/u);
+});
+
+test('system push live QA records the browser-side cause when a subscription endpoint is absent', () => {
+  const source = scriptSource();
+
+  for (const key of [
+    'ui_push_state',
+    'browser_push_diagnostics',
+    'service_worker_controller',
+    'ready_registration',
+    'push_manager_supported',
+    'vapid_key_shape',
+    'direct_subscribe_probe',
+    'directSubscribeProbe',
+    'Push runtime config returned a public key',
+  ]) {
+    assert.match(source, new RegExp(key, 'u'));
+  }
+  assert.match(source, /finally\s*\{[\s\S]{0,2200}page\.screenshot/u);
+});
+
+test('system push live QA accepts the linked Supabase query boolean marker format', () => {
+  const source = scriptSource();
+
+  assert.match(source, /\[\|:=\]/u);
+  assert.match(source, /qa_subscription_saved/u);
+  assert.match(source, /qa_provider_accepted/u);
+});
+
+test('CDP live QA passes only the verifiable pipeline while retaining a separate OS-display verdict', () => {
+  const source = scriptSource();
+
+  assert.match(source, /actual_system_notification_success/u);
+  assert.match(source, /options\.permissionMode === 'cdp_override' && report\.pipeline_ok/u);
+  assert.match(source, /report\.ok\s*=\s*report\.actual_system_notification_success/u);
+  assert.match(source, /PIPELINE PASS \(OS NOT VERIFIED\)/u);
 });

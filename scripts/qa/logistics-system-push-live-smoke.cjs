@@ -60,6 +60,18 @@ function parseArgs(argv) {
   }
   return options;
 }
+function findWhaleEngineExecutable(applicationDir) {
+  if (!fs.existsSync(applicationDir)) return '';
+  const versions = fs.readdirSync(applicationDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^\d+(?:\.\d+)+$/u.test(entry.name))
+    .map((entry) => entry.name)
+    .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
+  for (const version of versions) {
+    const executable = path.join(applicationDir, version, 'naver_work.exe');
+    if (fs.existsSync(executable)) return executable;
+  }
+  return '';
+}
 function browserExecutablePath({ browser, executable }) {
   if (executable) {
     if (!fs.existsSync(executable)) throw new Error(`--executable does not exist: ${executable}`);
@@ -68,6 +80,8 @@ function browserExecutablePath({ browser, executable }) {
   const candidates = browser === 'whale'
     ? [
       process.env.WHALE_PATH,
+      findWhaleEngineExecutable('C:\\Program Files\\Naver\\Naver Whale\\Application'),
+      findWhaleEngineExecutable('C:\\Program Files (x86)\\Naver\\Naver Whale\\Application'),
       'C:\\Program Files\\Naver\\Naver Whale\\Application\\whale.exe',
       'C:\\Program Files (x86)\\Naver\\Naver Whale\\Application\\whale.exe',
     ]
@@ -99,14 +113,158 @@ function readReturnedNotificationId(output, label) {
   return notificationId;
 }
 function readBooleanMarker(output, marker) {
-  return new RegExp(`${marker}\\s*[|:]?\\s*(true|t|1)`, 'iu').test(String(output));
+  return new RegExp(`${marker}\\s*(?:[|:=]|\\s)+\\s*(true|t|1)`, 'iu').test(String(output));
 }
 function readTextMarker(output, marker) {
-  const match = String(output).match(new RegExp(`${marker}\\s*[|:]?\\s*([^\\s|]+)`, 'iu'));
+  const match = String(output).match(new RegExp(`${marker}\\s*(?:[|:=]|\\s)+\\s*["']?([^\\s|"',}\\]]+)`, 'iu'));
   return match?.[1] || '';
 }
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function errorDetails(error) {
+  if (!error) return null;
+  return {
+    name: String(error.name || 'Error'),
+    message: String(error.message || error),
+    code: error.code == null ? null : String(error.code),
+  };
+}
+function vapidKeyShape(publicKey) {
+  const result = {
+    present: typeof publicKey === 'string' && Boolean(publicKey),
+    base64url: false,
+    decoded_bytes: 0,
+    uncompressed_p256_point: false,
+    valid_for_push_subscribe: false,
+    decode_error: null,
+  };
+  if (!result.present) return result;
+  result.base64url = /^[A-Za-z0-9_-]+$/u.test(publicKey);
+  if (!result.base64url) return result;
+  try {
+    const padding = '='.repeat((4 - (publicKey.length % 4)) % 4);
+    const decoded = Buffer.from(`${publicKey}${padding}`.replace(/-/gu, '+').replace(/_/gu, '/'), 'base64');
+    result.decoded_bytes = decoded.length;
+    result.uncompressed_p256_point = decoded.length === 65 && decoded[0] === 4;
+    result.valid_for_push_subscribe = result.uncompressed_p256_point;
+  } catch (error) {
+    result.decode_error = errorDetails(error);
+  }
+  return result;
+}
+async function fetchPushRuntimeConfig(session) {
+  const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL').replace(/\/$/u, '');
+  const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
+  const response = await fetch(`${supabaseUrl}/functions/v1/ll-dashboard-api`, {
+    method: 'POST',
+    headers: {
+      apikey: anonKey,
+      authorization: `Bearer ${session.access_token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ action: 'notifications/push/config', payload: {} }),
+  });
+  const body = await response.json().catch(() => null);
+  const publicKey = typeof body?.data?.public_key === 'string' ? body.data.public_key : '';
+  return {
+    http_status: response.status,
+    ok: response.ok && body?.ok !== false,
+    response_code: String(body?.code || body?.error?.code || ''),
+    public_key: publicKey,
+    public_key_shape: vapidKeyShape(publicKey),
+  };
+}
+async function collectBrowserPushDiagnostics(page, publicKey, stage) {
+  const result = await page.evaluate(async ({ key, label }) => {
+    const errorDetailsInPage = (error) => error ? {
+      name: String(error.name || 'Error'),
+      message: String(error.message || error),
+      code: error.code == null ? null : String(error.code),
+    } : null;
+    const registrationSummary = (registration) => ({
+      scope: registration.scope || '',
+      active: registration.active ? { state: registration.active.state, script_url: registration.active.scriptURL } : null,
+      waiting: registration.waiting ? { state: registration.waiting.state, script_url: registration.waiting.scriptURL } : null,
+      installing: registration.installing ? { state: registration.installing.state, script_url: registration.installing.scriptURL } : null,
+    });
+    const result = {
+      stage: label,
+      secure_context: Boolean(window.isSecureContext),
+      notification_permission: typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
+      push_manager_supported: 'PushManager' in window,
+      service_worker_supported: 'serviceWorker' in navigator,
+      service_worker_controller: navigator.serviceWorker?.controller ? {
+        state: navigator.serviceWorker.controller.state,
+        script_url: navigator.serviceWorker.controller.scriptURL,
+      } : null,
+      browser_permissions_notification: null,
+      registrations: [],
+      ready_registration: null,
+      existing_subscription: { present: false, endpoint_present: false, application_server_key_bytes: 0 },
+      vapid_key_shape: { present: Boolean(key), base64url: false, decoded_bytes: 0, uncompressed_p256_point: false },
+      diagnostic_error: null,
+    };
+    try {
+      if (navigator.permissions?.query) {
+        result.browser_permissions_notification = (await navigator.permissions.query({ name: 'notifications' })).state;
+      }
+    } catch (error) {
+      result.browser_permissions_notification = `query_failed:${error?.name || 'Error'}`;
+    }
+    try {
+      result.registrations = (await navigator.serviceWorker.getRegistrations()).map(registrationSummary);
+      const ready = await navigator.serviceWorker.ready;
+      result.ready_registration = registrationSummary(ready);
+      const subscription = await ready.pushManager.getSubscription();
+      if (subscription) {
+        result.existing_subscription = {
+          present: true,
+          endpoint_present: Boolean(subscription.endpoint),
+          application_server_key_bytes: subscription.options?.applicationServerKey?.byteLength || 0,
+        };
+      }
+    } catch (error) {
+      result.diagnostic_error = errorDetailsInPage(error);
+    }
+    try {
+      result.vapid_key_shape.base64url = /^[A-Za-z0-9_-]+$/u.test(key || '');
+      if (result.vapid_key_shape.base64url) {
+        const padding = '='.repeat((4 - (key.length % 4)) % 4);
+        const binary = atob(`${key}${padding}`.replace(/-/gu, '+').replace(/_/gu, '/'));
+        result.vapid_key_shape.decoded_bytes = binary.length;
+        result.vapid_key_shape.uncompressed_p256_point = binary.length === 65 && binary.charCodeAt(0) === 4;
+      }
+    } catch (error) {
+      result.vapid_key_shape.decode_error = errorDetailsInPage(error);
+    }
+    return result;
+  }, { key: publicKey, label: stage });
+  return result;
+}
+async function directSubscribeProbe(page, publicKey) {
+  return page.evaluate(async (key) => {
+    const errorDetailsInPage = (error) => ({
+      name: String(error?.name || 'Error'),
+      message: String(error?.message || error),
+      code: error?.code == null ? null : String(error.code),
+    });
+    try {
+      const padding = '='.repeat((4 - (key.length % 4)) % 4);
+      const binary = atob(`${key}${padding}`.replace(/-/gu, '+').replace(/_/gu, '/'));
+      const applicationServerKey = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
+      return {
+        attempted: true,
+        outcome: 'subscribed',
+        endpoint_present: Boolean(subscription?.endpoint),
+        application_server_key_bytes: subscription?.options?.applicationServerKey?.byteLength || 0,
+      };
+    } catch (error) {
+      return { attempted: true, outcome: 'exception', exception: errorDetailsInPage(error) };
+    }
+  }, publicKey);
 }
 async function waitForServerAcceptance(notificationId) {
   const deadline = Date.now() + STAGE_TIMEOUT_MS;
@@ -251,8 +409,14 @@ async function main() {
   let context;
   let browser;
   let browserProcess;
+  let page;
   let qaEndpoint = '';
   try {
+    report.push_runtime_config = await fetchPushRuntimeConfig(session);
+    if (!report.push_runtime_config.ok) throw new Error(`Push runtime config request failed (${report.push_runtime_config.http_status}).`);
+    if (!report.push_runtime_config.public_key_shape.valid_for_push_subscribe) {
+      throw new Error('Push runtime config returned a public key that is not an uncompressed P-256 VAPID key.');
+    }
     const launched = await launchBrowserForCdp(executablePath, profileDir);
     browser = launched.browser;
     browserProcess = launched.processHandle;
@@ -260,7 +424,7 @@ async function main() {
     if (!context) throw new Error('The browser did not provide a default context.');
     await context.grantPermissions(['notifications'], { origin });
     const pages = context.pages();
-    const page = pages[0] || await context.newPage();
+    page = pages[0] || await context.newPage();
     await context.addInitScript((authSession) => {
       sessionStorage.setItem('sb-iota-auth-token', JSON.stringify(authSession));
       sessionStorage.setItem('logistics_preview_auth', JSON.stringify({ email: authSession.user.email }));
@@ -284,12 +448,34 @@ async function main() {
       return button && !button.disabled && !/preparing|processing|준비 중|처리 중/iu.test(button.textContent || '');
     }, null, { timeout: 30_000 });
     await installServiceWorkerStageListener(page, probeId);
+    report.browser_push_diagnostics = [
+      await collectBrowserPushDiagnostics(page, report.push_runtime_config.public_key, 'panel_prepared'),
+    ];
     if ((await toggle.innerText()).trim() === '끄기') await toggle.click();
     await page.waitForFunction(() => document.querySelector('[data-testid="logistics-windows-push-toggle"]')?.textContent?.trim() === '켜기', null, { timeout: 15_000 });
+    report.browser_push_diagnostics.push(await collectBrowserPushDiagnostics(page, report.push_runtime_config.public_key, 'before_subscribe'));
     await toggle.click();
     await page.waitForFunction(() => Notification.permission === 'granted', null, { timeout: 30_000 });
     report.checks.permission_granted = await page.evaluate(() => Notification.permission === 'granted');
-    await page.waitForFunction(async () => Boolean((await (await navigator.serviceWorker.ready).pushManager.getSubscription())?.endpoint), null, { timeout: STAGE_TIMEOUT_MS });
+    await page.waitForFunction(() => {
+      const button = document.querySelector('[data-testid="logistics-windows-push-toggle"]');
+      return button && !button.disabled && !/processing|처리 중/iu.test(button.textContent || '');
+    }, null, { timeout: STAGE_TIMEOUT_MS });
+    report.ui_push_state = await page.evaluate(() => ({
+      toggle_text: document.querySelector('[data-testid="logistics-windows-push-toggle"]')?.textContent?.trim() || '',
+      message: document.querySelector('[data-testid="logistics-windows-push-message"]')?.textContent?.trim() || '',
+      notification_permission: Notification.permission,
+    }));
+    report.browser_push_diagnostics.push(await collectBrowserPushDiagnostics(page, report.push_runtime_config.public_key, 'after_ui_subscribe'));
+    const hasEndpoint = report.browser_push_diagnostics.at(-1)?.existing_subscription?.endpoint_present === true;
+    if (!hasEndpoint) {
+      report.direct_subscribe_probe = await directSubscribeProbe(page, report.push_runtime_config.public_key);
+      report.browser_push_diagnostics.push(await collectBrowserPushDiagnostics(page, report.push_runtime_config.public_key, 'after_direct_subscribe_probe'));
+      const directError = report.direct_subscribe_probe?.exception;
+      const uiMessage = report.ui_push_state.message || 'no UI error message';
+      const directSummary = directError ? `${directError.name}: ${directError.message}` : report.direct_subscribe_probe?.outcome || 'not attempted';
+      throw new Error(`The browser did not create a push subscription endpoint. UI: ${uiMessage}. Direct subscribe: ${directSummary}.`);
+    }
     qaEndpoint = await page.evaluate(async () => (await (await navigator.serviceWorker.ready).pushManager.getSubscription())?.endpoint || '');
     if (!qaEndpoint) throw new Error('The browser did not create a push subscription endpoint.');
     const subscriptionReadback = serverSubscriptionReadback(session, qaEndpoint);
@@ -343,7 +529,6 @@ async function main() {
       checks.show_notification_called = true;
       report.notifications.push(checks);
     }
-    await page.screenshot({ path: pageScreenshot, fullPage: false });
     report.checks.server_accepted = report.notifications.every((item) => item.server_accepted);
     report.checks.sw_push_received = report.notifications.every((item) => item.sw_push_received);
     report.checks.show_notification_called = report.notifications.every((item) => item.show_notification_called);
@@ -375,13 +560,33 @@ async function main() {
       report.errors.push(`cleanup: ${error?.message || String(error)}`);
       report.ok = false;
     }
+    if (page) {
+      try { await page.screenshot({ path: pageScreenshot, fullPage: false }); } catch (error) {
+        report.errors.push(`screenshot: ${error?.message || String(error)}`);
+      }
+      try {
+        await page.evaluate(async () => {
+          const registration = await navigator.serviceWorker.ready;
+          const subscription = await registration.pushManager.getSubscription();
+          if (subscription) await subscription.unsubscribe();
+        });
+      } catch { /* Browser profile is disposable; best-effort local cleanup only. */ }
+    }
     if (browser) await browser.close().catch(() => null);
     if (browserProcess && !browserProcess.killed) browserProcess.kill();
     try { fs.rmSync(profileDir, { recursive: true, force: true }); } catch { /* QA temp cleanup */ }
     fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   }
-  console.log(`system push live smoke ${report.ok ? 'PASS' : 'FAIL'}: ${path.relative(ROOT, reportPath)}`);
-  if (!report.ok) process.exit(1);
+  const executableSuccess = report.actual_system_notification_success || (
+    options.permissionMode === 'cdp_override' && report.pipeline_ok
+  );
+  const verdict = report.actual_system_notification_success
+    ? 'PASS'
+    : (report.pipeline_ok && options.permissionMode === 'cdp_override'
+      ? 'PIPELINE PASS (OS NOT VERIFIED)'
+      : 'FAIL');
+  console.log(`system push live smoke ${verdict}: ${path.relative(ROOT, reportPath)}`);
+  if (!executableSuccess) process.exit(1);
 }
 
 main().catch((error) => { console.error(error); process.exit(1); });
