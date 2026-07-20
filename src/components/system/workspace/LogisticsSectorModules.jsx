@@ -2522,6 +2522,48 @@ function hasSufficientVisibleMapTiles(container) {
 
 const NAVER_MAP_AUTH_FAILURE_RE = /네이버\s*지도\s*Open\s*API\s*인증|Open API 인증|인증.*실패|unauthorized|authentication|forbidden|invalid\s*client/iu;
 
+const KOREA_LATITUDE_RANGE = [33, 39.5];
+const KOREA_LONGITUDE_RANGE = [124, 132];
+let marketMapInstanceSequence = 0;
+
+function nextMarketMapInstanceId() {
+  marketMapInstanceSequence += 1;
+  return `market-map-${marketMapInstanceSequence}`;
+}
+
+function marketMapRegionEventName(instanceId) {
+  return `market-map-region-select:${instanceId}`;
+}
+
+function normalizeMarketMapIdentity(value) {
+  return text(value, '').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('ko-KR');
+}
+
+function isValidKoreanLatLng(lat, lng) {
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  return Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && latitude >= KOREA_LATITUDE_RANGE[0]
+    && latitude <= KOREA_LATITUDE_RANGE[1]
+    && longitude >= KOREA_LONGITUDE_RANGE[0]
+    && longitude <= KOREA_LONGITUDE_RANGE[1];
+}
+
+function marketMapDetailPinKey(row, labelKey) {
+  const centerName = normalizeMarketMapIdentity(row?.center_name || row?.[labelKey] || row?.asset_name || row?.label);
+  const preciseAddress = normalizeMarketMapIdentity(
+    row?.coordinate_address || row?.legal_address || row?.generated_address || row?.address,
+  );
+  if (centerName && preciseAddress) return `center:${centerName}|address:${preciseAddress}`;
+  const latitude = Number(row?.latitude ?? row?.lat ?? row?.y_coord);
+  const longitude = Number(row?.longitude ?? row?.lng ?? row?.x_coord);
+  if (centerName && isValidKoreanLatLng(latitude, longitude)) {
+    return `center:${centerName}|coordinates:${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+  }
+  return '';
+}
+
 function hasNaverMapAuthFailure(container) {
   if (!container) return false;
   return NAVER_MAP_AUTH_FAILURE_RE.test(String(container.textContent || ''));
@@ -2553,6 +2595,12 @@ function MarketMapPanel({
   const mapZoomListenerRef = useRef(null);
   const markersRef = useRef([]);
   const cadastralLayerRef = useRef(null);
+  const naverListenerHandlesRef = useRef([]);
+  const naverInfoWindowsRef = useRef([]);
+  const naverMarkerTimersRef = useRef([]);
+  const destroyCurrentMapRef = useRef(() => {});
+  const mapInstanceIdRef = useRef(nextMarketMapInstanceId());
+  const mapInstanceId = mapInstanceIdRef.current;
   const naverHealthVerifiedRef = useRef(false);
   const onSelectRef = useRef(onSelect);
   const openMapItemRef = useRef(null);
@@ -2567,7 +2615,6 @@ function MarketMapPanel({
   const [forceOsm, setForceOsm] = useState(false);
   const [largeMapOpen, setLargeMapOpen] = useState(false);
   const isRegionMode = !selectedMapRegion;
-  const detailPointLimit = 120;
   const clusterScale = isRegionMode
     ? Math.max(0.95, Math.min(1.1, 0.95 + (Number(mapZoom || REGION_OVERVIEW_ZOOM) - REGION_OVERVIEW_ZOOM) * 0.08))
     : 1;
@@ -2644,7 +2691,7 @@ function MarketMapPanel({
   const rowLatLng = (row) => {
     const lat = Number(row.latitude ?? row.lat ?? row.y_coord);
     const lng = Number(row.longitude ?? row.lng ?? row.x_coord);
-    return Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0 ? [lat, lng] : null;
+    return isValidKoreanLatLng(lat, lng) ? [lat, lng] : null;
   };
   const regionRows = useMemo(() => {
     const averageLatLng = (groupRows) => {
@@ -2691,18 +2738,26 @@ function MarketMapPanel({
   }, [sourceRows, regionKey]);
   const selectedRegionRows = useMemo(() => {
     if (!selectedMapRegion) return [];
+    const seen = new Set();
     return sourceRows
       .filter((row) => regionValue(row[regionKey]) === selectedMapRegion)
       .slice()
-      .sort((a, b) => areaValue(b) - areaValue(a) || text(a[labelKey] || a.label).localeCompare(text(b[labelKey] || b.label), 'ko'));
+      .sort((a, b) => areaValue(b) - areaValue(a) || text(a[labelKey] || a.label).localeCompare(text(b[labelKey] || b.label), 'ko'))
+      .filter((row) => {
+        const pinKey = marketMapDetailPinKey(row, labelKey);
+        if (!pinKey) return true;
+        if (seen.has(pinKey)) return false;
+        seen.add(pinKey);
+        return true;
+      });
   }, [sourceRows, regionKey, labelKey, selectedMapRegion]);
-  const mapRowLimit = isRegionMode ? regionRows.length : detailPointLimit;
+  const mapRowLimit = isRegionMode ? regionRows.length : selectedRegionRows.length;
   const candidateRows = useMemo(() => (
     isRegionMode
       ? regionRows
       : selectedRegionRows
   ), [isRegionMode, regionRows, selectedRegionRows]);
-  const visibleRows = useMemo(() => candidateRows.slice(0, mapRowLimit), [candidateRows, mapRowLimit]);
+  const visibleRows = useMemo(() => candidateRows, [candidateRows]);
   const excludedCount = Math.max(0, candidateRows.length - visibleRows.length);
   const plotRows = useMemo(() => {
     const rows = visibleRows.map((row, index) => {
@@ -2745,14 +2800,11 @@ function MarketMapPanel({
         .find((candidate) => candidate && Number.isFinite(candidate.lat) && Number.isFinite(candidate.lng));
       const rawLat = Number(row.latitude ?? row.lat ?? row.y_coord);
       const rawLng = Number(row.longitude ?? row.lng ?? row.x_coord);
-      const hasRawCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng) && rawLat !== 0 && rawLng !== 0;
-      const hasGeocodedCoords = Boolean(geocoded && Number.isFinite(geocoded.lat) && Number.isFinite(geocoded.lng));
+      const hasRawCoords = isValidKoreanLatLng(rawLat, rawLng);
+      const hasGeocodedCoords = isValidKoreanLatLng(geocoded?.lat, geocoded?.lng);
       const coordinateSource = hasRawCoords
         ? text(row.coordinate_source || 'server.coordinates')
         : (hasGeocodedCoords ? 'client.naver.geocode' : text(row.coordinate_source));
-      const regionCenter = REGION_CENTER_COORDS[region];
-      const offsetLat = ((index % 7) - 3) * 0.008;
-      const offsetLng = ((Math.floor(index / 7) % 7) - 3) * 0.01;
       return {
         row,
         index,
@@ -2766,8 +2818,8 @@ function MarketMapPanel({
         addressRule: text(row.address_rule),
         left: Number.isFinite(xValue) ? xValue : Math.max(8, Math.min(92, position[0] + ((index % 5) - 2) * 2.3)),
         top: Number.isFinite(yValue) ? yValue : Math.max(8, Math.min(90, position[1] + ((Math.floor(index / 5) % 5) - 2) * 2.2)),
-        lat: hasRawCoords ? rawLat : (hasGeocodedCoords ? geocoded.lat : (regionCenter ? regionCenter[0] + offsetLat : null)),
-        lng: hasRawCoords ? rawLng : (hasGeocodedCoords ? geocoded.lng : (regionCenter ? regionCenter[1] + offsetLng : null)),
+        lat: hasRawCoords ? rawLat : (hasGeocodedCoords ? geocoded.lat : null),
+        lng: hasRawCoords ? rawLng : (hasGeocodedCoords ? geocoded.lng : null),
         geocoded: !hasRawCoords && hasGeocodedCoords,
         fallback: !(hasRawCoords || hasGeocodedCoords),
       };
@@ -2785,7 +2837,7 @@ function MarketMapPanel({
     }));
   }, [visibleRows, regionKey, labelKey, geocodedCoords, isRegionMode]);
   const markerRows = useMemo(() => (
-    plotRows.filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+    plotRows.filter((item) => item.isCluster || (!item.fallback && isValidKoreanLatLng(item.lat, item.lng)))
   ), [plotRows]);
   const missingCoordinateCount = plotRows.filter((item) => item.fallback).length;
   const osmZoom = selectedMapRegion ? Math.max(9, Math.min(13, mapZoom)) : Math.max(7, Math.min(12, mapZoom));
@@ -2825,7 +2877,7 @@ function MarketMapPanel({
   const clusterIconHtml = useCallback((item) => {
     const { scopeLabel, regionLabel, countLabel } = clusterLabelParts(item);
     const ariaLabel = [scopeLabel, regionLabel, countLabel].filter(Boolean).join(' ');
-    const regionEvent = `event.stopPropagation();window.dispatchEvent(new CustomEvent('market-map-region-select',{detail:{region:'${encodeURIComponent(item.region)}'}}))`;
+    const regionEvent = `event.stopPropagation();window.dispatchEvent(new CustomEvent('${marketMapRegionEventName(mapInstanceId)}',{detail:{region:'${encodeURIComponent(item.region)}'}}))`;
     return `
       <button type="button" onclick="${regionEvent}" aria-label="${escapeMapHtml(ariaLabel)}" data-region-cluster-button="true" data-region-key="${encodeURIComponent(item.region)}" data-region-name="${escapeMapHtml(item.regionLabel)}" data-region-point-count="${escapeMapHtml(item.count)}" class="market-map-region-cluster-marker">
         <em>${escapeMapHtml(scopeLabel)}</em>
@@ -2833,7 +2885,7 @@ function MarketMapPanel({
         <strong>${escapeMapHtml(countLabel)}</strong>
       </button>
     `;
-  }, [clusterLabelParts]);
+  }, [clusterLabelParts, mapInstanceId]);
   const clampRegionClusterMarkers = useCallback(() => {
     if (!mapCanvasRef.current) return;
     const panel = mapCanvasRef.current.closest('[data-testid="market-map-panel"]');
@@ -2888,9 +2940,16 @@ function MarketMapPanel({
       const item = regionRows.find((row) => row.region === region);
       if (item) openMapItemRef.current?.(item);
     };
-    window.addEventListener('market-map-region-select', handleRegionSelect);
-    return () => window.removeEventListener('market-map-region-select', handleRegionSelect);
-  }, [regionRows]);
+    const eventName = marketMapRegionEventName(mapInstanceId);
+    window.addEventListener(eventName, handleRegionSelect);
+    return () => window.removeEventListener(eventName, handleRegionSelect);
+  }, [regionRows, mapInstanceId]);
+
+  useEffect(() => {
+    return () => {
+      destroyCurrentMapRef.current?.();
+    };
+  }, []);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -2984,8 +3043,45 @@ function MarketMapPanel({
       naverHealthInterval = null;
       naverHealthTimeout = null;
     };
+    const clearNaverListeners = () => {
+      const eventApi = window.naver?.maps?.Event;
+      naverListenerHandlesRef.current.forEach((listener) => {
+        try {
+          eventApi?.removeListener?.(listener);
+        } catch {
+          // Provider listener cleanup is best effort during tab transitions.
+        }
+      });
+      naverListenerHandlesRef.current = [];
+    };
+    const clearNaverInfoWindows = () => {
+      naverInfoWindowsRef.current.forEach((infoWindow) => {
+        try {
+          infoWindow?.close?.();
+        } catch {
+          // A detached Naver infowindow can reject close while the map is tearing down.
+        }
+      });
+      naverInfoWindowsRef.current = [];
+    };
+    const clearNaverMarkerTimers = () => {
+      naverMarkerTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      naverMarkerTimersRef.current = [];
+    };
+    const addNaverListener = (target, eventName, handler) => {
+      const listener = window.naver?.maps?.Event?.addListener?.(target, eventName, handler);
+      if (listener) naverListenerHandlesRef.current.push(listener);
+      return listener;
+    };
     const clearMarkers = () => {
       markersRef.current.forEach((marker) => {
+        try {
+          marker?.off?.();
+          marker?.closeTooltip?.();
+          marker?.unbindTooltip?.();
+        } catch {
+          // Leaflet marker listeners can already be detached when a map has been removed.
+        }
         try {
           marker?.setMap?.(null);
         } catch {
@@ -3019,6 +3115,9 @@ function MarketMapPanel({
     };
     const destroyCurrentMap = () => {
       clearNaverHealthMonitor();
+      clearNaverListeners();
+      clearNaverInfoWindows();
+      clearNaverMarkerTimers();
       clearMarkers();
       clearZoomListener();
       if (cadastralLayerRef.current) {
@@ -3048,9 +3147,14 @@ function MarketMapPanel({
       fittedRegionRef.current = '';
       if (mapCanvasRef.current) mapCanvasRef.current.innerHTML = '';
     };
+    destroyCurrentMapRef.current = destroyCurrentMap;
+    clearNaverListeners();
+    clearNaverInfoWindows();
+    clearNaverMarkerTimers();
     clearMarkers();
-    const mappableRows = markerRows.filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng));
+    const mappableRows = markerRows.filter((item) => item.isCluster || isValidKoreanLatLng(item.lat, item.lng));
     if (!mappableRows.length) {
+      destroyCurrentMap();
       window.queueMicrotask(() => {
         if (!cancelled) setMapStatus({ status: 'fallback', message: '지도 API 미설정/좌표 부족 · 권역 기준 표시' });
       });
@@ -3332,11 +3436,11 @@ function MarketMapPanel({
           }
           const marker = new window.naver.maps.Marker(markerOptions);
           if (item.isCluster) {
-            window.naver.maps.Event.addListener(marker, 'click', () => {
+            addNaverListener(marker, 'click', () => {
               openMapItemRef.current?.(item);
             });
           } else {
-            window.naver.maps.Event.addListener(marker, 'click', () => {
+            addNaverListener(marker, 'click', () => {
               openMapItemRef.current?.(item);
             });
           }
@@ -3345,13 +3449,15 @@ function MarketMapPanel({
               window.naver,
               buildMapCalloutHtml(marketMapCalloutContent(item, item.index), { provider: 'naver' }),
             ));
+            naverInfoWindowsRef.current.push(infoWindow);
             let closeTimer = null;
-            window.naver.maps.Event.addListener(marker, 'mouseover', () => {
+            addNaverListener(marker, 'mouseover', () => {
               if (closeTimer) window.clearTimeout(closeTimer);
               infoWindow.open(map, marker);
             });
-            window.naver.maps.Event.addListener(marker, 'mouseout', () => {
+            addNaverListener(marker, 'mouseout', () => {
               closeTimer = window.setTimeout(() => infoWindow.close(), 450);
+              naverMarkerTimersRef.current.push(closeTimer);
             });
           }
           return marker;
@@ -3432,6 +3538,7 @@ function MarketMapPanel({
         className={`relative ${mapHeightClass} overflow-hidden rounded-[12px] border border-[#333333] bg-[#151515]`}
         aria-label={`${title} 지도`}
         data-testid="market-map-panel"
+        data-map-instance-id={mapInstanceId}
         data-map-mode={isRegionMode ? 'regions' : 'points'}
         data-map-selected-region={selectedMapRegion}
         data-map-region-cluster-count={isRegionMode ? markerRows.filter((item) => item.isCluster).length : 0}

@@ -321,6 +321,13 @@ export function loadNaverMapsSdk(clientId) {
   return window.__logisticsNaverMapPromise;
 }
 
+const LEAFLET_SDK_TIMEOUT_MS = 5000;
+
+function removeLeafletSdkScript() {
+  const script = document.getElementById('logistics-leaflet-sdk');
+  script?.remove?.();
+}
+
 export function loadLeafletSdk() {
   if (typeof window === 'undefined') return Promise.reject(new Error('browser unavailable'));
   if (window.L?.map) return Promise.resolve(window.L);
@@ -334,17 +341,38 @@ export function loadLeafletSdk() {
       document.head.appendChild(link);
     }
     const existingScript = document.getElementById('logistics-leaflet-sdk');
-    if (existingScript) {
-      existingScript.addEventListener('load', () => (window.L?.map ? resolve(window.L) : reject(new Error('Leaflet SDK unavailable'))), { once: true });
-      existingScript.addEventListener('error', () => reject(new Error('Leaflet SDK load failed')), { once: true });
-      return;
-    }
-    const script = document.createElement('script');
+    const script = existingScript || document.createElement('script');
+    let settled = false;
+    let timeoutId = null;
+    const cleanup = () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+      script.onload = null;
+      script.onerror = null;
+    };
+    const fail = (message) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      removeLeafletSdkScript();
+      reject(new Error(message));
+    };
+    const succeed = () => {
+      if (settled) return;
+      if (!window.L?.map) {
+        fail('Leaflet SDK unavailable');
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(window.L);
+    };
+    timeoutId = window.setTimeout(() => fail('Leaflet SDK timeout'), LEAFLET_SDK_TIMEOUT_MS);
+    script.onload = succeed;
+    script.onerror = () => fail('Leaflet SDK load failed');
+    if (existingScript) return;
     script.id = 'logistics-leaflet-sdk';
     script.async = true;
     script.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
-    script.onload = () => (window.L?.map ? resolve(window.L) : reject(new Error('Leaflet SDK unavailable')));
-    script.onerror = () => reject(new Error('Leaflet SDK load failed'));
     document.head.appendChild(script);
   }).catch((error) => {
     window.__logisticsLeafletPromise = null;

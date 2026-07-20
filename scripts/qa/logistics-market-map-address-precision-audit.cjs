@@ -47,10 +47,17 @@ function hasAdminUnitBeforeLot(value) {
   return /(?:읍|면|동|리|가)\d*\s+(?:산\s*)?\d{1,5}(?:-\d{1,5})?\s*$/u.test(text(value));
 }
 
-function hasCoordinate(value) {
-  if (value === undefined || value === null || text(value) === '') return false;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed !== 0;
+function hasActualCoordinate(latitude, longitude) {
+  if (latitude === undefined || latitude === null || longitude === undefined || longitude === null) return false;
+  if (text(latitude) === '' || text(longitude) === '') return false;
+  const parsedLatitude = Number(latitude);
+  const parsedLongitude = Number(longitude);
+  return Number.isFinite(parsedLatitude)
+    && Number.isFinite(parsedLongitude)
+    && parsedLatitude >= 33
+    && parsedLatitude <= 39.5
+    && parsedLongitude >= 124
+    && parsedLongitude <= 132;
 }
 
 function addressFor(row) {
@@ -66,6 +73,10 @@ function rowLabel(row) {
     || text(row.warehouse_name)
     || text(row.label)
     || '-';
+}
+
+function locationKey(value) {
+  return text(value).replace(/\s+/gu, ' ').toLocaleLowerCase('ko-KR');
 }
 
 function compactSample(row, kind) {
@@ -117,7 +128,7 @@ function analyzeRows(kind, rows) {
       coordinateAddress,
       preciseAddress: hasLotAddress(address) && hasAdminUnitBeforeLot(address),
       preciseCoordinateAddress: hasLotAddress(coordinateAddress) && hasAdminUnitBeforeLot(coordinateAddress),
-      coordinatePresent: hasCoordinate(row.latitude) && hasCoordinate(row.longitude),
+      coordinatePresent: hasActualCoordinate(row.latitude, row.longitude),
       regionFallback: /region|fallback|missing/iu.test(coordinateSource),
     };
   });
@@ -130,25 +141,125 @@ function analyzeRows(kind, rows) {
   const missingCoordinate = inspected.filter((item) => !item.coordinatePresent);
   const regionFallback = inspected.filter((item) => item.regionFallback);
   const missingCoordinateAddress = inspected.filter((item) => !item.preciseCoordinateAddress);
+  const locationGroups = new Map();
+  inspected.forEach((item) => {
+    const key = locationKey(item.coordinateAddress);
+    if (!key) return;
+    const group = locationGroups.get(key) || [];
+    group.push(item);
+    locationGroups.set(key, group);
+  });
+  const duplicateLocationGroups = Array.from(locationGroups.entries())
+    .filter(([, items]) => items.length > 1)
+    .map(([key, items]) => ({
+      location_key: key,
+      location_address: items[0].coordinateAddress,
+      row_count: items.length,
+      samples: items.slice(0, 20).map((item) => compactSample(item.row, kind)),
+    }));
+  const coordinateCount = inspected.length - missingCoordinate.length;
   return {
     kind,
     row_count: rows.length,
     precise_address_count: inspected.length - missingPreciseAddress.length,
     missing_precise_address_count: missingPreciseAddress.length,
     source_lot_exception_count: sourceLotExceptions.length,
-    coordinate_count: inspected.length - missingCoordinate.length,
+    coordinate_count: coordinateCount,
     missing_coordinate_count: missingCoordinate.length,
+    actual_coordinate_coverage: {
+      count: coordinateCount,
+      total: inspected.length,
+      ratio: inspected.length === 0 ? 0 : coordinateCount / inspected.length,
+      percent: inspected.length === 0 ? 0 : (coordinateCount / inspected.length) * 100,
+    },
     precise_coordinate_address_count: inspected.length - missingCoordinateAddress.length,
     missing_precise_coordinate_address_count: missingCoordinateAddress.length,
     region_fallback_count: regionFallback.length,
+    duplicate_location_group_count: duplicateLocationGroups.length,
+    duplicate_location_row_count: duplicateLocationGroups.reduce((count, group) => count + group.row_count, 0),
     missing_precise_address_samples: missingPreciseAddress.slice(0, 20).map((item) => compactSample(item.row, kind)),
     source_lot_exception_samples: sourceLotExceptions.slice(0, 20).map((item) => compactSample(item.row, kind)),
     missing_coordinate_samples: missingCoordinate.slice(0, 20).map((item) => compactSample(item.row, kind)),
     region_fallback_samples: regionFallback.slice(0, 20).map((item) => compactSample(item.row, kind)),
+    duplicate_location_groups: duplicateLocationGroups.slice(0, 20),
     deokpyeong_samples: inspected
       .filter((item) => /덕평|마장면/iu.test(`${rowLabel(item.row)} ${item.address} ${item.coordinateAddress}`))
       .slice(0, 30)
       .map((item) => compactSample(item.row, kind)),
+  };
+}
+
+function addressPrecisionCheck(analyses) {
+  const failedAnalyses = analyses.filter((analysis) => (
+    analysis.missing_precise_address_count !== analysis.source_lot_exception_count
+  ));
+  return {
+    ok: failedAnalyses.length === 0,
+    scope: 'all-reported-map-rows',
+    failed_kinds: failedAnalyses.map((analysis) => analysis.kind),
+  };
+}
+
+function coordinatePrecisionCheck(analysis) {
+  return {
+    ok: analysis.row_count > 0
+      && analysis.coordinate_count === analysis.row_count
+      && analysis.region_fallback_count === 0,
+    scope: 'lease-latest-map-rows',
+    kind: analysis.kind,
+    actual_coordinate_coverage: analysis.actual_coordinate_coverage,
+    region_fallback_count: analysis.region_fallback_count,
+  };
+}
+
+function totalsFor(analyses) {
+  return analyses.reduce((acc, item) => ({
+    row_count: acc.row_count + item.row_count,
+    coordinate_count: acc.coordinate_count + item.coordinate_count,
+    missing_precise_address_count: acc.missing_precise_address_count + item.missing_precise_address_count,
+    source_lot_exception_count: acc.source_lot_exception_count + item.source_lot_exception_count,
+    missing_coordinate_count: acc.missing_coordinate_count + item.missing_coordinate_count,
+    missing_precise_coordinate_address_count: acc.missing_precise_coordinate_address_count + item.missing_precise_coordinate_address_count,
+    region_fallback_count: acc.region_fallback_count + item.region_fallback_count,
+    duplicate_location_group_count: acc.duplicate_location_group_count + item.duplicate_location_group_count,
+    duplicate_location_row_count: acc.duplicate_location_row_count + item.duplicate_location_row_count,
+  }), {
+    row_count: 0,
+    coordinate_count: 0,
+    missing_precise_address_count: 0,
+    source_lot_exception_count: 0,
+    missing_coordinate_count: 0,
+    missing_precise_coordinate_address_count: 0,
+    region_fallback_count: 0,
+    duplicate_location_group_count: 0,
+    duplicate_location_row_count: 0,
+  });
+}
+
+function buildReport(analyses, { authSource, full }) {
+  const leaseAnalysis = analyses.find((analysis) => analysis.kind === 'lease');
+  if (!leaseAnalysis) throw new Error('Lease analysis is required for the default coordinate precision gate.');
+  const addressPrecisionCheckResult = addressPrecisionCheck(analyses);
+  const leaseCoordinateCheck = coordinatePrecisionCheck(leaseAnalysis);
+  return {
+    ok: addressPrecisionCheckResult.ok && leaseCoordinateCheck.ok,
+    generated_at: new Date().toISOString(),
+    auth_source: authSource,
+    mode: full ? 'full' : 'light',
+    request_limits: {
+      lease: marketReadPayload('lease', { full }).limit,
+      supply: marketReadPayload('supply', { full }).limit,
+      transactions: marketReadPayload('transactions', { full }).limit,
+    },
+    scope: 'market-map-visible-rows',
+    checks: {
+      address_precision: addressPrecisionCheckResult,
+      coordinate_precision: leaseCoordinateCheck,
+    },
+    coordinate_note: 'actual_coordinate_coverage는 저장된 유효 한국 좌표의 비율입니다. 기본 게이트는 lease latest map rows의 좌표 100%와 region fallback 0건을 모두 요구합니다.',
+    address_note: '읍/면/동/리 + 본번-부번이 있는 행은 모두 정밀 주소로 통과합니다. 원천에 지번이 없고 산업단지 블록/부지명 또는 리 단위까지만 있는 행은 source_lot_exception으로 따로 남깁니다.',
+    totals: totalsFor(analyses),
+    analyses,
   };
 }
 
@@ -207,46 +318,26 @@ async function main() {
     analyzeRows('supply', supplyRows),
     analyzeRows('transactions', transactionRows),
   ];
-  const totals = analyses.reduce((acc, item) => ({
-    row_count: acc.row_count + item.row_count,
-    missing_precise_address_count: acc.missing_precise_address_count + item.missing_precise_address_count,
-    source_lot_exception_count: acc.source_lot_exception_count + item.source_lot_exception_count,
-    missing_coordinate_count: acc.missing_coordinate_count + item.missing_coordinate_count,
-    missing_precise_coordinate_address_count: acc.missing_precise_coordinate_address_count + item.missing_precise_coordinate_address_count,
-    region_fallback_count: acc.region_fallback_count + item.region_fallback_count,
-  }), {
-    row_count: 0,
-    missing_precise_address_count: 0,
-    source_lot_exception_count: 0,
-    missing_coordinate_count: 0,
-    missing_precise_coordinate_address_count: 0,
-    region_fallback_count: 0,
-  });
-  const report = {
-    ok: totals.missing_precise_address_count === totals.source_lot_exception_count,
-    generated_at: new Date().toISOString(),
-    auth_source: auth.source,
-    mode: full ? 'full' : 'light',
-    request_limits: {
-      lease: marketReadPayload('lease', { full }).limit,
-      supply: marketReadPayload('supply', { full }).limit,
-      transactions: marketReadPayload('transactions', { full }).limit,
-    },
-    scope: 'market-map-visible-rows',
-    coordinate_note: '지도는 Supabase 주소를 우선 사용하고, 저장 좌표가 없는 행은 Naver geocode-batch로 표시 직전 좌표를 채웁니다. 서버 저장 좌표 수는 별도 참고값으로 기록합니다.',
-    address_note: '읍/면/동/리 + 본번-부번이 있는 행은 모두 정밀 주소로 통과합니다. 원천에 지번이 없고 산업단지 블록/부지명 또는 리 단위까지만 있는 행은 source_lot_exception으로 따로 남깁니다.',
-    totals,
-    analyses,
-  };
+  const report = buildReport(analyses, { authSource: auth.source, full });
   const outJson = path.join(OUT_DIR, `market-map-address-precision-audit-${timestampForFile()}.json`);
   const latestJson = path.join(OUT_DIR, 'market-map-address-precision-audit-latest.json');
   fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(latestJson, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(JSON.stringify({ ok: report.ok, artifact: outJson, totals }, null, 2));
+  console.log(JSON.stringify({ ok: report.ok, artifact: outJson, checks: report.checks, totals: report.totals }, null, 2));
   if (!report.ok) process.exitCode = 1;
 }
 
-main().catch((error) => {
-  console.error(error?.stack || error?.message || error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error?.stack || error?.message || error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  addressPrecisionCheck,
+  analyzeRows,
+  buildReport,
+  coordinatePrecisionCheck,
+  mapRowsForAudit,
+};
