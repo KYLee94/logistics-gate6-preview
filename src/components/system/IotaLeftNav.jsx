@@ -779,8 +779,14 @@ export default function IotaLeftNav({ currentPath = '' }) {
                     return;
                 }
                 setPushEnabled(true);
-                await showLogisticsPushSetupConfirmation();
-                setPushMessage('시스템 알림을 켰습니다.');
+                try {
+                    const confirmation = await showLogisticsPushSetupConfirmation();
+                    setPushMessage(confirmation?.showRequested
+                        ? '알림 수신 설정을 저장했고 테스트 알림 표시를 요청했습니다.'
+                        : '수신 설정은 저장했지만 테스트 알림 표시를 확인하지 못했습니다.');
+                } catch {
+                    setPushMessage('수신 설정은 저장했지만 테스트 알림 표시를 확인하지 못했습니다.');
+                }
             }
         } catch (error) {
             setPushMessage(error?.message || '시스템 알림 설정을 변경하지 못했습니다.');

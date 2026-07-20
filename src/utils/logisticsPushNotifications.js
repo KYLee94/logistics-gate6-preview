@@ -3,13 +3,14 @@ import { invokeDashboardApi } from './supabaseSession';
 const PUSH_CONFIG_ACTION = 'notifications/push/config';
 const PUSH_SUBSCRIBE_ACTION = 'notifications/push/subscribe';
 const PUSH_UNSUBSCRIBE_ACTION = 'notifications/push/unsubscribe';
+const WORKER_ACTIVATION_TIMEOUT_MS = 15000;
 
 let registrationPromise = null;
 let pushPreparationPromise = null;
 let preparedPushState = null;
 
 function pushUnavailableError() {
-  return new Error('Push notifications are unavailable in this browser or connection.');
+  return new Error('현재 브라우저 또는 연결 환경에서는 시스템 알림을 사용할 수 없습니다.');
 }
 
 function getBasePath() {
@@ -19,6 +20,14 @@ function getBasePath() {
 
 function getServiceWorkerUrl() {
   return `${getBasePath()}logistics-push-sw.js`;
+}
+
+function expectedServiceWorkerUrl() {
+  return new URL(getServiceWorkerUrl(), window.location.href).href;
+}
+
+function expectedServiceWorkerScope() {
+  return new URL(getBasePath(), window.location.href).href;
 }
 
 function assertPushSupport() {
@@ -34,7 +43,7 @@ function assertPushSupport() {
 }
 
 function errorFromApi(action, error, response) {
-  const message = response?.message || response?.error?.message || error?.message || `${action} failed.`;
+  const message = response?.message || response?.error?.message || error?.message || '시스템 알림 설정 요청을 처리하지 못했습니다.';
   return new Error(message);
 }
 
@@ -55,6 +64,95 @@ function arrayBufferToBase64Url(value) {
     binary += String.fromCharCode(byte);
   });
   return btoa(binary).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '');
+}
+
+function sameByteSequence(left, right) {
+  if (!left || !right || left.byteLength !== right.byteLength) return false;
+  const leftBytes = new Uint8Array(left);
+  const rightBytes = new Uint8Array(right);
+  return leftBytes.every((byte, index) => byte === rightBytes[index]);
+}
+
+function subscriptionUsesVapidKey(subscription, publicKey) {
+  const applicationServerKey = subscription?.options?.applicationServerKey;
+  if (!applicationServerKey) return false;
+  return sameByteSequence(applicationServerKey, urlBase64ToUint8Array(publicKey));
+}
+
+async function removeSubscriptionForVapidKeyRotation(subscription, publicKey) {
+  if (!subscription || subscriptionUsesVapidKey(subscription, publicKey)) return subscription;
+  const unsubscribed = await subscription.unsubscribe();
+  if (!unsubscribed) throw new Error('기존 시스템 알림 구독을 새 키로 교체하지 못했습니다.');
+  return null;
+}
+
+function waitForWorkerActivation(worker) {
+  if (worker?.state === 'activated') return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      worker.removeEventListener('statechange', onStateChange);
+    };
+    const onStateChange = () => {
+      if (worker.state === 'activated') {
+        cleanup();
+        resolve();
+      } else if (worker.state === 'redundant') {
+        cleanup();
+        reject(new Error('새 시스템 알림 서비스 워커를 활성화하지 못했습니다.'));
+      }
+    };
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error('시스템 알림 서비스 워커 활성화가 지연되고 있습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.'));
+    }, WORKER_ACTIVATION_TIMEOUT_MS);
+    worker.addEventListener('statechange', onStateChange);
+    onStateChange();
+  });
+}
+
+async function waitForUpdatedServiceWorkerActivation(registration) {
+  const pendingWorker = registration.installing || registration.waiting;
+  if (pendingWorker) await waitForWorkerActivation(pendingWorker);
+  await navigator.serviceWorker.ready;
+  return registration;
+}
+
+function validateServiceWorkerRegistration(registration) {
+  const activeWorker = registration?.active;
+  if (
+    !activeWorker
+    || activeWorker.scriptURL !== expectedServiceWorkerUrl()
+    || registration.scope !== expectedServiceWorkerScope()
+  ) {
+    throw new Error('시스템 알림 서비스 워커가 예상 경로에서 활성화되지 않았습니다.');
+  }
+  return registration;
+}
+
+function createSetupNotificationId() {
+  if (globalThis.crypto?.randomUUID) return `setup-${globalThis.crypto.randomUUID()}`;
+  return `setup-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function requestWorkerSetupNotification(registration, notificationId) {
+  const worker = registration.active;
+  if (!worker || typeof worker.postMessage !== 'function' || typeof MessageChannel === 'undefined') {
+    return Promise.reject(new Error('활성 시스템 알림 서비스 워커를 사용할 수 없습니다.'));
+  }
+
+  return new Promise((resolve, reject) => {
+    const channel = new MessageChannel();
+    const timeout = setTimeout(() => reject(new Error('시스템 알림 워커가 테스트 알림 확인 응답을 보내지 않았습니다.')), 10000);
+    channel.port1.onmessage = (event) => {
+      clearTimeout(timeout);
+      resolve(event.data);
+    };
+    worker.postMessage({
+      type: 'logistics-push-show-setup-confirmation',
+      notification_id: notificationId,
+    }, [channel.port2]);
+  });
 }
 
 function getBrowserFamily() {
@@ -103,7 +201,8 @@ export async function registerLogisticsPushServiceWorker() {
     registrationPromise = navigator.serviceWorker.register(getServiceWorkerUrl(), { scope: getBasePath() })
       .then(async (registration) => {
         await registration.update();
-        return navigator.serviceWorker.ready;
+        const activeRegistration = await waitForUpdatedServiceWorkerActivation(registration);
+        return validateServiceWorkerRegistration(activeRegistration);
       })
       .catch((error) => {
         registrationPromise = null;
@@ -115,11 +214,16 @@ export async function registerLogisticsPushServiceWorker() {
 
 export async function showLogisticsPushSetupConfirmation() {
   const registration = await registerLogisticsPushServiceWorker();
-  await registration.showNotification('IGIS Logistics Platform', {
-    body: '시스템 알림이 정상적으로 연결되었습니다.',
-    tag: `logistics-push-setup-${Date.now()}`,
-    renotify: true,
-  });
+  const notificationId = createSetupNotificationId();
+  const acknowledgement = await requestWorkerSetupNotification(registration, notificationId);
+  if (
+    acknowledgement?.notification_id !== notificationId
+    || acknowledgement?.workerReceived !== true
+    || acknowledgement?.showRequested !== true
+  ) {
+    throw new Error('시스템 알림 워커가 테스트 알림을 표시하지 못했습니다.');
+  }
+  return { notificationId, workerReceived: true, showRequested: true };
 }
 
 export async function requestLogisticsPushPermission() {
@@ -131,7 +235,7 @@ export async function requestLogisticsPushPermission() {
 export async function getLogisticsPushConfig() {
   const config = await invokePushApi(PUSH_CONFIG_ACTION);
   if (typeof config?.public_key !== 'string' || !config.public_key) {
-    throw new Error('The server did not return a VAPID public key.');
+    throw new Error('시스템 알림 서버 설정을 불러오지 못했습니다.');
   }
   return config;
 }
@@ -143,7 +247,8 @@ export async function prepareLogisticsPushNotifications() {
       registerLogisticsPushServiceWorker(),
       getLogisticsPushConfig(),
     ]).then(async ([registration, config]) => {
-      const subscription = await registration.pushManager.getSubscription();
+      const currentSubscription = await registration.pushManager.getSubscription();
+      const subscription = await removeSubscriptionForVapidKeyRotation(currentSubscription, config.public_key);
       preparedPushState = { registration, config, subscription };
       return preparedPushState;
     }).catch((error) => {
@@ -180,10 +285,10 @@ export async function subscribeLogisticsPushNotifications() {
   if (permission !== 'granted') return { permission, subscribed: false };
   const payload = serializeSubscription(subscription);
   if (!payload.endpoint || !payload.p256dh_key || !payload.auth_key) {
-    throw new Error('The browser returned an incomplete push subscription.');
+    throw new Error('브라우저가 시스템 알림 연결 정보를 완성하지 못했습니다.');
   }
   const response = await invokePushApi(PUSH_SUBSCRIBE_ACTION, payload);
-  return { permission, subscribed: true, response };
+  return { permission, subscribed: response?.subscribed === true, response };
 }
 
 export async function getLogisticsPushSubscriptionStatus() {

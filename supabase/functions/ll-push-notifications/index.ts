@@ -26,6 +26,7 @@ type SubscriptionRow = {
   endpoint: string;
   p256dh_key: string;
   auth_key: string;
+  expires_at: string | null;
 };
 
 type PushRuntimeConfig = {
@@ -75,6 +76,11 @@ function notificationPath(payload: unknown) {
   return candidate.startsWith('/') && !candidate.startsWith('//') ? candidate : '/logistics-gate6-preview/work-platform';
 }
 
+function providerFailureStatus(error: unknown) {
+  const statusCode = Number((error as { statusCode?: unknown }).statusCode);
+  return Number.isInteger(statusCode) && statusCode >= 100 && statusCode <= 599 ? statusCode : null;
+}
+
 Deno.serve(async (request) => {
   if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' });
 
@@ -99,7 +105,7 @@ Deno.serve(async (request) => {
   if (!isRecord(rawBody)) return json(400, { error: 'invalid_payload' });
   const webhook = rawBody as DatabaseWebhook;
   if (webhook.type !== 'INSERT' || webhook.schema !== 'public' || webhook.table !== 'll_notifications' || !isRecord(webhook.record)) {
-    return json(202, { ok: true, ignored: true });
+    return json(202, { ok: false, outcome: 'ignored', ignored: true });
   }
 
   const notificationId = text((webhook.record as WebhookRecord).notification_id, 100);
@@ -113,16 +119,17 @@ Deno.serve(async (request) => {
     .neq('delivery_status', 'dismissed')
     .maybeSingle();
   if (notificationError) return json(500, { error: 'notification_read_failed' });
-  if (!notification) return json(202, { ok: true, ignored: true });
+  if (!notification) return json(202, { ok: false, outcome: 'ignored', ignored: true, notification_id: notificationId });
 
   const taskShare = notification as NotificationRow;
   if (!taskShare.recipient_user_id) return json(202, { ok: true, ignored: true });
 
   const { data: subscriptions, error: subscriptionsError } = await serviceClient
     .from('ll_notification_subscriptions')
-    .select('id,endpoint,p256dh_key,auth_key')
+    .select('id,endpoint,p256dh_key,auth_key,expires_at')
     .eq('user_id', taskShare.recipient_user_id)
-    .eq('enabled', true);
+    .eq('enabled', true)
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
   if (subscriptionsError) return json(500, { error: 'subscription_read_failed' });
 
   const payload = JSON.stringify({
@@ -141,23 +148,55 @@ Deno.serve(async (request) => {
         TTL: 60,
         urgency: 'high',
       });
-      return { sent: true, removed: false };
+      return { providerAccepted: true, removedExpired: false, failureStatus: null };
     } catch (error) {
-      const statusCode = Number((error as { statusCode?: unknown }).statusCode);
+      const statusCode = providerFailureStatus(error);
       if (statusCode === 404 || statusCode === 410) {
         const { error: deletionError } = await serviceClient
           .from('ll_notification_subscriptions')
           .delete()
           .eq('id', subscription.id);
-        return { sent: false, removed: !deletionError };
+        return { providerAccepted: false, removedExpired: !deletionError, failureStatus: null };
       }
-      return { sent: false, removed: false };
+      return { providerAccepted: false, removedExpired: false, failureStatus: statusCode === null ? 'unknown' : String(statusCode) };
     }
   }));
 
+  const attempted = results.length;
+  const providerAccepted = results.filter((result) => result.providerAccepted).length;
+  const failed = attempted - providerAccepted;
+  const removedExpired = results.filter((result) => result.removedExpired).length;
+  const failureStatusCounts = results.reduce<Record<string, number>>((counts, result) => {
+    if (result.failureStatus) counts[result.failureStatus] = (counts[result.failureStatus] || 0) + 1;
+    return counts;
+  }, {});
+  const pushOutcome = attempted === 0
+    ? 'no_active_subscriptions'
+    : providerAccepted === 0
+      ? 'no_provider_acceptance'
+      : failed > 0
+        ? 'partial_provider_acceptance'
+        : 'provider_accepted';
+
+  if (Object.keys(failureStatusCounts).length > 0) {
+    console.error('ll_push_notification_delivery_result', {
+      outcome: pushOutcome,
+      attempted,
+      provider_accepted: providerAccepted,
+      failed,
+      removed_expired: removedExpired,
+      failure_status_counts: failureStatusCounts,
+    });
+  }
+
   return json(200, {
-    ok: true,
-    sent: results.filter((result) => result.sent).length,
-    removed: results.filter((result) => result.removed).length,
+    ok: providerAccepted > 0,
+    notification_id: notificationId,
+    outcome: pushOutcome,
+    attempted: attempted,
+    provider_accepted: providerAccepted,
+    failed: failed,
+    removed_expired: removedExpired,
+    failure_status_counts: failureStatusCounts,
   });
 });
