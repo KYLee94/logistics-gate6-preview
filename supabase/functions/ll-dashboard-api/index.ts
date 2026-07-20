@@ -3695,8 +3695,14 @@ function normalizeEditCells(record: Record<string, unknown>) {
       sourceCellId: String(firstDefined(cell.source_cell_id, cell.target_cell_id, record.target_cell_id, '')),
       fieldName,
       operation: String(firstDefined(cell.action, cell.operation, '수정')),
-      beforeValue: firstPresent(cell.before_value, record.before_value),
-      afterValue: firstPresent(cell.after_value, cell.requested_value, record.requested_value),
+      beforeValue: Object.prototype.hasOwnProperty.call(cell, 'before_value')
+        ? cell.before_value
+        : record.before_value,
+      afterValue: Object.prototype.hasOwnProperty.call(cell, 'after_value')
+        ? cell.after_value
+        : Object.prototype.hasOwnProperty.call(cell, 'requested_value')
+          ? cell.requested_value
+          : record.requested_value,
       alreadyCurrent: Boolean(firstDefined(cell.already_current, cell.alreadyCurrent, false)),
       assetId: String(firstDefined(cell.asset_id, cell.assetId, record.target_asset_id, '')),
       assetName: String(firstDefined(cell.asset_name, cell.assetName, record.target_name, '')),
@@ -7614,9 +7620,9 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'goods_type', label: '취급 상품 유형', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'goods_type', width: 150, default_hidden: true },
   { field_key: 'is_single_tenant', label: '단일 임차인 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_single_tenant', width: 130, default_hidden: true },
   { field_key: 'contract_status', label: '계약상태', group: '계약상태', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'contract_status', width: 120 },
-  { field_key: 'leased_area_sqm', label: '임대면적', group: '면적·임차구역', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'leased_area_sqm', width: 130 },
-  { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적·임차구역', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_area_sqm', width: 130 },
-  { field_key: 'exclusive_ratio', label: '전용률', group: '면적·임차구역', type: 'percent', editable: false, width: 110, read_only_reason: '임대면적과 전용면적 기준으로 자동 계산됩니다.' },
+  { field_key: 'leased_area_sqm', label: '임대면적', group: '면적·임차구역', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'leased_area_sqm', width: 130 },
+  { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적·임차구역', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_area_sqm', width: 130 },
+  { field_key: 'exclusive_ratio', label: '전용률', group: '면적·임차구역', type: 'percent', unit: '%', editable: false, width: 110, read_only_reason: '임대면적과 전용면적 기준으로 자동 계산됩니다.' },
   { field_key: 'first_contract_date', label: '최초 계약일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_contract_date', width: 130, default_hidden: true },
   { field_key: 'first_start_date', label: '최초 계약개시일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_start_date', width: 140, default_hidden: true },
   { field_key: 'first_end_date', label: '최초 계약만기일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_end_date', width: 140, default_hidden: true },
@@ -7667,9 +7673,9 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS_V2 = [
   { field_key: 'floor_label', label: '층', group: '면적·임차구역', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'floor_label', width: 90 },
   { field_key: 'detail_area_label', label: '세부구역', group: '면적·임차구역', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'detail_area_label', width: 130 },
   { field_key: 'space_label', label: '임대구역', group: '면적·임차구역', type: 'text', editable: false, width: 160, default_hidden: true, read_only_reason: '층과 세부구역을 합쳐 보여주는 표시값입니다. 실제 수정은 층 또는 세부구역 컬럼에서 진행합니다.' },
-  { field_key: 'leased_area_sqm', label: '임대면적', group: '면적·임차구역', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'leased_area_sqm', width: 130 },
-  { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적·임차구역', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_area_sqm', width: 130 },
-  { field_key: 'exclusive_ratio', label: '전용률', group: '면적·임차구역', type: 'percent', editable: false, width: 110, read_only_reason: '임대면적과 전용면적 기준으로 자동 계산됩니다.' },
+  { field_key: 'leased_area_sqm', label: '임대면적', group: '면적·임차구역', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'leased_area_sqm', width: 130 },
+  { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적·임차구역', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_area_sqm', width: 130 },
+  { field_key: 'exclusive_ratio', label: '전용률', group: '면적·임차구역', type: 'percent', unit: '%', editable: false, width: 110, read_only_reason: '임대면적과 전용면적 기준으로 자동 계산됩니다.' },
   { field_key: 'first_contract_date', label: '최초 계약일', group: '계약 일정 · 최초', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_contract_date', width: 130, default_hidden: true },
   { field_key: 'first_start_date', label: '최초 계약개시일', group: '계약 일정 · 최초', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_start_date', width: 140, default_hidden: true },
   { field_key: 'first_end_date', label: '최초 계약만기일', group: '계약 일정 · 최초', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_end_date', width: 140, default_hidden: true },
@@ -7677,14 +7683,14 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS_V2 = [
   { field_key: 'recent_contract_date', label: '최근 계약일', group: '계약 일정 · 현재', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'recent_contract_date', width: 130 },
   { field_key: 'current_start_date', label: '현재 계약개시일', group: '계약 일정 · 현재', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'current_start_date', width: 140 },
   { field_key: 'current_end_date', label: '현재 계약만기일', group: '계약 일정 · 현재', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'current_end_date', width: 140 },
-  { field_key: 'current_contract_period', label: '현재 계약기간', group: '계약 일정 · 현재', type: 'number', editable: false, width: 130, read_only_reason: '현재 계약개시일과 현재 계약만기일 기준으로 자동 계산됩니다.' },
-  { field_key: 'extension_count', label: '연장횟수', group: '계약 일정 · 현재', type: 'number', editable: true, target_table: 'public.ll_leases', target_field: 'extension_count', width: 100, default_hidden: true },
-  { field_key: 'current_monthly_rent_total', label: '월 임대료', group: '임대료·관리비·보증금', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_rent_total', width: 140 },
-  { field_key: 'current_monthly_mf_total', label: '월 관리비', group: '임대료·관리비·보증금', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_mf_total', width: 140 },
-  { field_key: 'current_monthly_cost_total', label: '월 임관리비', group: '임대료·관리비·보증금', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_cost_total', width: 140 },
-  { field_key: 'current_rent_per_py', label: '평당 월임대료', group: '임대료·관리비·보증금', type: 'krw_per_py', editable: false, width: 140, read_only_reason: '최신 임대료 이력 기준 표시값입니다. 수정은 임대료·보증금 상세에서 기준 이력 행으로 승인 요청합니다.' },
-  { field_key: 'current_mf_per_py', label: '평당 월관리비', group: '임대료·관리비·보증금', type: 'krw_per_py', editable: false, width: 140, read_only_reason: '최신 임대료 이력 기준 표시값입니다. 수정은 임대료·보증금 상세에서 기준 이력 행으로 승인 요청합니다.' },
-  { field_key: 'e_noc', label: 'E. NOC', group: '임대료·관리비·보증금', type: 'krw_per_py', editable: false, width: 120, read_only_reason: '월 임관리비와 임대면적 기준으로 계산되는 표시값입니다.' },
+  { field_key: 'current_contract_period', label: '현재 계약기간', group: '계약 일정 · 현재', type: 'number', unit: '년', editable: false, width: 130, read_only_reason: '현재 계약개시일과 현재 계약만기일 기준으로 자동 계산됩니다.' },
+  { field_key: 'extension_count', label: '연장횟수', group: '계약 일정 · 현재', type: 'number', unit: '회', editable: true, target_table: 'public.ll_leases', target_field: 'extension_count', width: 100, default_hidden: true },
+  { field_key: 'current_monthly_rent_total', label: '월 임대료', group: '임대료·관리비·보증금', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_rent_total', width: 140 },
+  { field_key: 'current_monthly_mf_total', label: '월 관리비', group: '임대료·관리비·보증금', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_mf_total', width: 140 },
+  { field_key: 'current_monthly_cost_total', label: '월 임관리비', group: '임대료·관리비·보증금', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_cost_total', width: 140 },
+  { field_key: 'current_rent_per_py', label: '평당 월임대료', group: '임대료·관리비·보증금', type: 'krw_per_py', unit: '원/평', editable: false, width: 140, read_only_reason: '최신 임대료 이력 기준 표시값입니다. 수정은 임대료·보증금 상세에서 기준 이력 행으로 승인 요청합니다.' },
+  { field_key: 'current_mf_per_py', label: '평당 월관리비', group: '임대료·관리비·보증금', type: 'krw_per_py', unit: '원/평', editable: false, width: 140, read_only_reason: '최신 임대료 이력 기준 표시값입니다. 수정은 임대료·보증금 상세에서 기준 이력 행으로 승인 요청합니다.' },
+  { field_key: 'e_noc', label: 'E. NOC', group: '임대료·관리비·보증금', type: 'krw_per_py', unit: '원/평', editable: false, width: 120, read_only_reason: '월 임관리비와 임대면적 기준으로 계산되는 표시값입니다.' },
   { field_key: 'economic_terms_summary', label: '임대료·보증금 상세', group: '임대료·관리비·보증금', type: 'text', editable: false, width: 300, read_only_reason: '보증금, 월임대료, 월관리비, RF, FO, TI, 인상 조건을 상세 편집에서 행별로 수정 요청합니다. 평당 단가와 E. NOC는 계산값입니다.' },
   { field_key: 'required_specs_summary', label: '요구 스펙', group: '요구 스펙', type: 'text', editable: false, width: 260, read_only_reason: '요구 스펙은 상세 편집에서 항목별로 수정 요청합니다.' },
   { field_key: 'insurance_rights_summary', label: '보험·권리 상세', group: '보험·권리', type: 'text', editable: false, width: 260, read_only_reason: '보험·권리 조건은 상세 편집에서 항목별로 수정 요청합니다.' },
@@ -7702,12 +7708,12 @@ const DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS = [
   { field_key: 'floor_label', label: '층', group: '임대공간', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'floor_label', width: 90, default_hidden: true },
   { field_key: 'detail_area_label', label: '세부구역', group: '임대공간', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'detail_area_label', width: 120, default_hidden: true },
   { field_key: 'temperature_type', label: '용도', group: '임대공간', type: 'select', options: ['상온', '저온', '복합', '사무실'], editable: true, target_table: 'public.ll_rent_history', target_field: 'temperature_type', width: 110 },
-  { field_key: 'leased_area_sqm', label: '임대면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_rent_history', target_field: 'leased_area_sqm', width: 130 },
-  { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_rent_history', target_field: 'exclusive_area_sqm', width: 130, default_hidden: true },
-  { field_key: 'monthly_rent_total', label: '월 임대료 총액', group: '경제조건', type: 'krw', editable: true, target_table: 'public.ll_rent_history', target_field: 'monthly_rent_total', width: 150 },
-  { field_key: 'monthly_mf_total', label: '월 관리비 총액', group: '경제조건', type: 'krw', editable: true, target_table: 'public.ll_rent_history', target_field: 'monthly_mf_total', width: 150 },
-  { field_key: 'rent_per_py', label: '평당 월임대료', group: '경제조건', type: 'krw_per_py', editable: true, target_table: 'public.ll_rent_history', target_field: 'rent_per_py', width: 140 },
-  { field_key: 'mf_per_py', label: '평당 월관리비', group: '경제조건', type: 'krw_per_py', editable: true, target_table: 'public.ll_rent_history', target_field: 'mf_per_py', width: 140 },
+  { field_key: 'leased_area_sqm', label: '임대면적', group: '면적', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_rent_history', target_field: 'leased_area_sqm', width: 130 },
+  { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_rent_history', target_field: 'exclusive_area_sqm', width: 130, default_hidden: true },
+  { field_key: 'monthly_rent_total', label: '월 임대료 총액', group: '경제조건', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_rent_history', target_field: 'monthly_rent_total', width: 150 },
+  { field_key: 'monthly_mf_total', label: '월 관리비 총액', group: '경제조건', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_rent_history', target_field: 'monthly_mf_total', width: 150 },
+  { field_key: 'rent_per_py', label: '평당 월임대료', group: '경제조건', type: 'krw_per_py', unit: '원/평', editable: true, target_table: 'public.ll_rent_history', target_field: 'rent_per_py', width: 140 },
+  { field_key: 'mf_per_py', label: '평당 월관리비', group: '경제조건', type: 'krw_per_py', unit: '원/평', editable: true, target_table: 'public.ll_rent_history', target_field: 'mf_per_py', width: 140 },
   { field_key: 'is_latest', label: '최신 여부', group: '검토상태', type: 'text', editable: false, width: 100 },
   { field_key: 'review_status', label: '검토 상태', group: '검토상태', type: 'text', editable: false, width: 120 },
 ];
@@ -7718,8 +7724,8 @@ const DATA_MANAGEMENT_LEASE_SPACE_SPEC_BASE_FIELDS = [
   { field_key: 'space_label', label: '임대구역', group: '임대공간', type: 'text', editable: false, width: 160 },
   { field_key: 'floor_label', label: '층/세부구역', group: '임대공간', type: 'text', editable: false, width: 130 },
   { field_key: 'temperature_type', label: '용도', group: '임대공간', type: 'select', options: ['상온', '저온', '복합', '사무실'], editable: false, width: 100 },
-  { field_key: 'leased_area_sqm', label: '임대면적', group: '임대공간', type: 'area_sqm', editable: false, width: 130 },
-  { field_key: 'exclusive_ratio', label: '전용률', group: '임대공간', type: 'percent', editable: false, width: 100 },
+  { field_key: 'leased_area_sqm', label: '임대면적', group: '임대공간', type: 'area_sqm', unit: '㎡', editable: false, width: 130 },
+  { field_key: 'exclusive_ratio', label: '전용률', group: '임대공간', type: 'percent', unit: '%', editable: false, width: 100 },
 ];
 const DATA_MANAGEMENT_LEASE_SPECIAL_STATUS_VIEW_FIELDS = [
   { field_key: 'asset_name', label: '자산명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
@@ -7737,8 +7743,8 @@ const DATA_MANAGEMENT_TENANT_MASTER_VIEW_FIELDS = [
   { field_key: 'company_name', label: '회사명', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_tenants', target_field: 'company_name', width: 180 },
   { field_key: 'display_name', label: '표시명', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_tenants', target_field: 'display_name', width: 160 },
   { field_key: 'related_assets', label: '관련 자산', group: '연결 현황', type: 'text', editable: false, width: 320 },
-  { field_key: 'contract_count', label: '계약 수', group: '연결 현황', type: 'number', editable: false, width: 100 },
-  { field_key: 'active_contract_count', label: '현재 계약 수', group: '연결 현황', type: 'number', editable: false, width: 120 },
+  { field_key: 'contract_count', label: '계약 수', group: '연결 현황', type: 'number', unit: '건', editable: false, width: 100 },
+  { field_key: 'active_contract_count', label: '현재 계약 수', group: '연결 현황', type: 'number', unit: '건', editable: false, width: 120 },
   { field_key: 'latest_contract_end_date', label: '최근 계약만기일', group: '계약기간', type: 'date', editable: false, width: 140 },
   { field_key: 'review_status', label: '검토상태', group: '검토', type: 'text', editable: false, width: 120 },
 ];
@@ -7759,19 +7765,19 @@ const DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS = [
   { field_key: 'current_manager_name', label: '담당자', group: '담당자', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'current_manager_name', width: 140 },
   { field_key: 'current_manager_team', label: '담당 팀', group: '담당자', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'current_manager_team', width: 140 },
   { field_key: 'current_manager_email', label: '담당자 이메일', group: '담당자', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'current_manager_email', width: 220 },
-  { field_key: 'gross_floor_area_sqm', label: '연면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_assets', target_field: 'gross_floor_area_sqm', width: 130 },
-  { field_key: 'land_area_sqm', label: '대지면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_assets', target_field: 'land_area_sqm', width: 130 },
+  { field_key: 'gross_floor_area_sqm', label: '연면적', group: '면적', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_assets', target_field: 'gross_floor_area_sqm', width: 130 },
+  { field_key: 'land_area_sqm', label: '대지면적', group: '면적', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_assets', target_field: 'land_area_sqm', width: 130 },
   { field_key: 'floor_count', label: '층수', group: '면적', type: 'number', editable: true, target_table: 'public.ll_assets', target_field: 'floor_count', width: 100 },
   { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적', type: 'area_sqm', editable: false, width: 130 },
   { field_key: 'exclusive_ratio', label: '전용률', group: '면적', type: 'percent', editable: false, width: 110 },
   { field_key: 'spec_summary', label: '주요 스펙', group: '자산 스펙', type: 'text', editable: false, width: 320 },
   { field_key: 'operating_cost_period', label: '운영비용 기준', group: '운영비용', type: 'text', editable: false, width: 140 },
-  { field_key: 'pm_cost_krw', label: 'PM 비용', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'pm_cost_krw', width: 130 },
-  { field_key: 'fm_cost_krw', label: 'FM 비용', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'fm_cost_krw', width: 130 },
-  { field_key: 'insurance_cost_krw', label: '보험료', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'insurance_cost_krw', width: 130 },
-  { field_key: 'utility_cost_krw', label: 'Utility', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'utility_cost_krw', width: 130 },
-  { field_key: 'other_cost_krw', label: '기타 운영비', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'other_cost_krw', width: 130 },
-  { field_key: 'operating_cost_total_krw', label: '운영비용 합계', group: '운영비용', type: 'krw', editable: false, width: 140 },
+  { field_key: 'pm_cost_krw', label: 'PM 비용', group: '운영비용', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'pm_cost_krw', width: 130 },
+  { field_key: 'fm_cost_krw', label: 'FM 비용', group: '운영비용', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'fm_cost_krw', width: 130 },
+  { field_key: 'insurance_cost_krw', label: '보험료', group: '운영비용', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'insurance_cost_krw', width: 130 },
+  { field_key: 'utility_cost_krw', label: 'Utility', group: '운영비용', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'utility_cost_krw', width: 130 },
+  { field_key: 'other_cost_krw', label: '기타 운영비', group: '운영비용', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'other_cost_krw', width: 130 },
+  { field_key: 'operating_cost_total_krw', label: '운영비용 합계', group: '운영비용', type: 'krw', unit: '원', editable: false, width: 140 },
 ];
 const DATA_MANAGEMENT_INVESTMENT_INTEGRATED_VIEW_FIELDS = [
   { field_key: 'asset_name', label: '자산명', group: '자산·펀드', type: 'text', editable: false, sticky: true, width: 220 },
@@ -7798,17 +7804,17 @@ const DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS_V2 = [
   { field_key: 'asset_code', label: '자산코드', group: '자산 기본정보', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'asset_code', width: 130 },
   { field_key: 'sector', label: '섹터', group: '자산 기본정보', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'sector', width: 110 },
   { field_key: 'address', label: '주소', group: '자산 기본정보', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'address', width: 300 },
-  { field_key: 'gross_floor_area_sqm', label: '연면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_assets', target_field: 'gross_floor_area_sqm', width: 130 },
-  { field_key: 'land_area_sqm', label: '대지면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_assets', target_field: 'land_area_sqm', width: 130 },
+  { field_key: 'gross_floor_area_sqm', label: '연면적', group: '면적', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_assets', target_field: 'gross_floor_area_sqm', width: 130 },
+  { field_key: 'land_area_sqm', label: '대지면적', group: '면적', type: 'area_sqm', unit: '㎡', editable: true, target_table: 'public.ll_assets', target_field: 'land_area_sqm', width: 130 },
   { field_key: 'floor_count', label: '층수', group: '면적', type: 'number', editable: true, target_table: 'public.ll_assets', target_field: 'floor_count', width: 100 },
   { field_key: 'spec_summary', label: '주요 스펙', group: '자산 스펙', type: 'text', editable: false, width: 320 },
   { field_key: 'operating_cost_period', label: '운영비용 기준', group: '운영비용', type: 'text', editable: false, width: 140 },
-  { field_key: 'pm_cost_krw', label: 'PM 비용', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'pm_cost_krw', width: 130 },
-  { field_key: 'fm_cost_krw', label: 'FM 비용', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'fm_cost_krw', width: 130 },
-  { field_key: 'insurance_cost_krw', label: '보험료', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'insurance_cost_krw', width: 130 },
-  { field_key: 'utility_cost_krw', label: 'Utility', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'utility_cost_krw', width: 130 },
-  { field_key: 'other_cost_krw', label: '기타 운영비', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'other_cost_krw', width: 130 },
-  { field_key: 'operating_cost_total_krw', label: '운영비용 합계', group: '운영비용', type: 'krw', editable: false, width: 140 },
+  { field_key: 'pm_cost_krw', label: 'PM 비용', group: '운영비용', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'pm_cost_krw', width: 130 },
+  { field_key: 'fm_cost_krw', label: 'FM 비용', group: '운영비용', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'fm_cost_krw', width: 130 },
+  { field_key: 'insurance_cost_krw', label: '보험료', group: '운영비용', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'insurance_cost_krw', width: 130 },
+  { field_key: 'utility_cost_krw', label: 'Utility', group: '운영비용', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'utility_cost_krw', width: 130 },
+  { field_key: 'other_cost_krw', label: '기타 운영비', group: '운영비용', type: 'krw', unit: '원', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'other_cost_krw', width: 130 },
+  { field_key: 'operating_cost_total_krw', label: '운영비용 합계', group: '운영비용', type: 'krw', unit: '원', editable: false, width: 140 },
   { field_key: 'building_register_summary', label: '건축물대장 상세', group: '건축물대장', type: 'text', editable: false, width: 260, read_only_reason: '건축물대장 API 및 저장값은 상세 편집에서 항목별로 확인·수정 요청합니다.' },
 ];
 
@@ -7819,9 +7825,9 @@ const DATA_MANAGEMENT_INVESTMENT_INTEGRATED_VIEW_FIELDS_V2 = [
   { field_key: 'fund_short_name', label: '펀드 약칭', group: '자산·펀드', type: 'text', editable: true, target_table: 'public.ll_funds', target_field: 'short_name', width: 140 },
   { field_key: 'fund_type', label: '펀드 유형', group: '자산·펀드', type: 'text', editable: true, target_table: 'public.ll_funds', target_field: 'fund_type', width: 140 },
   { field_key: 'investment_strategy', label: '투자 전략', group: '자산·펀드', type: 'text', editable: true, target_table: 'public.ll_funds', target_field: 'investment_strategy', width: 160 },
-  { field_key: 'equity_amount_krw', label: 'Equity', group: '투자 구조', type: 'krw_raw', editable: false, width: 160, read_only_reason: 'Equity 합계는 수익자 정보 행의 투입금액 합계입니다. 셀을 눌러 수익자별 상세 행에서 수정 요청합니다.' },
-  { field_key: 'loan_amount_krw', label: 'Loan', group: '투자 구조', type: 'krw_raw', editable: false, width: 160, read_only_reason: 'Loan 합계는 대주 정보 행의 인출금액 합계입니다. 셀을 눌러 대주별 상세 행에서 수정 요청합니다.' },
-  { field_key: 'total_capital_krw', label: '합계', group: '투자 구조', type: 'krw_raw', editable: false, width: 160, read_only_reason: 'Equity와 Loan 합계로 자동 계산됩니다.' },
+  { field_key: 'equity_amount_krw', label: 'Equity', group: '투자 구조', type: 'krw_raw', unit: '원', editable: false, width: 160, read_only_reason: 'Equity 합계는 수익자 정보 행의 투입금액 합계입니다. 셀을 눌러 수익자별 상세 행에서 수정 요청합니다.' },
+  { field_key: 'loan_amount_krw', label: 'Loan', group: '투자 구조', type: 'krw_raw', unit: '원', editable: false, width: 160, read_only_reason: 'Loan 합계는 대주 정보 행의 인출금액 합계입니다. 셀을 눌러 대주별 상세 행에서 수정 요청합니다.' },
+  { field_key: 'total_capital_krw', label: '합계', group: '투자 구조', type: 'krw_raw', unit: '원', editable: false, width: 160, read_only_reason: 'Equity와 Loan 합계로 자동 계산됩니다.' },
 ];
 
 const DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS = new Set(['lease_general_excel', 'lease_contracts', 'lease_rent_history_excel', 'lease_asset_manager_links', 'tenant_master', 'lease_attributes', 'lease_space_specs']);
@@ -7829,9 +7835,9 @@ const DATA_MANAGEMENT_QUALITY_VIEW_FIELDS = [
   { field_key: 'domain_label', label: '업무 영역', group: '기본정보', type: 'text', sticky: true, width: 160, editable: false },
   { field_key: 'check_item', label: '점검 항목', group: '기본정보', type: 'text', sticky: true, width: 220, editable: false },
   { field_key: 'status_label', label: '상태', group: '검증 결과', type: 'text', width: 110, editable: false },
-  { field_key: 'issue_count', label: '확인 필요', group: '검증 결과', type: 'number', width: 110, editable: false },
-  { field_key: 'source_count', label: '현재 건수', group: '검증 기준', type: 'number', width: 120, editable: false },
-  { field_key: 'expected_count', label: '기준 건수', group: '검증 기준', type: 'number', width: 120, editable: false },
+  { field_key: 'issue_count', label: '확인 필요', group: '검증 결과', type: 'number', unit: '건', width: 110, editable: false },
+  { field_key: 'source_count', label: '현재 건수', group: '검증 기준', type: 'number', unit: '건', width: 120, editable: false },
+  { field_key: 'expected_count', label: '기준 건수', group: '검증 기준', type: 'number', unit: '건', width: 120, editable: false },
   { field_key: 'readback_at', label: '확인 시각', group: '검증 기준', type: 'date', width: 140, editable: false },
   { field_key: 'owner_label', label: '담당', group: '운영', type: 'text', width: 140, editable: false },
   { field_key: 'note', label: '확인 내용', group: '운영', type: 'text', width: 320, editable: false },
@@ -8785,13 +8791,29 @@ function dataManagementWorkViewKey(payload: Record<string, unknown>) {
   return safeText(payload.view_key || payload.viewKey || 'lease_general_excel');
 }
 
+function dataManagementViewFieldUnit(field: Record<string, unknown>) {
+  const explicitUnit = safeText(field.unit);
+  if (explicitUnit) return explicitUnit;
+  const type = safeText(field.type);
+  const fieldKey = safeText(field.field_key || field.field || field.target_field);
+  if (type === 'area_sqm') return '㎡';
+  if (type === 'krw' || type === 'krw_raw') return '원';
+  if (type === 'krw_per_py') return '원/평';
+  if (type === 'percent') return '%';
+  if (type === 'months') return '개월';
+  if (fieldKey === 'current_contract_period') return '년';
+  if (fieldKey === 'extension_count') return '회';
+  if (/(_count|count$)|^(issue_count|source_count|expected_count)$/u.test(fieldKey)) return '건';
+  return '';
+}
+
 function dataManagementPublicViewField(field: Record<string, unknown>) {
   return stripUndefined({
     field_key: safeText(field.field_key),
     label: safeText(field.label),
     group: safeText(field.group || '기본정보'),
     type: safeText(field.type || 'text'),
-    unit: safeText(field.unit),
+    unit: dataManagementViewFieldUnit(field),
     editable: field.editable === true,
     sticky: field.sticky === true,
     width: Number(field.width || 140),
@@ -9371,8 +9393,9 @@ function dataManagementFormatViewValue(value: unknown, field: Record<string, unk
   if (type === 'krw' && numeric !== null) return formatKoreanCompactWon(numeric);
   if (type === 'krw_per_py' && numeric !== null) return formatKoreanWon(numeric);
   if (type === 'area_sqm') {
-    const py = dataManagementAreaSqmToPy(value);
-    return py === null ? safeText(value) : formatKoreanPy(py);
+    return numeric === null
+      ? safeText(value)
+      : new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 2 }).format(numeric);
   }
   if (type === 'percent' && numeric !== null) return formatKoreanPercent(Math.abs(numeric) > 1 ? numeric / 100 : numeric);
   if (type === 'months' && numeric !== null) return `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(numeric)}개월`;
@@ -10532,32 +10555,32 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
     { field_key: 'tranche_type', label: '구분', group: 'Tranche', type: 'text', editable: true, width: 110 },
     { field_key: 'tranche', label: 'Tranche', group: 'Tranche', type: 'text', editable: true, width: 110 },
     { field_key: 'party_name', label: '수익자·대주', group: '투자자·대주', type: 'text', editable: true, width: 180 },
-    { field_key: 'committed_amount_krw', label: '약정·투입금액', group: '금액', type: 'krw_raw', editable: true, width: 150 },
+    { field_key: 'committed_amount_krw', label: '약정·투입금액', group: '금액', type: 'krw_raw', unit: '원', editable: true, width: 150 },
     { field_key: 'drawdown_date', label: '인출시점', group: '일정', type: 'date', editable: true, width: 130 },
     { field_key: 'maturity_date', label: '만기시점', group: '일정', type: 'date', editable: true, width: 130 },
     { field_key: 'interest_type', label: '이자유형', group: '금리', type: 'text', editable: true, width: 130 },
-    { field_key: 'base_rate', label: '기준금리', group: '금리', type: 'percent', editable: true, width: 110 },
-    { field_key: 'spread_rate', label: '가산금리', group: '금리', type: 'percent', editable: true, width: 110 },
-    { field_key: 'loan_rate', label: '대출금리', group: '금리', type: 'percent', editable: true, width: 110 },
-    { field_key: 'all_in_rate', label: 'All-In', group: '금리', type: 'percent', editable: true, width: 110 },
+    { field_key: 'base_rate', label: '기준금리', group: '금리', type: 'percent', unit: '%', editable: true, width: 110 },
+    { field_key: 'spread_rate', label: '가산금리', group: '금리', type: 'percent', unit: '%', editable: true, width: 110 },
+    { field_key: 'loan_rate', label: '대출금리', group: '금리', type: 'percent', unit: '%', editable: true, width: 110 },
+    { field_key: 'all_in_rate', label: 'All-In', group: '금리', type: 'percent', unit: '%', editable: true, width: 110 },
   ];
   const beneficiaryDetailColumns = [
     { field_key: 'tranche', label: 'tranche', group: '수익자 정보', type: 'text', editable: true, width: 120 },
     { field_key: 'party_name', label: '수익자', group: '수익자 정보', type: 'text', editable: true, width: 260 },
-    { field_key: 'committed_amount_krw', label: '투입금액(원)', group: '수익자 정보', type: 'krw_raw', editable: true, width: 180 },
+    { field_key: 'committed_amount_krw', label: '투입금액', group: '수익자 정보', type: 'krw_raw', unit: '원', editable: true, width: 180 },
   ];
   const loanDetailColumns = [
     { field_key: 'loan_type', label: '대출유형', group: '대주 정보', type: 'text', editable: true, width: 120 },
     { field_key: 'tranche', label: 'tranche', group: '대주 정보', type: 'text', editable: true, width: 120 },
     { field_key: 'party_name', label: '대주', group: '대주 정보', type: 'text', editable: true, width: 240 },
-    { field_key: 'committed_amount_krw', label: '인출금액(원)', group: '대주 정보', type: 'krw_raw', editable: true, width: 180 },
+    { field_key: 'committed_amount_krw', label: '인출금액', group: '대주 정보', type: 'krw_raw', unit: '원', editable: true, width: 180 },
     { field_key: 'drawdown_date', label: '인출시점', group: '대주 정보', type: 'date', editable: true, width: 130 },
     { field_key: 'maturity_date', label: '만기시점', group: '대주 정보', type: 'date', editable: true, width: 130 },
     { field_key: 'interest_type', label: '이자유형', group: '대주 정보', type: 'text', editable: true, width: 130 },
-    { field_key: 'base_rate', label: '기준금리', group: '대주 정보', type: 'percent', editable: true, width: 110 },
-    { field_key: 'spread_rate', label: '가산금리', group: '대주 정보', type: 'percent', editable: true, width: 110 },
-    { field_key: 'loan_rate', label: '대출금리', group: '대주 정보', type: 'percent', editable: true, width: 110 },
-    { field_key: 'all_in_rate', label: 'All-In', group: '대주 정보', type: 'percent', editable: true, width: 110 },
+    { field_key: 'base_rate', label: '기준금리', group: '대주 정보', type: 'percent', unit: '%', editable: true, width: 110 },
+    { field_key: 'spread_rate', label: '가산금리', group: '대주 정보', type: 'percent', unit: '%', editable: true, width: 110 },
+    { field_key: 'loan_rate', label: '대출금리', group: '대주 정보', type: 'percent', unit: '%', editable: true, width: 110 },
+    { field_key: 'all_in_rate', label: 'All-In', group: '대주 정보', type: 'percent', unit: '%', editable: true, width: 110 },
   ];
   const trancheTargetField = (trancheRow: Record<string, unknown>, fieldKey: string) => {
     if (fieldKey === 'party_name') {
@@ -10817,10 +10840,10 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
   const rentHistoryDetailColumns = [
     { field_key: 'basis_date', label: '기준일자', group: '임대료·관리비 이력', type: 'date', editable: true, width: 130 },
     { field_key: 'change_reason', label: '변동 원인', group: '임대료·관리비 이력', type: 'text', editable: true, width: 160 },
-    { field_key: 'monthly_rent_total', label: '월임대료 총액', group: '임대료·관리비 이력', type: 'krw', editable: true, width: 150 },
-    { field_key: 'monthly_mf_total', label: '월관리비 총액', group: '임대료·관리비 이력', type: 'krw', editable: true, width: 150 },
-    { field_key: 'rent_per_py', label: '평당 월임대료', group: '임대료·관리비 이력', type: 'krw_per_py', editable: false, width: 140, read_only_reason: '월임대료 총액과 임대면적 기준으로 계산되는 표시값입니다.' },
-    { field_key: 'mf_per_py', label: '평당 월관리비', group: '임대료·관리비 이력', type: 'krw_per_py', editable: false, width: 140, read_only_reason: '월관리비 총액과 임대면적 기준으로 계산되는 표시값입니다.' },
+    { field_key: 'monthly_rent_total', label: '월임대료 총액', group: '임대료·관리비 이력', type: 'krw', unit: '원', editable: true, width: 150 },
+    { field_key: 'monthly_mf_total', label: '월관리비 총액', group: '임대료·관리비 이력', type: 'krw', unit: '원', editable: true, width: 150 },
+    { field_key: 'rent_per_py', label: '평당 월임대료', group: '임대료·관리비 이력', type: 'krw_per_py', unit: '원/평', editable: false, width: 140, read_only_reason: '월임대료 총액과 임대면적 기준으로 계산되는 표시값입니다.' },
+    { field_key: 'mf_per_py', label: '평당 월관리비', group: '임대료·관리비 이력', type: 'krw_per_py', unit: '원/평', editable: false, width: 140, read_only_reason: '월관리비 총액과 임대면적 기준으로 계산되는 표시값입니다.' },
   ];
   const buildRentHistoryDetailRow = async (history: Record<string, unknown>, index: number) => {
     const id = safeText(firstDefined(history.rent_history_id, history.id));
@@ -16916,6 +16939,19 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
     .single();
   if (error || !data) return fail(404, 'Edit request not found', ctx.origin);
   if (!isEditRequestPendingStatus(data.status, data.write_status)) {
+    if (isEditRequestCompletedStatus(data.status, data.write_status)) {
+      return jsonResponse({
+        ok: true,
+        data: {
+          id,
+          status: data.status,
+          write_status: data.write_status,
+          readback_value: data.readback_value,
+          write_result: redactSensitivePayload(data.write_result),
+          already_processed: true,
+        },
+      }, 200, ctx.origin);
+    }
     if (isStaleEditRequestRunning(data as Record<string, unknown>)) {
       const recoveredAt = new Date().toISOString();
       const { error: recoverError } = await ctx.serviceClient

@@ -62,6 +62,7 @@
     "qa:data-management:column-editability": "node scripts/qa/logistics-data-management-column-editability-audit.cjs",
     "qa:data-management:required-fields-preview": "node scripts/qa/logistics-data-management-required-fields-preview.cjs",
     "qa:data-management:four-view-preview": "node scripts/qa/logistics-data-management-four-view-preview.cjs",
+    "qa:data-management:four-view-approval-smoke": "node scripts/qa/logistics-data-management-four-view-approval-smoke.cjs",
     "qa:data-management:release-gate": "node scripts/qa/logistics-data-management-release-gate.cjs",
     "qa:data-management:submit-readback": "node scripts/qa/logistics-data-management-release-gate.cjs --allow-submit --require-written-history",
     "qa:data-management:approved-readback": "node scripts/qa/logistics-data-management-release-gate.cjs --require-written-history",
@@ -132,6 +133,7 @@
     "qa:column-audit:self-test": "node scripts/qa/logistics-column-audit-self-test.cjs",
     "ops:db-cleanup:apply": "node scripts/ops/logistics-db-cleanup-apply.cjs",
     "qa:map-callout:matrix": "node scripts/qa/logistics-map-callout-matrix.cjs",
+    "qa:search-preview:browser": "node scripts/qa/logistics-search-preview-browser-smoke.cjs",
     "qa:browser-visible-parity": "node scripts/qa/logistics-browser-visible-parity.cjs",
     "qa:legacy-view-denylist": "node scripts/qa/logistics-legacy-view-denylist.cjs"
     ,

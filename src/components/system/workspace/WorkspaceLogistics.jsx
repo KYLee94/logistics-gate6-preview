@@ -15,6 +15,7 @@ import sectorData from './logisticsSectorData.json';
 import { floorPlanLabelFromRecord, normalizeFloorPlanImageSource } from './floorPlanImageSource';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './logisticsRoutes';
 import { normalizeStackingFloorLabel, normalizeStackingFloorLabelFromRow } from './stackingFloorNormalizer';
+import { deriveCompanySearchPreviewMetrics, sortCompanySearchPreviewRows } from './searchPreviewUtils';
 import {
   AssetSpecDashboard,
   DashboardModuleLifecycleContext,
@@ -1395,6 +1396,12 @@ function companyPayloadFromDashboardRead(response, fallbackPayload = {}) {
     latitude: asset.latitude,
     longitude: asset.longitude,
   }));
+  const previewMetrics = deriveCompanySearchPreviewMetrics({
+    summary,
+    profile: fallbackPayload.profile || {},
+    rows,
+    financials: { ...(fallbackPayload.financials || {}), openDart },
+  });
   return {
     payload: {
       ...fallbackPayload,
@@ -1403,6 +1410,11 @@ function companyPayloadFromDashboardRead(response, fallbackPayload = {}) {
         tenantId: firstDefined(tenant.tenant_id, fallbackPayload.profile?.tenantId),
         tenantMasterName: firstDefined(tenant.tenant_master_name, tenant.company_name, fallbackPayload.profile?.tenantMasterName),
         businessRegistrationNo: firstDefined(tenant.business_registration_no, fallbackPayload.profile?.businessRegistrationNo),
+        assetCount: previewMetrics.assetCount,
+        leasedAreaSqm: previewMetrics.leasedAreaSqm,
+        monthlyRentTotal: previewMetrics.monthlyRentTotal,
+        monthlyMfTotal: previewMetrics.monthlyMfTotal,
+        monthlyCostTotal: previewMetrics.monthlyCostTotal,
         company: {
           ...(fallbackPayload.profile?.company || {}),
           tenantMasterName: firstDefined(tenant.tenant_master_name, tenant.company_name, fallbackPayload.profile?.company?.tenantMasterName),
@@ -1433,6 +1445,7 @@ function companyPayloadFromDashboardRead(response, fallbackPayload = {}) {
       },
       financials: {
         ...(fallbackPayload.financials || {}),
+        dartLinked: previewMetrics.dartLinked,
         openDart,
         financials: firstDefined(openDart.financials, fallbackPayload.financials?.financials),
       },
@@ -5020,7 +5033,7 @@ function DashboardSearchPreview({ result }) {
           compact
         />
         <div className="flex justify-end">
-          <button type="button" onClick={() => navigateToAsset(result.label)} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5]">Asset 탭에서 전체 보기</button>
+          <button type="button" onClick={() => navigateToAsset(result.id)} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5]">자산 탭에서 전체 보기</button>
         </div>
       </div>
     );
@@ -5029,7 +5042,7 @@ function DashboardSearchPreview({ result }) {
   const payload = companyRead.payload || { profile: {}, leasedAssets: [] };
   const company = normalizeCompanyPayload(payload || {});
   const profile = company.profile || {};
-  const leasedAssets = company.normalizedLeasedAssets || [];
+  const leasedAssets = sortCompanySearchPreviewRows(company.normalizedLeasedAssets || []);
   const financials = company.financials || {};
   return (
     <div className="space-y-4">
@@ -5068,7 +5081,7 @@ function DashboardSearchPreview({ result }) {
         compact
       />
       <div className="flex justify-end">
-        <button type="button" onClick={() => navigateToCompany(result.id)} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5]">Company 탭에서 전체 보기</button>
+        <button type="button" onClick={() => navigateToCompany(result.id)} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5]">기업 탭에서 전체 보기</button>
       </div>
     </div>
   );
@@ -6232,7 +6245,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         <WeeklyAssetStatusTable defaultLargeTable onClose={() => setMainModal(null)} />
       )}
       {selectedSearchResult && (
-        <MainOverlay title={`통합 검색 · ${selectedSearchResult.label}`} eyebrow={selectedSearchResult.type === 'asset' ? 'ASSET DASHBOARD PREVIEW' : 'COMPANY DASHBOARD PREVIEW'} onClose={() => setSelectedSearchResult(null)}>
+        <MainOverlay title={`통합 검색 · ${selectedSearchResult.label}`} eyebrow={selectedSearchResult.type === 'asset' ? 'ASSET DASHBOARD PREVIEW' : 'COMPANY DASHBOARD PREVIEW'} onClose={() => setSelectedSearchResult(null)} fullScreen>
           <DashboardSearchPreview result={selectedSearchResult} />
         </MainOverlay>
       )}

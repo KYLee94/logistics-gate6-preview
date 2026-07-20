@@ -535,10 +535,19 @@ function dataManagementConsistencyGuide(fieldKey, label) {
 }
 
 function dataManagementColumnUnitGuide(column) {
+  const explicitUnit = text(column?.unit || '');
+  if (explicitUnit) return explicitUnit;
   const key = text(column?.field_key || column?.field || '').toLowerCase();
   const label = text(column?.label || '');
   if (/tranche/i.test(key + label)) return 'Equity 또는 Loan을 구분하는 Tranche입니다. 여러 건은 상세 편집에서 행별로 관리합니다.';
   return '';
+}
+
+function dataManagementColumnHeaderLabel(column) {
+  const label = text(column?.label || column?.field_key || column?.field || '컬럼');
+  const unit = text(column?.unit || '');
+  if (!unit || label.includes(`(${unit})`)) return label;
+  return `${label}(${unit})`;
 }
 
 function dataManagementColumnEditGuide(column) {
@@ -8346,6 +8355,9 @@ function DataManagementApprovalDashboard() {
       setDetailRequest(null);
       setActionStatus({ type: 'success', message: `${actionLabel} 처리가 완료됐습니다. 저장값을 다시 확인했습니다.` });
     } catch (reviewError) {
+      invalidateDataManagementEdgeCache();
+      await reload({}, { force: true }).catch(() => undefined);
+      setDetailRequest(null);
       setActionStatus({ type: 'error', message: reviewError.message || `${actionLabel} 처리에 실패했습니다.` });
     } finally {
       setRowActionStatus((current) => {
@@ -9275,11 +9287,11 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                   return (
                     <th key={`detail-head-${key}`} title={dataManagementColumnHelp(column)} style={columnStyle(column, 160)} className={`relative border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold ${stickyColumnClass(columnIndex, false, false, true)}`}>
                       <DataManagementHeaderHelp help={dataManagementColumnHelp(column)}>
-                        {text(column.label)}
+                        {dataManagementColumnHeaderLabel(column)}
                       </DataManagementHeaderHelp>
                       <span
                         role="separator"
-                        aria-label={`${text(column.label)} 컬럼 너비 조절`}
+                        aria-label={`${dataManagementColumnHeaderLabel(column)} 컬럼 너비 조절`}
                         className="absolute bottom-0 right-0 top-0 w-2 cursor-col-resize touch-none hover:bg-[#5A5A5A]"
                         onMouseDown={(event) => beginColumnResize(event, column, 160)}
                       />
@@ -9742,7 +9754,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-[12px] font-semibold text-[#86868B]">데이터 표</div>
-              <h3 className="mt-1 text-[22px] font-bold text-white">{text(activeWorkflowCard?.label || selectedViewMeta.label || selectedView.label, '업무 데이터')}</h3>
+              <h3 className="mt-1 text-[22px] font-bold text-white">{activeTabConfig.title}</h3>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 text-right text-[12px] leading-5 text-[#A1A1AA]">
               <div>{dataManagementLoading ? `데이터 로딩 ${Math.max(0, Math.min(99, dataManagementLoadingProgress))}%` : `${formatNumber(currentRowCount)}건 기준`}</div>
@@ -9785,13 +9797,13 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                         <th key={key} title={dataManagementColumnHelp(column)} style={columnStyle(column)} className={`relative border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold ${stickyColumnClass(columnIndex, false, false, true)}`}>
                           <button type="button" onClick={() => changeSort(key)} className="flex w-full items-center justify-between gap-2 text-left">
                             <DataManagementHeaderHelp help={dataManagementColumnHelp(column)}>
-                              {text(column.label)}
+                              {dataManagementColumnHeaderLabel(column)}
                             </DataManagementHeaderHelp>
                             <span className="text-[10px] text-[#86868B]">{activeSort ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}</span>
                           </button>
                           <span
                             role="separator"
-                            aria-label={`${text(column.label)} 컬럼 너비 조절`}
+                            aria-label={`${dataManagementColumnHeaderLabel(column)} 컬럼 너비 조절`}
                             className="absolute bottom-0 right-0 top-0 w-2 cursor-col-resize touch-none hover:bg-[#5A5A5A]"
                             onMouseDown={(event) => beginColumnResize(event, column)}
                           />
@@ -9912,7 +9924,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           <div className={`${INNER} mt-4 p-4`}>
             <div className="text-[12px] font-semibold text-[#A1A1AA]">선택 행</div>
             <div className="mt-2 text-[15px] font-bold text-white">{selectedRow ? text(selectedRow.row_label, '행') : '행을 선택해 주세요'}</div>
-            <div className="mt-1 text-[12px] text-[#86868B]">{text(activeWorkflowCard?.label || selectedViewMeta.label || selectedView.label)} · {writeModeLabel}</div>
+            <div className="mt-1 text-[12px] text-[#86868B]">{activeTabConfig.title} · {writeModeLabel}</div>
           </div>
 
           <label className="mt-4 block text-[12px] font-semibold text-[#A1A1AA]">
@@ -9920,7 +9932,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
             <select value={selectedFieldKey} onChange={(event) => setSelectedField(event.target.value)} disabled={!editableColumns.length} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none disabled:opacity-50">
               {editableColumns.length ? editableColumns.map((column) => {
                 const key = text(column.field_key || column.field);
-                return <option key={key} value={key}>{text(column.group)} · {text(column.label)}</option>;
+                return <option key={key} value={key}>{text(column.group)} · {dataManagementColumnHeaderLabel(column)}</option>;
               }) : <option value="">이 영역은 읽기 전용입니다</option>}
             </select>
             {selectedFieldConsistencyGuide ? <span className="mt-2 block text-[11px] leading-4 text-[#FFD479]">{selectedFieldConsistencyGuide}</span> : null}
@@ -9975,7 +9987,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-[12px] font-semibold text-[#86868B]">데이터 표</div>
-                <h3 className="mt-1 text-[22px] font-bold text-white">{text(activeWorkflowCard?.label || selectedViewMeta.label || selectedView.label, '업무 데이터')}</h3>
+                <h3 className="mt-1 text-[22px] font-bold text-white">{activeTabConfig.title}</h3>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2 text-[12px] text-[#A1A1AA]">
                 <span>{formatNumber(currentRowCount)}건 기준</span>
@@ -10005,13 +10017,13 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                           <th key={`fullscreen-${key}`} title={dataManagementColumnHelp(column)} style={columnStyle(column)} className={`relative border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold ${stickyColumnClass(columnIndex, false, false, true)}`}>
                             <button type="button" onClick={() => changeSort(key)} className="flex w-full items-center justify-between gap-2 text-left">
                               <DataManagementHeaderHelp help={dataManagementColumnHelp(column)}>
-                                {text(column.label)}
+                                {dataManagementColumnHeaderLabel(column)}
                               </DataManagementHeaderHelp>
                               <span className="text-[10px] text-[#86868B]">{activeSort ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
                             </button>
                             <span
                               role="separator"
-                              aria-label={`${text(column.label)} 컬럼 너비 조절`}
+                              aria-label={`${dataManagementColumnHeaderLabel(column)} 컬럼 너비 조절`}
                               className="absolute bottom-0 right-0 top-0 w-2 cursor-col-resize touch-none hover:bg-[#5A5A5A]"
                               onMouseDown={(event) => beginColumnResize(event, column)}
                             />
@@ -10117,14 +10129,14 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
             <div className={`${INNER} mt-4 p-4`}>
               <div className="text-[12px] font-semibold text-[#A1A1AA]">선택 행</div>
               <div className="mt-2 text-[13px] font-bold text-white">{selectedRow ? text(selectedRow.row_label, '-') : '행을 선택해 주세요'}</div>
-              <div className="mt-1 text-[12px] text-[#86868B]">{text(activeWorkflowCard?.label || selectedViewMeta.label || selectedView.label)} · {writeModeLabel}</div>
+              <div className="mt-1 text-[12px] text-[#86868B]">{activeTabConfig.title} · {writeModeLabel}</div>
             </div>
             <label className="mt-4 block text-[12px] font-semibold text-[#A1A1AA]">
               수정 필드
               <select value={selectedFieldKey} onChange={(event) => setSelectedField(event.target.value)} disabled={!editableColumns.length} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none disabled:opacity-50">
                 {editableColumns.length ? editableColumns.map((column) => {
                   const key = text(column.field_key || column.field);
-                  return <option key={`fullscreen-field-${key}`} value={key}>{text(column.group)} · {text(column.label)}</option>;
+                  return <option key={`fullscreen-field-${key}`} value={key}>{text(column.group)} · {dataManagementColumnHeaderLabel(column)}</option>;
                 }) : <option value="">이 영역은 읽기 전용입니다</option>}
               </select>
             </label>
@@ -10161,7 +10173,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
         <div className="grid h-full min-h-0 grid-cols-1 gap-4" data-data-management-row-add="true">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-[12px] font-semibold text-[#86868B]">{text(activeWorkflowCard?.label || selectedViewMeta.label || selectedView.label, '데이터')}</div>
+              <div className="text-[12px] font-semibold text-[#86868B]">{activeTabConfig.title}</div>
               <h3 className="mt-1 text-[22px] font-bold text-white">신규 데이터 추가</h3>
               <div className="mt-2 text-[12px] leading-5 text-[#A1A1AA]">표에 없는 신규 자산, 투자, 임대차계약, 담당자 데이터를 입력하고 승인 요청으로 저장합니다.</div>
             </div>
@@ -10185,7 +10197,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                     const key = text(column.field_key || column.field);
                     return (
                       <tr key={`row-add-${key}`} className="bg-[#171717] text-[#E5E5E5]">
-                        <td className="sticky left-0 z-20 border-r border-[#242426] bg-[#171717] px-3 py-2 font-semibold">{text(column.label || key)}</td>
+                        <td className="sticky left-0 z-20 border-r border-[#242426] bg-[#171717] px-3 py-2 font-semibold">{dataManagementColumnHeaderLabel(column)}</td>
                         <td className="border-r border-[#242426] px-3 py-2 text-[#A1A1AA]">{text(column.group, '-')}</td>
                         <td className="border-r border-[#242426] px-3 py-2">
                           <input
