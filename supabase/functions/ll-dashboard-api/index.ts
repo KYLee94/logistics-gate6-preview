@@ -5335,47 +5335,82 @@ async function marketBackfillNaverPacing(groupIndex: number) {
   await new Promise((resolve) => setTimeout(resolve, MARKET_BACKFILL_NAVER_PACING_MS));
 }
 
+const MARKET_BACKFILL_GEOCODE_QUERY_ALIASES: Record<string, string[]> = {
+  '경기도 화성시 정남면 고지리 115-1': [
+    '경기도 화성시 효행구 정남면 가장로 285',
+    '경기도 화성시 정남면 가장로 285',
+  ],
+};
+
 async function marketBackfillGeocode(ctx: Context, address: string) {
-  const response = await callNaverGeocode(ctx, { query: address });
-  const body = await response.clone().json().catch(() => ({})) as Record<string, unknown>;
-  const cache = body.cache && typeof body.cache === 'object' ? body.cache as Record<string, unknown> : {};
-  if (!response.ok || body.ok === false) {
-    return {
-      status: 'failed',
-      provider_status: response.status,
-      message: safeText(firstDefined(body.message, body.error, 'geocode failed')),
-    };
-  }
-  if (cache.stale === true) {
-    return {
-      status: 'stale_cache',
-      provider_status: body.provider_status || response.status,
-      message: 'Naver geocode fell back to stale cache',
-    };
-  }
-  const rows = Array.isArray(body.data) ? body.data as Record<string, unknown>[] : [];
-  const first = rows[0] || {};
-  const latitude = marketNumeric(first.y);
-  const longitude = marketNumeric(first.x);
-  if (latitude !== null && longitude !== null && !marketBackfillCoordinatesInKorea(latitude, longitude)) {
+  const queries = [address, ...(MARKET_BACKFILL_GEOCODE_QUERY_ALIASES[address] || [])];
+  let lastEmpty: Record<string, unknown> = { status: 'empty', message: 'Naver geocode returned no address' };
+  for (let providerIndex = 0; providerIndex < queries.length; providerIndex += 1) {
+    const providerQuery = queries[providerIndex];
+    await marketBackfillNaverPacing(providerIndex);
+    const response = await callNaverGeocode(ctx, { query: providerQuery });
+    const body = await response.clone().json().catch(() => ({})) as Record<string, unknown>;
+    const cache = body.cache && typeof body.cache === 'object' ? body.cache as Record<string, unknown> : {};
+    if (!response.ok || body.ok === false) {
+      return {
+        status: 'failed',
+        provider_status: response.status,
+        message: safeText(firstDefined(body.message, body.error, 'geocode failed')),
+      };
+    }
+    if (cache.stale === true) {
+      return {
+        status: 'stale_cache',
+        provider_status: body.provider_status || response.status,
+        message: 'Naver geocode fell back to stale cache',
+      };
+    }
+    const rows = Array.isArray(body.data) ? body.data as Record<string, unknown>[] : [];
+    if (!rows.length) {
+      lastEmpty = {
+        status: 'empty',
+        provider_status: body.provider_status || response.status,
+        provider_query: providerQuery,
+        message: 'Naver geocode returned no address',
+      };
+      continue;
+    }
+    const first = rows[0] as Record<string, unknown>;
+    const latitude = marketNumeric(first.y);
+    const longitude = marketNumeric(first.x);
+    if (latitude !== null && longitude !== null && !marketBackfillCoordinatesInKorea(latitude, longitude)) {
+      return stripUndefined({
+        status: 'out_of_range',
+        provider_status: body.provider_status || response.status,
+        latitude,
+        longitude,
+        provider_query: providerQuery,
+        message: 'Naver coordinates are outside Korea geocode bounds',
+        road_address: first.road_address,
+        jibun_address: first.jibun_address,
+      }) as Record<string, unknown>;
+    }
+    if (!marketBackfillCoordinatesInKorea(latitude, longitude)) {
+      lastEmpty = {
+        status: 'empty',
+        provider_status: body.provider_status || response.status,
+        provider_query: providerQuery,
+        message: 'Naver geocode returned an address without valid coordinates',
+      };
+      continue;
+    }
     return stripUndefined({
-      status: 'out_of_range',
+      status: 'ok',
+      query: address,
+      provider_query: providerQuery,
       provider_status: body.provider_status || response.status,
       latitude,
       longitude,
-      message: 'Naver coordinates are outside Korea geocode bounds',
       road_address: first.road_address,
       jibun_address: first.jibun_address,
     }) as Record<string, unknown>;
   }
-  return stripUndefined({
-    status: marketBackfillCoordinatesInKorea(latitude, longitude) ? 'ok' : 'empty',
-    provider_status: body.provider_status || response.status,
-    latitude,
-    longitude,
-    road_address: first.road_address,
-    jibun_address: first.jibun_address,
-  }) as Record<string, unknown>;
+  return lastEmpty;
 }
 
 function marketGeocodeLocationKey(row: Record<string, unknown>, info: Record<string, unknown>, address: string) {

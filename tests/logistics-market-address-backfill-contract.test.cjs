@@ -133,6 +133,22 @@ test('Naver coordinates are accepted only inside Korea and out-of-range values b
   assert.match(geocode, /Korea geocode bounds/u);
 });
 
+test('empty Naver results stay empty and a verified current road-address alias is retried', () => {
+  const geocode = sourceBetween(
+    edgeSource,
+    'const MARKET_BACKFILL_GEOCODE_QUERY_ALIASES',
+    '\nfunction marketGeocodeLocationKey(',
+  );
+
+  assert.match(geocode, /MARKET_BACKFILL_GEOCODE_QUERY_ALIASES/u);
+  assert.match(geocode, /'경기도 화성시 정남면 고지리 115-1': \[/u);
+  assert.match(geocode, /'경기도 화성시 효행구 정남면 가장로 285'/u);
+  assert.match(geocode, /if \(!rows\.length\) \{/u);
+  assert.match(geocode, /status: 'empty'/u);
+  assert.match(geocode, /provider_query: providerQuery/u);
+  assert.match(geocode, /query: address/u);
+});
+
 test('Naver backfill calls use 2.2 second pacing and expose the pacing contract', () => {
   const backfill = sourceBetween(
     edgeSource,
