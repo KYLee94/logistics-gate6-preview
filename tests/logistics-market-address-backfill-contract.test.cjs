@@ -149,6 +149,8 @@ test('empty Naver results stay empty and a verified current road-address alias i
   assert.match(geocode, /'인천광역시 서구 정서진7로 18'/u);
   assert.match(geocode, /'인천광역시 서구 오류동 1578-2': \[/u);
   assert.match(geocode, /'인천광역시 서구 정서진6로 25'/u);
+  assert.match(geocode, /'인천광역시 서구 오류동 1575-2': \[/u);
+  assert.match(geocode, /'인천광역시 서구 정서진로 47'/u);
   assert.match(geocode, /const HWASEONG_DISTRICT_BY_TOWNSHIP/u);
   assert.match(geocode, /정남면: '효행구'/u);
   assert.match(geocode, /향남읍: '만세구'/u);
