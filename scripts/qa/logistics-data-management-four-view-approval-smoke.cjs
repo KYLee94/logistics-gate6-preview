@@ -190,7 +190,7 @@ async function approveAndReadback(supabaseUrl, anonKey, token, edit, actorId, ph
 
 function cleanupQaRows(ids) {
   const validIds = ids.filter((id) => /^[0-9a-f-]{36}$/iu.test(id));
-  if (!validIds.length) return { deleted_requests: 0, deleted_notifications: 0, deleted_audits: 0 };
+  if (!validIds.length) return { deleted_requests: 0, deleted_notifications: 0 };
   const idArray = validIds.map(sqlLiteral).join(', ');
   const rows = runLinkedDbQuery(`
 with qa_ids as (
@@ -200,11 +200,6 @@ with qa_ids as (
   using qa_ids
   where notification.dedupe_key like ('edit-request:' || qa_ids.id::text || ':%')
   returning notification.notification_id
-), deleted_audits as (
-  delete from public.ll_audit_events audit
-  using qa_ids
-  where audit.edit_request_id = qa_ids.id
-  returning audit.id
 ), deleted_requests as (
   delete from public.ll_edit_requests request
   using qa_ids
@@ -213,10 +208,9 @@ with qa_ids as (
 )
 select
   (select count(*) from deleted_requests)::integer as deleted_requests,
-  (select count(*) from deleted_notifications)::integer as deleted_notifications,
-  (select count(*) from deleted_audits)::integer as deleted_audits;
+  (select count(*) from deleted_notifications)::integer as deleted_notifications;
 `, 'data-management-four-view-approval-cleanup');
-  return rows[0] || { deleted_requests: 0, deleted_notifications: 0, deleted_audits: 0 };
+  return rows[0] || { deleted_requests: 0, deleted_notifications: 0 };
 }
 
 async function exerciseProbe(supabaseUrl, anonKey, token, actorId, probe, stamp) {

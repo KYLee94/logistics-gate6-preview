@@ -716,6 +716,13 @@ function firstPresent(...values: unknown[]) {
   return values.find((value) => value !== undefined && value !== null);
 }
 
+function firstOwnValue(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) return record[key];
+  }
+  return undefined;
+}
+
 function hasMeaningfulInvestmentLoanData(row: Record<string, unknown>) {
   const kind = safeText(firstDefined(row.tranche_type, row.capital_kind));
   if (kind && kind !== 'loan') return true;
@@ -9624,7 +9631,7 @@ async function dataManagementResolveFallbackViewEdit(ctx: Context, payload: Reco
     : row.meta && typeof row.meta === 'object'
       ? row.meta as Record<string, unknown>
       : {};
-  const requestedValue = dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field);
+  const requestedValue = dataManagementParseViewRequestedValue(firstOwnValue(payload, ['requested_value', 'requestedValue', 'after_value', 'afterValue']), field);
   return {
     table_payload: {
       edit_mode: 'table_cell',
@@ -9640,7 +9647,7 @@ async function dataManagementResolveFallbackViewEdit(ctx: Context, payload: Reco
       requested_value: requestedValue,
       revision_hash: safeText(payload.revision_hash || payload.revisionHash),
       view_revision_hash: safeText(row.revision_hash),
-      client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+      client_before_value: firstOwnValue(payload, ['before_value', 'beforeValue', 'client_before_value', 'clientBeforeValue']),
       resolved_view_edit: true,
       reason: payload.reason,
       target_name: row.row_label,
@@ -11717,10 +11724,10 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
         target_record_id: targetRowId,
         field_name: targetField,
         before_value: currentRawValue,
-        requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+        requested_value: dataManagementParseViewRequestedValue(firstOwnValue(payload, ['requested_value', 'requestedValue', 'after_value', 'afterValue']), field),
         revision_hash: safeText(payload.revision_hash || payload.revisionHash),
         view_revision_hash: safeText(row.revision_hash),
-        client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+        client_before_value: firstOwnValue(payload, ['before_value', 'beforeValue', 'client_before_value', 'clientBeforeValue']),
         resolved_view_edit: true,
         target_name: row.row_label,
         asset_id: safeText(rowMeta.asset_id),
@@ -11756,10 +11763,10 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
         target_record_id: targetRowId,
         field_name: targetField,
         before_value: currentRawValue,
-        requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+        requested_value: dataManagementParseViewRequestedValue(firstOwnValue(payload, ['requested_value', 'requestedValue', 'after_value', 'afterValue']), field),
         revision_hash: safeText(payload.revision_hash || payload.revisionHash),
         view_revision_hash: safeText(row.revision_hash),
-        client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+        client_before_value: firstOwnValue(payload, ['before_value', 'beforeValue', 'client_before_value', 'clientBeforeValue']),
         resolved_view_edit: true,
         target_name: row.row_label,
         asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
@@ -11803,10 +11810,10 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
       target_record_id: targetRowId,
       field_name: targetField,
       before_value: currentRawValue,
-      requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+      requested_value: dataManagementParseViewRequestedValue(firstOwnValue(payload, ['requested_value', 'requestedValue', 'after_value', 'afterValue']), field),
       revision_hash: safeText(payload.revision_hash || payload.revisionHash),
       view_revision_hash: safeText(row.revision_hash),
-      client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+      client_before_value: firstOwnValue(payload, ['before_value', 'beforeValue', 'client_before_value', 'clientBeforeValue']),
       resolved_view_edit: true,
       target_name: row.row_label,
       asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
@@ -11838,7 +11845,7 @@ async function dataManagementResolveWorkbookViewEdit(ctx: Context, payload: Reco
   if (!sourceRowId) throw new Error('원본 source row 연결을 확인할 수 없습니다.');
   const editValues = row.edit_values && typeof row.edit_values === 'object' ? row.edit_values as Record<string, unknown> : {};
   const beforeValue = editValues[fieldKey];
-  const requestedValue = firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
+  const requestedValue = firstOwnValue(payload, ['requested_value', 'requestedValue', 'after_value', 'afterValue']);
   return {
     source_payload: {
       source_row_id: sourceRowId,
@@ -11933,10 +11940,10 @@ async function dataManagementResolveIntegratedViewEdit(ctx: Context, payload: Re
       target_record_id: targetRowId,
       field_name: targetField,
       before_value: currentRawValue,
-      requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+      requested_value: dataManagementParseViewRequestedValue(firstOwnValue(payload, ['requested_value', 'requestedValue', 'after_value', 'afterValue']), field),
       revision_hash: safeText(payload.revision_hash || payload.revisionHash),
       view_revision_hash: safeText(row.revision_hash),
-      client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+      client_before_value: firstOwnValue(payload, ['before_value', 'beforeValue', 'client_before_value', 'clientBeforeValue']),
       resolved_view_edit: true,
       target_name: row.row_label,
       asset_id: relatedAssetIdForEdit,
@@ -12030,7 +12037,7 @@ async function dataManagementResolveDetailFieldEdit(ctx: Context, payload: Recor
     }
     currentItems[index] = {
       ...currentItems[index],
-      value: safeText(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue)),
+      value: safeText(firstOwnValue(payload, ['requested_value', 'requestedValue', 'after_value', 'afterValue'])),
     };
     const tableName = clientTableName(targetTable);
     return {
@@ -12045,7 +12052,7 @@ async function dataManagementResolveDetailFieldEdit(ctx: Context, payload: Recor
         requested_value: dataManagementJoinSpecialTermItems(currentItems),
         revision_hash: safeText(payload.revision_hash || payload.revisionHash),
         view_revision_hash: safeText(detailRow.revision_hash),
-        client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+        client_before_value: firstOwnValue(payload, ['before_value', 'beforeValue', 'client_before_value', 'clientBeforeValue']),
         resolved_view_edit: true,
         target_name: [row.row_label, `${index + 1}. 특수 계약 조건`].map((item) => safeText(item)).filter(Boolean).join(' · '),
         asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
@@ -12078,10 +12085,10 @@ async function dataManagementResolveDetailFieldEdit(ctx: Context, payload: Recor
       target_record_id: targetRowId,
       field_name: targetField,
       before_value: currentRawValue,
-      requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), detailColumn),
+      requested_value: dataManagementParseViewRequestedValue(firstOwnValue(payload, ['requested_value', 'requestedValue', 'after_value', 'afterValue']), detailColumn),
       revision_hash: safeText(payload.revision_hash || payload.revisionHash),
       view_revision_hash: safeText(detailRow.revision_hash),
-      client_before_value: firstPresent(payload.before_value, payload.beforeValue, payload.client_before_value, payload.clientBeforeValue),
+      client_before_value: firstOwnValue(payload, ['before_value', 'beforeValue', 'client_before_value', 'clientBeforeValue']),
       resolved_view_edit: true,
       target_name: [row.row_label, detailRow.row_label].map((item) => safeText(item)).filter(Boolean).join(' · '),
       asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
@@ -12767,8 +12774,8 @@ function dataManagementTableCellInput(payload: Record<string, unknown>) {
   const primaryKeyField = safeText(payload.primary_key_field || payload.primaryKeyField || dataManagementPrimaryKeyForTable(tableName));
   const targetRowId = safeText(payload.target_record_id || payload.targetRecordId || payload.target_row_id || payload.targetRowId);
   const fieldName = safeText(payload.field_name || payload.fieldName || payload.target_field || payload.targetField);
-  const beforeValue = firstPresent(payload.before_value, payload.beforeValue);
-  const requestedValue = firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
+  const beforeValue = firstOwnValue(payload, ['before_value', 'beforeValue']);
+  const requestedValue = firstOwnValue(payload, ['requested_value', 'requestedValue', 'after_value', 'afterValue']);
   return { targetTable, tableName, primaryKeyField, targetRowId, fieldName, beforeValue, requestedValue };
 }
 
@@ -13090,7 +13097,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
   let alreadyCurrentCount = 0;
   for (const rawChange of rawChanges) {
     const change = rawChange && typeof rawChange === 'object' ? rawChange : {};
-    const clientBeforeValue = firstPresent(change.before_value, change.beforeValue);
+    const clientBeforeValue = firstOwnValue(change as Record<string, unknown>, ['before_value', 'beforeValue']);
     const mergedPayload = {
       ...payload,
       ...change,
@@ -13099,7 +13106,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       view_key: change.view_key || change.viewKey || payload.view_key || payload.viewKey,
       row_key: change.row_key || change.rowKey,
       field_key: change.field_key || change.fieldKey,
-      requested_value: firstPresent(change.requested_value, change.requestedValue, change.after_value, change.afterValue),
+      requested_value: firstOwnValue(change as Record<string, unknown>, ['requested_value', 'requestedValue', 'after_value', 'afterValue']),
       client_before_value: clientBeforeValue,
       revision_hash: change.revision_hash || change.revisionHash,
       bundle_key: change.bundle_key || change.bundleKey || payload.bundle_key || payload.bundleKey,
@@ -14017,7 +14024,7 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
   if (isDataManagementTableCellPayload(payload)) return callDataManagementPreviewTableCell(ctx, payload);
   const sourceRowId = safeText(payload.source_row_id || payload.sourceRowId || payload.target_row_id || payload.targetRowId);
   const fieldName = safeText(payload.field_name || payload.fieldName);
-  const requestedValue = firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
+  const requestedValue = firstOwnValue(payload, ['requested_value', 'requestedValue', 'after_value', 'afterValue']);
   if (!sourceRowId || !fieldName) return fail(400, 'source_row_id and field_name are required', ctx.origin);
   const managerView = false;
   const scopeResult = await readDataManagementScope(ctx, managerView);

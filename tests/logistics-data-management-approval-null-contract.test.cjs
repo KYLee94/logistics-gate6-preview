@@ -17,6 +17,19 @@ test('approval keeps an explicit null cell value instead of falling back to the 
   assert.doesNotMatch(normalizeBlock, /beforeValue:\s*firstPresent\(cell\.before_value,\s*record\.before_value\)/u);
 });
 
+test('Data Management submit and view resolution keep an explicit requested null value', () => {
+  const source = fs.readFileSync(EDGE_PATH, 'utf8');
+  const inputStart = source.indexOf('function dataManagementTableCellInput');
+  const inputEnd = source.indexOf('async function readDataManagementTableCellRow', inputStart);
+  const inputBlock = source.slice(inputStart, inputEnd);
+  const leaseStart = source.indexOf('async function dataManagementResolveLeaseViewEdit');
+  const leaseEnd = source.indexOf('async function dataManagementResolveWorkbookViewEdit', leaseStart);
+  const leaseBlock = source.slice(leaseStart, leaseEnd);
+
+  assert.match(inputBlock, /firstOwnValue\(payload, \['requested_value', 'requestedValue', 'after_value', 'afterValue'\]\)/u);
+  assert.match(leaseBlock, /dataManagementParseViewRequestedValue\(firstOwnValue\(payload, \['requested_value', 'requestedValue', 'after_value', 'afterValue'\]\), field\)/u);
+});
+
 test('repeated approval returns the completed readback instead of a conflict', () => {
   const source = fs.readFileSync(EDGE_PATH, 'utf8');
   const approveStart = source.indexOf('async function approveEdit');
