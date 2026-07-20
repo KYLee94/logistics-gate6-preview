@@ -82,6 +82,74 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function safeText(value) {
+  return String(value ?? '').trim();
+}
+
+function positiveInteger(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function leaseScopeFromResponse(data) {
+  const scope = {
+    source_file_id: safeText(data?.source_file_id),
+    report_period: safeText(data?.report_period),
+    expected_rows: positiveInteger(data?.expected_rows),
+  };
+  if (!scope.source_file_id || !scope.report_period || !scope.expected_rows) {
+    throw new Error('Lease backfill preflight did not return a complete source_file_id, report_period, and expected_rows scope.');
+  }
+  return scope;
+}
+
+function leaseScopeMatches(data, expectedScope) {
+  if (!expectedScope) return { ok: true, actual: null };
+  const actual = leaseScopeFromResponse(data);
+  const ok = actual.source_file_id === expectedScope.source_file_id
+    && actual.report_period === expectedScope.report_period
+    && actual.expected_rows === expectedScope.expected_rows;
+  return { ok, actual };
+}
+
+function batchMetrics(data, phase) {
+  const plannedWriteCount = Number(data?.updated_rows || 0);
+  return {
+    write_count: phase === 'apply' ? plannedWriteCount : 0,
+    planned_write_count: plannedWriteCount,
+    failure_count: Array.isArray(data?.failures) ? data.failures.length : 0,
+    remaining_locations: Number(data?.remaining_locations || 0),
+  };
+}
+
+function batchRecord({ phase, payload, response, error, expectedScope, previousRemaining }) {
+  const data = response?.data || {};
+  const metrics = batchMetrics(data, phase);
+  let scopeCheck = { ok: !expectedScope, actual: null };
+  if (response && expectedScope) {
+    try {
+      scopeCheck = leaseScopeMatches(data, expectedScope);
+    } catch (scopeError) {
+      scopeCheck = { ok: false, actual: null, error: scopeError.message };
+    }
+  }
+  return {
+    phase,
+    payload,
+    ok: Boolean(response?.ok) && !error && scopeCheck.ok,
+    error: error || response?.error || scopeCheck.error || (scopeCheck.ok ? undefined : 'Lease backfill scope drift detected'),
+    scope: scopeCheck.actual,
+    write_count: metrics.write_count,
+    planned_write_count: metrics.planned_write_count,
+    failure_count: metrics.failure_count,
+    remaining_locations: metrics.remaining_locations,
+    progress_locations: Number.isFinite(previousRemaining)
+      ? previousRemaining - metrics.remaining_locations
+      : null,
+    data,
+  };
+}
+
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
@@ -114,30 +182,104 @@ async function main() {
     report_period: reportPeriod || undefined,
   };
   const batches = [];
+  const stableLeaseScope = latestOnly || Boolean(reportPeriod);
+  let pinnedScope = null;
+  if (stableLeaseScope) {
+    const preflightPayload = {
+      ...basePayload,
+      dry_run: true,
+      geocode: false,
+      geocode_limit: 0,
+    };
+    try {
+      const preflightResponse = await invoke(supabaseUrl, anonKey, auth.token, 'sector-market/address-backfill', preflightPayload);
+      pinnedScope = leaseScopeFromResponse(preflightResponse.data);
+      const preflightBatch = batchRecord({
+        phase: 'preflight',
+        payload: preflightPayload,
+        response: preflightResponse,
+        expectedScope: pinnedScope,
+      });
+      batches.push(preflightBatch);
+    } catch (error) {
+      batches.push(batchRecord({
+        phase: 'preflight',
+        payload: preflightPayload,
+        error: error.message,
+        expectedScope: pinnedScope,
+      }));
+    }
+  }
+  let aborted = batches.some((batch) => !batch.ok);
+  let previousRemaining = null;
+  const seenRemaining = new Set();
   let firstRequest = true;
-  do {
+  while (!aborted) {
     if (!firstRequest) await wait(6500);
     firstRequest = false;
-    const payload = { ...basePayload, offset };
-    const response = await invoke(supabaseUrl, anonKey, auth.token, 'sector-market/address-backfill', payload);
+    const payload = {
+      ...basePayload,
+      offset,
+      ...(pinnedScope && !basePayload.dry_run ? {
+        expected_source_file_id: pinnedScope.source_file_id,
+        expected_report_period: pinnedScope.report_period,
+        expected_rows: pinnedScope.expected_rows,
+      } : {}),
+    };
+    let response;
+    try {
+      response = await invoke(supabaseUrl, anonKey, auth.token, 'sector-market/address-backfill', payload);
+    } catch (error) {
+      batches.push(batchRecord({ phase: 'apply', payload, error: error.message, expectedScope: pinnedScope, previousRemaining }));
+      break;
+    }
+    const batch = batchRecord({
+      phase: basePayload.dry_run ? 'dry_run' : 'apply',
+      payload,
+      response,
+      expectedScope: pinnedScope,
+      previousRemaining,
+    });
+    batches.push(batch);
+    if (!batch.ok) break;
     const data = response.data;
-    batches.push({ payload, ok: response.ok, error: response.error || undefined, data });
-    if (!response.ok) break;
     if (untilComplete) {
       if (Number(data.remaining_locations || 0) === 0) break;
+      if (batch.write_count === 0 || (previousRemaining !== null && batch.progress_locations <= 0) || seenRemaining.has(batch.remaining_locations)) {
+        batch.ok = false;
+        batch.error = batch.write_count === 0
+          ? 'Lease backfill made no write progress before completion.'
+          : 'Lease backfill remaining_locations did not decrease before completion.';
+        break;
+      }
+      seenRemaining.add(batch.remaining_locations);
+      previousRemaining = batch.remaining_locations;
       continue;
     }
     const maxScanned = Math.max(...(Array.isArray(data.results) ? data.results.map((row) => Number(row.scanned || 0)) : [0]));
     if (!runAll || maxScanned < limit) break;
     offset += limit;
-  } while (untilComplete || offset < 20000);
+    if (offset >= 20000) break;
+  }
   const report = {
-    ok: batches.every((batch) => batch.ok),
+    ok: batches.some((batch) => batch.phase !== 'preflight') && batches.every((batch) => batch.ok),
     generated_at: new Date().toISOString(),
     auth_source: auth.source,
     payload: { ...basePayload, run_all: runAll, until_complete: untilComplete, starting_offset: Number(argValue('--offset', '0')) || 0 },
+    pinned_scope: pinnedScope,
+    batch_manifest: batches.map((batch) => ({
+      phase: batch.phase,
+      ok: batch.ok,
+      scope: batch.scope,
+      write_count: batch.write_count,
+      planned_write_count: batch.planned_write_count,
+      failure_count: batch.failure_count,
+      remaining_locations: batch.remaining_locations,
+      progress_locations: batch.progress_locations,
+      error: batch.error,
+    })),
     batches,
-    totals: batches.reduce((acc, batch) => {
+    totals: batches.filter((batch) => batch.phase !== 'preflight').reduce((acc, batch) => {
       for (const result of batch.data.results || []) {
         const key = result.kind || result.table || 'unknown';
         const current = acc[key] || { scanned_rows: 0, changed: 0, missing: 0, unique_locations: 0, geocoded_locations: 0, updated_rows: 0, remaining_locations: 0, failures: [] };

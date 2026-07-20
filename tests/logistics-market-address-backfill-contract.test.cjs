@@ -230,12 +230,38 @@ test('ops script exposes period controls and paces until-complete requests', () 
 });
 
 test('ops totals retain only the latest remaining location count for each kind', () => {
-  const totals = sourceBetween(
-    scriptSource,
-    'totals: batches.reduce(',
-    '\n  };',
+  assert.match(scriptSource, /current\.remaining_locations = Number\(result\.remaining_locations \|\| 0\)/u);
+  assert.doesNotMatch(scriptSource, /current\.remaining_locations \+=/u);
+});
+
+test('applied latest geocode batches require an immutable source, period, and row-count snapshot before any write', () => {
+  const backfill = sourceBetween(
+    edgeSource,
+    'async function callSectorMarketAddressBackfill(',
+    '\nfunction normalizeSectorMarketReadView(',
   );
 
-  assert.match(totals, /current\.remaining_locations = Number\(result\.remaining_locations \|\| 0\)/u);
-  assert.doesNotMatch(totals, /current\.remaining_locations \+=/u);
+  assert.match(backfill, /const expectedSourceFileId = safeText\(payload\.expected_source_file_id\)/u);
+  assert.match(backfill, /const expectedReportPeriod = safeText\(payload\.expected_report_period\)/u);
+  assert.match(backfill, /const expectedRowCount = Number\(payload\.expected_rows\)/u);
+  assert.match(backfill, /if \(appliedGeocodeBatch && !latestOnly\) return fail\(409/u);
+  assert.match(backfill, /if \(appliedGeocodeBatch && \(!expectedSourceFileId \|\| !expectedReportPeriod \|\| !Number\.isSafeInteger\(expectedRowCount\) \|\| expectedRowCount <= 0\)\)/u);
+  assert.match(backfill, /if \(appliedGeocodeBatch && activeSourceId !== expectedSourceFileId\)/u);
+  assert.match(backfill, /if \(appliedGeocodeBatch && selectedLeasePeriod !== expectedReportPeriod\)/u);
+  assert.match(backfill, /if \(appliedGeocodeBatch && expectedRows !== expectedRowCount\)/u);
+  assert.match(backfill, /\.eq\('source_file_id', activeSourceId\)\s*\.eq\('report_period', selectedLeasePeriod\)/u);
+});
+
+test('a geocode failure aborts the full batch before payload writes, while valid existing coordinates remain untouched', () => {
+  const backfill = sourceBetween(
+    edgeSource,
+    'async function callSectorMarketAddressBackfill(',
+    '\nfunction normalizeSectorMarketReadView(',
+  );
+
+  const firstWrite = backfill.indexOf('.update({ payload: nextPayload })');
+  const failureGuard = backfill.indexOf('if (shouldGeocode && failures.length) {');
+  assert.ok(failureGuard >= 0 && failureGuard < firstWrite, 'geocode failures must return before the first database write');
+  assert.match(backfill, /const geocodeApplied = Boolean\(coordinate && !hasTrustedCoordinate\)/u);
+  assert.match(backfill, /existing_valid_coordinates_preserved/u);
 });

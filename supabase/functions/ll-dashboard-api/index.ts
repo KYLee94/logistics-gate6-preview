@@ -5452,9 +5452,17 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
   const requestedKind = safeText(payload.kind || payload.table || 'all');
   const latestOnly = payload.latest_only === true;
   const requestedReportPeriod = safeText(payload.report_period);
+  const expectedSourceFileId = safeText(payload.expected_source_file_id);
+  const expectedReportPeriod = safeText(payload.expected_report_period);
+  const expectedRowCount = Number(payload.expected_rows);
+  const appliedGeocodeBatch = shouldGeocode && !dryRun;
   if (latestOnly && requestedReportPeriod) return fail(400, 'Use latest_only or report_period, not both', ctx.origin);
   if ((latestOnly || requestedReportPeriod) && !['lease', 'll_sector_market_lease_observations'].includes(requestedKind)) {
     return fail(400, 'latest_only and report_period are only supported for lease address backfill', ctx.origin);
+  }
+  if (appliedGeocodeBatch && !latestOnly) return fail(409, 'Applied geocode backfill requires latest_only scope', ctx.origin);
+  if (appliedGeocodeBatch && (!expectedSourceFileId || !expectedReportPeriod || !Number.isSafeInteger(expectedRowCount) || expectedRowCount <= 0)) {
+    return fail(409, 'Applied geocode backfill requires an exact source snapshot', ctx.origin);
   }
   const sourceResult = await ctx.serviceClient
     .from('ll_source_files')
@@ -5467,6 +5475,12 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
   if (sourceResult.error && !isMissingRelationError(sourceResult.error)) return fail(500, 'Failed to read active market source', ctx.origin, { error: sourceResult.error.message });
   const activeSourceId = safeText(sourceResult.data?.source_file_id);
   if (!activeSourceId) return fail(404, 'Active market source is missing', ctx.origin);
+  if (appliedGeocodeBatch && activeSourceId !== expectedSourceFileId) {
+    return fail(409, 'Market source changed before geocode backfill began', ctx.origin, {
+      expected_source_file_id: expectedSourceFileId,
+      actual_source_file_id: activeSourceId,
+    });
+  }
 
   let selectedLeasePeriod = requestedReportPeriod;
   if (latestOnly) {
@@ -5485,6 +5499,12 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
     }
     selectedLeasePeriod = safeText(latestPeriodResult.data?.report_period);
     if (!selectedLeasePeriod) return fail(404, 'Latest lease report period is missing', ctx.origin);
+  }
+  if (appliedGeocodeBatch && selectedLeasePeriod !== expectedReportPeriod) {
+    return fail(409, 'Latest market report period changed before geocode backfill began', ctx.origin, {
+      expected_report_period: expectedReportPeriod,
+      actual_report_period: selectedLeasePeriod || null,
+    });
   }
 
   const configs = [
@@ -5520,6 +5540,14 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
         expected_rows: expectedRows,
         fetched_rows: fetchedRows,
       });
+      if (appliedGeocodeBatch && expectedRows !== expectedRowCount) {
+        return fail(409, 'Market row count changed before geocode backfill began', ctx.origin, {
+          expected_rows: expectedRowCount,
+          actual_rows: expectedRows,
+          source_file_id: activeSourceId,
+          report_period: selectedLeasePeriod,
+        });
+      }
       for (let pageOffset = 0; pageOffset < expectedRows; pageOffset += MARKET_BACKFILL_PAGE_SIZE) {
         const { data: pageData, error: pageError } = await ctx.serviceClient
           .from(config.table)
@@ -5606,6 +5634,77 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
       }
       geocodeResults.set(group.key, geocode);
     }
+    if (shouldGeocode && failures.length) {
+      await auditOptional(ctx.serviceClient, ctx.user.id, 'sector-market/address-backfill', 502, {
+        dry_run: dryRun,
+        requestedKind,
+        latest_only: latestOnly,
+        report_period: selectedLeasePeriod || null,
+        expected_source_file_id: expectedSourceFileId || null,
+        expected_report_period: expectedReportPeriod || null,
+        expected_rows: Number.isSafeInteger(expectedRowCount) ? expectedRowCount : null,
+        failure_count: failures.length,
+        write_count: 0,
+      });
+      return fail(502, 'Geocode batch failed before any market coordinates were written', ctx.origin, {
+        table: config.table,
+        source_file_id: activeSourceId,
+        report_period: selectedLeasePeriod || null,
+        expected_rows: expectedRows,
+        failures,
+        write_count: 0,
+      });
+    }
+    if (appliedGeocodeBatch) {
+      const currentSourceResult = await ctx.serviceClient
+        .from('ll_source_files')
+        .select('source_file_id')
+        .eq('source_domain', 'sector_market')
+        .eq('active_version', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (currentSourceResult.error) return fail(500, 'Failed to recheck active market source before geocode write', ctx.origin);
+      const currentSourceId = safeText(currentSourceResult.data?.source_file_id);
+      if (currentSourceId !== expectedSourceFileId) {
+        return fail(409, 'Market source changed before geocode write', ctx.origin, {
+          expected_source_file_id: expectedSourceFileId,
+          actual_source_file_id: currentSourceId || null,
+          write_count: 0,
+        });
+      }
+      const currentPeriodResult = await ctx.serviceClient
+        .from(config.table)
+        .select('report_year,report_quarter,report_period')
+        .eq('source_file_id', currentSourceId)
+        .order('report_year', { ascending: false })
+        .order('report_quarter', { ascending: false })
+        .order('report_period', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (currentPeriodResult.error) return fail(500, 'Failed to recheck latest market report period before geocode write', ctx.origin);
+      const currentReportPeriod = safeText(currentPeriodResult.data?.report_period);
+      if (currentReportPeriod !== expectedReportPeriod) {
+        return fail(409, 'Latest market report period changed before geocode write', ctx.origin, {
+          expected_report_period: expectedReportPeriod,
+          actual_report_period: currentReportPeriod || null,
+          write_count: 0,
+        });
+      }
+      const { count: currentRowCount, error: currentCountError } = await ctx.serviceClient
+        .from(config.table)
+        .select(config.idColumn, { count: 'exact', head: true })
+        .eq('source_file_id', currentSourceId)
+        .eq('report_period', currentReportPeriod);
+      if (currentCountError) return fail(500, 'Failed to recheck market row count before geocode write', ctx.origin);
+      if ((currentRowCount || 0) !== expectedRowCount) {
+        return fail(409, 'Market row count changed before geocode write', ctx.origin, {
+          expected_rows: expectedRowCount,
+          actual_rows: currentRowCount || 0,
+          write_count: 0,
+        });
+      }
+    }
     const geocodedLocationKeys = new Set<string>();
     const seededLocationKeys = new Set<string>();
     let propagatedRows = 0;
@@ -5659,7 +5758,9 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
           const { error: updateError } = await ctx.serviceClient
             .from(config.table)
             .update({ payload: nextPayload })
-            .eq(config.idColumn, row[config.idColumn]);
+            .eq(config.idColumn, row[config.idColumn])
+            .eq('source_file_id', activeSourceId)
+            .eq('report_period', selectedLeasePeriod);
           if (updateError) return fail(500, 'Failed to update market address payload', ctx.origin, { table: config.table, error: updateError.message });
         }
       }
@@ -5686,6 +5787,7 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
       seeded_locations: seededLocationKeys.size,
       propagated_rows: propagatedRows,
       skipped_existing_locations: [...groups.values()].filter((group) => group.hasCoordinates).length,
+      existing_valid_coordinates_preserved: true,
       remaining_locations: remainingLocations,
       geocode_pacing_ms: MARKET_BACKFILL_NAVER_PACING_MS,
       failures,
