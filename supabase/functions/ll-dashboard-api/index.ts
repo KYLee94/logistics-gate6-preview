@@ -5351,6 +5351,9 @@ const MARKET_BACKFILL_GEOCODE_QUERY_ALIASES: Record<string, string[]> = {
   '인천광역시 서구 오류동 1578-6': [
     '인천광역시 서구 정서진7로 18',
   ],
+  '인천광역시 서구 오류동 1578-2': [
+    '인천광역시 서구 정서진6로 25',
+  ],
 };
 
 const HWASEONG_DISTRICT_BY_TOWNSHIP: Record<string, string> = {
