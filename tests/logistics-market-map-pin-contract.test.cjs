@@ -13,7 +13,7 @@ test('detail pins require valid Korean coordinates and never render a region fal
   assert.match(panelSource, /function isValidKoreanLatLng\(lat, lng\)/u);
   assert.match(panelSource, /const hasRawCoords = isValidKoreanLatLng\(rawLat, rawLng\);/u);
   assert.match(panelSource, /const hasGeocodedCoords = isValidKoreanLatLng\(geocoded\?\.lat, geocoded\?\.lng\);/u);
-  assert.match(panelSource, /plotRows\.filter\(\(item\) => item\.isCluster \|\| \(!item\.fallback && isValidKoreanLatLng\(item\.lat, item\.lng\)\)\)/u);
+  assert.match(panelSource, /plotRows\.filter\(\(item\) => item\.isCluster \|\| \(\s*!item\.fallback\s*&& isValidKoreanLatLng\(item\.lat, item\.lng\)/u);
 });
 
 test('detail pin preparation deduplicates center and precise location without a 120-row rendering slice', () => {
@@ -25,6 +25,14 @@ test('detail pin preparation deduplicates center and precise location without a 
   assert.match(panelSource, /if \(seen\.has\(pinKey\)\) return false;/u);
   assert.doesNotMatch(panelSource, /const detailPointLimit = 120;/u);
   assert.doesNotMatch(panelSource, /candidateRows\.slice\(0, mapRowLimit\)/u);
+});
+
+test('lease maps use complete latest rows and reject non-exact coordinate provenance', () => {
+  assert.match(panelSource, /const latestLeaseRows = safeArray\(leaseView\.latest_rows\);/u);
+  assert.match(panelSource, /const latestLeases = latestLeaseRows\.length\s*\? latestLeaseRows/u);
+  assert.match(panelSource, /exactCoordinatesOnly = false/u);
+  assert.match(panelSource, /!exactCoordinatesOnly \|\| isExactMarketAddressCoordinate\(item\.row\)/u);
+  assert.match(panelSource, /title="권역별 센터"[^\n]+exactCoordinatesOnly/u);
 });
 
 test('each map panel isolates its region-selection event and exposes a stable instance id', () => {

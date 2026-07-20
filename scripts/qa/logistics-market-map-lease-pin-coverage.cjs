@@ -158,17 +158,20 @@ async function collectMapState(page, selector = MAP_SELECTOR) {
 }
 
 async function waitForOverview(page, selector = MAP_SELECTOR) {
-  await page.waitForFunction(({ target, visibleAssetCount }) => {
+  const expectedRegionCount = Object.keys(EXPECTED_REGION_PIN_COUNTS).length;
+  await page.waitForFunction(({ target, visibleAssetCount, regionCount }) => {
     const panel = document.querySelector(target);
     return panel
       && panel.getAttribute('data-map-mode') === 'regions'
       && Number(panel.getAttribute('data-map-visible-asset-count') || 0) === visibleAssetCount
       && Number(panel.getAttribute('data-map-point-count') || 0) === 0
+      && Number(panel.getAttribute('data-map-native-marker-count') || 0) === regionCount
+      && panel.querySelectorAll('[data-region-cluster-button="true"]').length === regionCount
       && panel.getAttribute('data-map-provider') === 'naver'
       && panel.getAttribute('data-naver-map-ready') === 'true'
       && panel.getAttribute('data-osm-map-ready') === 'false'
       && panel.getAttribute('data-map-fallback-ready') === 'false';
-  }, { target: selector, visibleAssetCount: EXPECTED_VISIBLE_ASSET_COUNT }, { timeout: 120000 });
+  }, { target: selector, visibleAssetCount: EXPECTED_VISIBLE_ASSET_COUNT, regionCount: expectedRegionCount }, { timeout: 120000 });
 }
 
 async function selectRegion(page, region, expectedPointCount, selector = MAP_SELECTOR) {
@@ -176,18 +179,17 @@ async function selectRegion(page, region, expectedPointCount, selector = MAP_SEL
   const button = page.locator(`${selector} [data-region-cluster-button="true"][data-region-key="${encodedRegion}"]`).first();
   await button.waitFor({ state: 'visible', timeout: 30000 });
   await button.click({ timeout: 20000 }).catch(() => button.click({ force: true, timeout: 5000 }));
-  await page.waitForFunction(({ target, expectedRegion, expectedCount }) => {
+  await page.waitForFunction(({ target, expectedRegion }) => {
     const panel = document.querySelector(target);
     return panel
       && panel.getAttribute('data-map-mode') === 'points'
       && panel.getAttribute('data-map-selected-region') === expectedRegion
-      && Number(panel.getAttribute('data-map-point-count') || 0) === expectedCount
       && Number(panel.getAttribute('data-map-fallback-count') || 0) === 0
       && panel.getAttribute('data-map-provider') === 'naver'
       && panel.getAttribute('data-naver-map-ready') === 'true'
       && panel.getAttribute('data-osm-map-ready') === 'false'
       && panel.getAttribute('data-map-fallback-ready') === 'false';
-  }, { target: selector, expectedRegion: region, expectedCount: expectedPointCount }, { timeout: 120000 });
+  }, { target: selector, expectedRegion: region }, { timeout: 120000 });
   return collectMapState(page, selector);
 }
 

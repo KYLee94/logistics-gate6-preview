@@ -2610,6 +2610,7 @@ function MarketMapPanel({
   mapHeightClass = 'h-[520px]',
   initialSelectedRegion = '',
   initialZoom = REGION_OVERVIEW_ZOOM,
+  exactCoordinatesOnly = false,
 }) {
   const sourceRows = useMemo(() => safeArray(rows), [rows]);
   const mapCanvasRef = useRef(null);
@@ -2864,8 +2865,12 @@ function MarketMapPanel({
     }));
   }, [visibleRows, regionKey, labelKey, geocodedCoords, isRegionMode]);
   const markerRows = useMemo(() => (
-    plotRows.filter((item) => item.isCluster || (!item.fallback && isValidKoreanLatLng(item.lat, item.lng)))
-  ), [plotRows]);
+    plotRows.filter((item) => item.isCluster || (
+      !item.fallback
+      && isValidKoreanLatLng(item.lat, item.lng)
+      && (!exactCoordinatesOnly || isExactMarketAddressCoordinate(item.row))
+    ))
+  ), [plotRows, exactCoordinatesOnly]);
   const markerSignature = useMemo(() => markerRows.map((item) => [
     item.isCluster ? 'cluster' : 'point',
     item.region,
@@ -3836,6 +3841,7 @@ function MarketMapPanel({
             mapHeightClass="h-[calc(100vh-170px)]"
             initialSelectedRegion={selectedMapRegion}
             initialZoom={mapZoom}
+            exactCoordinatesOnly={exactCoordinatesOnly}
           />
         </Modal>
       ) : null}
@@ -5687,6 +5693,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const marketViews = data?.views || {};
   const overviewView = marketViews.overview || {};
   const leaseView = marketViews.lease || {};
+  const latestLeaseRows = safeArray(leaseView.latest_rows);
   const supplyView = marketViews.supply || {};
   const transactionView = marketViews.transactions || {};
   const sourceView = marketViews.source || {};
@@ -5851,8 +5858,12 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     const typeOk = txnType === '전체' || typeText === txnType;
     return inWindow && regionOk && tempOk && typeOk;
   });
-  const latestLeasePeriod = summary.latest_lease_period || leases.map((row) => text(row.report_period)).filter(Boolean).sort().at(-1);
-  const latestLeases = leases.filter((row) => !latestLeasePeriod || text(row.report_period) === latestLeasePeriod);
+  const latestLeasePeriod = summary.latest_lease_period
+    || latestLeaseRows.map((row) => text(row.report_period)).filter(Boolean).sort().at(-1)
+    || leases.map((row) => text(row.report_period)).filter(Boolean).sort().at(-1);
+  const latestLeases = latestLeaseRows.length
+    ? latestLeaseRows
+    : leases.filter((row) => !latestLeasePeriod || text(row.report_period) === latestLeasePeriod);
   const leaseCenterTempOptions = ['전체', '복합 전체', '복합 상온', '복합 저온', '상온', '저온', '상온(복합포함)', '저온(복합포함)'];
   const leaseTemperatureMatches = (selection, rawTemperature) => {
     const temp = text(rawTemperature);
@@ -6915,7 +6926,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               </div>
             </div>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(420px,0.75fr)_minmax(560px,1.25fr)]">
-              <MarketMapPanel title="권역별 센터" rows={filteredLeaseRows} labelKey="center_name" onSelect={openLeaseCenterModal} />
+              <MarketMapPanel title="권역별 센터" rows={filteredLeaseRows} labelKey="center_name" onSelect={openLeaseCenterModal} exactCoordinatesOnly />
               <div className="min-w-0 space-y-3">
                 <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
                   자산 검색
@@ -7244,6 +7255,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
             mapHeightClass="h-[calc(100vh-170px)]"
             initialSelectedRegion={regionValue(modal.centerMapRow.region)}
             onSelect={() => {}}
+            exactCoordinatesOnly
           />
         </Modal>
       ) : null}
