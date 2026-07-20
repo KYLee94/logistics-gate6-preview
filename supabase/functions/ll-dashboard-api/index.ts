@@ -4453,8 +4453,8 @@ async function submitEdit(ctx: Context, payload: Record<string, unknown>) {
       target_cell_id: payload.target_cell_id || null,
       field_name: payload.field_name || null,
       reason_code: payload.reason_code || null,
-      before_value: payload.before_value || null,
-      requested_value: payload.requested_value || null,
+      before_value: firstOwnValue(payload, ['before_value', 'beforeValue']) ?? null,
+      requested_value: firstOwnValue(payload, ['requested_value', 'requestedValue']) ?? null,
       request_payload: requestPayloadWithReadback,
       requested_by: ctx.user.id,
       status: 'submitted',
@@ -13418,6 +13418,11 @@ async function callDataManagementCoverage(ctx: Context, payload: Record<string, 
 function isEditRequestPendingStatus(statusValue: unknown, writeStatusValue: unknown) {
   const status = safeText(statusValue);
   const writeStatus = safeText(writeStatusValue);
+  if (isEditRequestRunningStatus(status, writeStatus)
+    || isEditRequestCompletedStatus(status, writeStatus)
+    || status === 'rejected'
+    || writeStatus === 'rejected'
+    || isEditRequestFailedStatus(status, writeStatus, null)) return false;
   return status === 'submitted' || status === 'approval_required' || writeStatus === 'approval_required';
 }
 
@@ -13712,14 +13717,26 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     readableRefs: [],
   };
   const dataManagementSourceDomainKeys = DATA_MANAGEMENT_SOURCE_DOMAIN_KEYS;
-  const [sourcesResult, sheetsResult, columnsResult, editsResult] = await Promise.all([
+  const editRequestSelect = 'id,source_table,target_type,target_name,target_row_id,field_name,reason_code,before_value,requested_value,readback_value,request_payload,status,write_status,write_error,write_result,requested_by,approved_by,approved_at,rejected_by,rejected_at,created_at,updated_at,written_at';
+  const recentEditLimit = Math.min(Math.max(Number(payload.limit || 60), 10), 120);
+  const [sourcesResult, sheetsResult, columnsResult, recentEditsResult, pendingEditsResult] = await Promise.all([
     ctx.serviceClient.from('ll_source_files').select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,workbook_schema,created_at,updated_at').order('created_at', { ascending: false }).limit(80),
     Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
     managerView
       ? Promise.resolve({ data: [] as Record<string, unknown>[], error: null })
       : Promise.resolve({ data: [], error: null }),
-    ctx.serviceClient.from('ll_edit_requests').select('id,source_table,target_type,target_name,target_row_id,field_name,reason_code,before_value,requested_value,readback_value,request_payload,status,write_status,write_error,write_result,requested_by,approved_by,approved_at,rejected_by,rejected_at,created_at,updated_at,written_at').order('created_at', { ascending: false }).limit(Math.min(Math.max(Number(payload.limit || 60), 10), 120)),
+    ctx.serviceClient.from('ll_edit_requests').select(editRequestSelect).order('created_at', { ascending: false }).limit(recentEditLimit),
+    ctx.serviceClient.from('ll_edit_requests').select(editRequestSelect).or('status.eq.submitted,status.eq.approval_required,write_status.eq.approval_required').order('created_at', { ascending: false }).limit(1200),
   ]);
+  const editRowsById = new Map<string, Record<string, unknown>>();
+  for (const row of [...(pendingEditsResult.data || []), ...(recentEditsResult.data || [])] as Record<string, unknown>[]) {
+    const id = safeText(row.id);
+    if (id && !editRowsById.has(id)) editRowsById.set(id, row);
+  }
+  const editsResult = {
+    data: [...editRowsById.values()].sort((left, right) => safeText(right.created_at).localeCompare(safeText(left.created_at))),
+    error: pendingEditsResult.error || recentEditsResult.error,
+  };
   const preRowsHardError = [sourcesResult, sheetsResult, columnsResult, editsResult].find((result) => result.error && !isMissingRelationError(result.error));
   if (preRowsHardError?.error) return fail(500, 'Failed to read data management status', ctx.origin, { error: preRowsHardError.error.message });
   const sources = (sourcesResult.data || []) as Record<string, unknown>[];

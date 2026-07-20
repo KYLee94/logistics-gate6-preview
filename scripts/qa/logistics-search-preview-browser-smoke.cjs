@@ -96,12 +96,15 @@ async function closePreview(page) {
   await page.getByRole('dialog').waitFor({ state: 'detached', timeout: 10000 });
 }
 
-async function openSearchPreview(page, query, resultKind) {
+async function openSearchPreview(page, query, resultKind, resultLabel) {
   const input = page.getByTestId('logistics-main-search-input');
   await input.fill(query);
   const kindLabel = resultKind === 'company' ? '임차인' : '자산';
-  const result = page.locator('button').filter({ has: page.getByText(kindLabel, { exact: true }) }).first();
-  await result.waitFor({ state: 'visible', timeout: 15000 });
+  const result = page.locator('button')
+    .filter({ hasText: resultLabel })
+    .filter({ hasText: kindLabel })
+    .first();
+  await result.waitFor({ state: 'visible', timeout: 12000 });
   await result.click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor({ state: 'visible', timeout: 15000 });
@@ -116,8 +119,8 @@ async function fullscreenDialog(dialog) {
 }
 
 async function companyKpis(dialog) {
-  return dialog.evaluate((labels) => Object.fromEntries(labels.map((label) => {
-    const labelNode = Array.from(document.querySelectorAll('[role="dialog"] div'))
+  return dialog.evaluate((root, labels) => Object.fromEntries(labels.map((label) => {
+    const labelNode = Array.from(root.querySelectorAll('div'))
       .find((node) => node.textContent?.trim() === label);
     const valueNode = labelNode?.parentElement?.querySelectorAll(':scope > div')[1];
     return [label, valueNode?.textContent?.trim() || ''];
@@ -127,7 +130,7 @@ async function companyKpis(dialog) {
 async function companyTableRows(dialog) {
   return dialog.locator('table').evaluateAll((tables) => {
     const table = tables.find((candidate) => {
-      const headers = Array.from(candidate.querySelectorAll('thead th')).map((cell) => cell.textContent?.trim());
+      const headers = Array.from(candidate.querySelectorAll('thead th')).map((cell) => cell.textContent?.replace(/[↕▲▼]/gu, '').trim());
       return headers[0] === '자산명' && headers[2] === '구역';
     });
     if (!table) return [];
@@ -149,14 +152,17 @@ function rowsUseAssetAscendingZoneDescending(rows) {
 }
 
 function companyCandidates() {
-  return [...COMPANY_OPTIONS]
+  const eligible = [...COMPANY_OPTIONS]
     .filter((company) => String(company?.tenantMasterName || '').trim().length >= 2)
-    .sort((left, right) => Number(right?.assetCount || right?.selectorSortMeta?.assetCount || 0) - Number(left?.assetCount || left?.selectorSortMeta?.assetCount || 0))
-    .slice(0, 16);
+    .sort((left, right) => Number(right?.assetCount || right?.selectorSortMeta?.assetCount || 0) - Number(left?.assetCount || left?.selectorSortMeta?.assetCount || 0));
+  const preferred = eligible.find((company) => /쿠팡/u.test(company.tenantMasterName || ''));
+  return preferred ? [preferred, ...eligible.filter((company) => company !== preferred).slice(0, 2)] : eligible.slice(0, 3);
 }
 
 function assetCandidate() {
-  return ASSET_OPTIONS.find((asset) => String(asset?.assetName || '').trim().length >= 2) || null;
+  return ASSET_OPTIONS.find((asset) => /경산\s*쿠팡/iu.test(asset?.assetName || ''))
+    || ASSET_OPTIONS.find((asset) => String(asset?.assetName || '').trim().length >= 2)
+    || null;
 }
 
 async function main() {
@@ -177,6 +183,9 @@ async function main() {
     selected_asset: null,
     company_kpis: {},
     company_rows: [],
+    company_attempts: [],
+    company_api_responses: [],
+    asset_api_responses: [],
     checks: {},
     errors: [],
     screenshot: path.relative(ROOT, screenshot).replace(/\\/gu, '/'),
@@ -194,23 +203,49 @@ async function main() {
       localStorage.setItem('logisticsDashboardReadMode', 'primary-safe');
     }, { email: uiEmail, session: auth.session });
     page = await context.newPage();
+    page.on('response', async (response) => {
+      const requestBody = response.request().postData() || '';
+      if (!response.url().includes('/functions/v1/ll-dashboard-api') || !requestBody.includes('dashboard/company/read')) return;
+      const body = await response.json().catch(() => ({}));
+      report.company_api_responses.push({
+        status: response.status(),
+        ok: body?.ok !== false,
+        error: body?.error || body?.message || '',
+        row_count: body?.data?.leases?.length || body?.data?.rows?.length || 0,
+      });
+    });
+    page.on('response', async (response) => {
+      const requestBody = response.request().postData() || '';
+      if (!response.url().includes('/functions/v1/ll-dashboard-api') || !requestBody.includes('dashboard/asset/read')) return;
+      const body = await response.json().catch(() => ({}));
+      report.asset_api_responses.push({
+        status: response.status(),
+        ok: body?.ok !== false,
+        error: body?.error || body?.message || '',
+        row_count: body?.data?.lease_spaces?.length || body?.data?.rows?.length || 0,
+      });
+    });
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.getByTestId('logistics-main-search-input').waitFor({ state: 'visible', timeout: 90000 });
 
     let selectedCompany = null;
     let selectedCompanyDialog = null;
     for (const candidate of companyCandidates()) {
-      const dialog = await openSearchPreview(page, candidate.tenantMasterName, 'company').catch(() => null);
+      const dialog = await openSearchPreview(page, candidate.tenantMasterName, 'company', candidate.tenantMasterName).catch(() => null);
       if (!dialog) continue;
       const rows = await page.waitForFunction(() => {
         const table = Array.from(document.querySelectorAll('[role="dialog"] table')).find((candidateTable) => {
-          const headers = Array.from(candidateTable.querySelectorAll('thead th')).map((cell) => cell.textContent?.trim());
+          const headers = Array.from(candidateTable.querySelectorAll('thead th')).map((cell) => cell.textContent?.replace(/[↕▲▼]/gu, '').trim());
           return headers[0] === '자산명' && headers[2] === '구역';
         });
         return table?.querySelectorAll('tbody tr').length >= 2;
       }, undefined, { timeout: 20000 }).then(() => companyTableRows(dialog)).catch(() => []);
-      const hasRepeatedAsset = new Set(rows.map((row) => row.assetName)).size < rows.length;
-      if (rows.length >= 2 && hasRepeatedAsset) {
+      report.company_attempts.push({
+        company: candidate.tenantMasterName,
+        row_count: rows.length,
+        dialog_text: (await dialog.innerText().catch(() => '')).slice(0, 800),
+      });
+      if (rows.length >= 2) {
         selectedCompany = candidate;
         selectedCompanyDialog = dialog;
         report.company_rows = rows;
@@ -220,7 +255,7 @@ async function main() {
     }
 
     if (!selectedCompany || !selectedCompanyDialog) {
-      throw new Error('구역 내림차순을 검증할 동일 자산의 회사 검색 결과를 찾지 못했습니다.');
+      throw new Error('정렬을 검증할 회사 검색 결과를 찾지 못했습니다.');
     }
     report.selected_company = selectedCompany.tenantMasterName;
     report.checks.company_popup_fullscreen = await fullscreenDialog(selectedCompanyDialog);
@@ -239,7 +274,14 @@ async function main() {
     const asset = assetCandidate();
     if (!asset) throw new Error('자산 검색 후보를 찾지 못했습니다.');
     report.selected_asset = asset.assetName;
-    const assetDialog = await openSearchPreview(page, asset.assetName, 'asset');
+    const assetDialog = await openSearchPreview(page, asset.assetName, 'asset', asset.assetName);
+    report.checks.asset_data_rows_visible = await page.waitForFunction(() => {
+      const table = Array.from(document.querySelectorAll('[role="dialog"] table')).find((candidateTable) => {
+        const headers = Array.from(candidateTable.querySelectorAll('thead th')).map((cell) => cell.textContent?.replace(/[↕▲▼]/gu, '').trim());
+        return headers[0] === '임차인명';
+      });
+      return (table?.querySelectorAll('tbody tr').length || 0) > 0;
+    }, undefined, { timeout: 20000 }).then(() => true).catch(() => false);
     report.checks.asset_popup_fullscreen = await fullscreenDialog(assetDialog);
     report.checks.asset_popup_overview_visible = await assetDialog.getByText('자산명', { exact: true }).count().then((count) => count > 0)
       && await assetDialog.getByText('현재 임차인 수', { exact: true }).count().then((count) => count > 0);

@@ -30,6 +30,41 @@ test('Data Management submit and view resolution keep an explicit requested null
   assert.match(leaseBlock, /dataManagementParseViewRequestedValue\(firstOwnValue\(payload, \['requested_value', 'requestedValue', 'after_value', 'afterValue'\]\), field\)/u);
 });
 
+test('legacy single-cell requests keep explicit zero, false, and empty values', () => {
+  const source = fs.readFileSync(EDGE_PATH, 'utf8');
+  const submitStart = source.indexOf('async function submitEdit');
+  const submitEnd = source.indexOf('function publicEditCell', submitStart);
+  const submitBlock = source.slice(submitStart, submitEnd);
+
+  assert.match(submitBlock, /before_value:\s*firstOwnValue\(payload, \['before_value', 'beforeValue'\]\) \?\? null/u);
+  assert.match(submitBlock, /requested_value:\s*firstOwnValue\(payload, \['requested_value', 'requestedValue'\]\) \?\? null/u);
+  assert.doesNotMatch(submitBlock, /before_value:\s*payload\.before_value \|\| null/u);
+  assert.doesNotMatch(submitBlock, /requested_value:\s*payload\.requested_value \|\| null/u);
+});
+
+test('completed, running, rejected, or failed requests cannot be classified as pending', () => {
+  const source = fs.readFileSync(EDGE_PATH, 'utf8');
+  const pendingStart = source.indexOf('function isEditRequestPendingStatus');
+  const pendingEnd = source.indexOf('function isEditRequestRunningStatus', pendingStart);
+  const pendingBlock = source.slice(pendingStart, pendingEnd);
+
+  assert.match(pendingBlock, /isEditRequestRunningStatus\(status, writeStatus\)/u);
+  assert.match(pendingBlock, /isEditRequestCompletedStatus\(status, writeStatus\)/u);
+  assert.match(pendingBlock, /isEditRequestFailedStatus\(status, writeStatus, null\)/u);
+  assert.match(pendingBlock, /status === 'rejected'/u);
+});
+
+test('approval status fetches every pending request separately from recent history', () => {
+  const source = fs.readFileSync(EDGE_PATH, 'utf8');
+  const statusStart = source.indexOf('async function callDataManagementStatus');
+  const statusEnd = source.indexOf('async function callDataManagementPreviewEdit', statusStart);
+  const statusBlock = source.slice(statusStart, statusEnd);
+
+  assert.match(statusBlock, /pendingEditsResult/u);
+  assert.match(statusBlock, /\.or\('status\.eq\.submitted,status\.eq\.approval_required,write_status\.eq\.approval_required'\)/u);
+  assert.match(statusBlock, /new Map<string, Record<string, unknown>>\(\)/u);
+});
+
 test('repeated approval returns the completed readback instead of a conflict', () => {
   const source = fs.readFileSync(EDGE_PATH, 'utf8');
   const approveStart = source.indexOf('async function approveEdit');

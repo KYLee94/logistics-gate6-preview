@@ -165,8 +165,13 @@ async function main() {
     const approvalUrl = `${joinUrl(baseUrl, 'data-management/approval')}?qa=${stamp}`;
     await page.goto(approvalUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForSelector('[data-data-management-approval-dashboard="true"]', { timeout: 60000 });
-    const row = page.locator('[data-testid="data-management-approval-row"]').filter({ hasText: `QA-${stamp}` }).first();
+    let row = page.locator('[data-testid="data-management-approval-row"]').filter({ hasText: `QA-${stamp}` }).first();
     await row.waitFor({ state: 'visible', timeout: 60000 });
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForSelector('[data-data-management-approval-dashboard="true"]', { timeout: 60000 });
+    row = page.locator('[data-testid="data-management-approval-row"]').filter({ hasText: `QA-${stamp}` }).first();
+    await row.waitFor({ state: 'visible', timeout: 60000 });
+    report.checks.pending_request_survives_page_refresh = true;
     const rowText = await row.innerText({ timeout: 10000 });
     report.checks.requester_visible_in_row = Boolean(
       (requesterName && rowText.includes(requesterName)) || (requesterEmail && rowText.includes(requesterEmail)),
