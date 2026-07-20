@@ -206,6 +206,7 @@ const SECTOR_MARKET_ADDRESS_BACKFILL_COLUMNS: Record<string, string> = {
   ll_sector_market_supply_cases: `supply_case_id,${SECTOR_MARKET_SELECT_COLUMNS.ll_sector_market_supply_cases}`,
   ll_sector_market_transaction_cases: `transaction_case_id,${SECTOR_MARKET_SELECT_COLUMNS.ll_sector_market_transaction_cases}`,
 };
+const MARKET_BACKFILL_NAVER_PACING_MS = 2200;
 
 const LOGISTICS_STAFF_NAME_BY_EMAIL: Record<string, string> = {
   "ysoh@igisam.com": "오윤석",
@@ -5323,9 +5324,21 @@ function marketAddressInfo(row: Record<string, unknown>, kind: string) {
   }) as Record<string, unknown>;
 }
 
+function marketBackfillCoordinatesInKorea(latitude: number | null, longitude: number | null) {
+  return latitude !== null && longitude !== null
+    && latitude >= 33 && latitude <= 39.5
+    && longitude >= 124 && longitude <= 132;
+}
+
+async function marketBackfillNaverPacing(groupIndex: number) {
+  if (groupIndex <= 0) return;
+  await new Promise((resolve) => setTimeout(resolve, MARKET_BACKFILL_NAVER_PACING_MS));
+}
+
 async function marketBackfillGeocode(ctx: Context, address: string) {
   const response = await callNaverGeocode(ctx, { query: address });
   const body = await response.clone().json().catch(() => ({})) as Record<string, unknown>;
+  const cache = body.cache && typeof body.cache === 'object' ? body.cache as Record<string, unknown> : {};
   if (!response.ok || body.ok === false) {
     return {
       status: 'failed',
@@ -5333,17 +5346,97 @@ async function marketBackfillGeocode(ctx: Context, address: string) {
       message: safeText(firstDefined(body.message, body.error, 'geocode failed')),
     };
   }
+  if (cache.stale === true) {
+    return {
+      status: 'stale_cache',
+      provider_status: body.provider_status || response.status,
+      message: 'Naver geocode fell back to stale cache',
+    };
+  }
   const rows = Array.isArray(body.data) ? body.data as Record<string, unknown>[] : [];
   const first = rows[0] || {};
   const latitude = marketNumeric(first.y);
   const longitude = marketNumeric(first.x);
+  if (latitude !== null && longitude !== null && !marketBackfillCoordinatesInKorea(latitude, longitude)) {
+    return stripUndefined({
+      status: 'out_of_range',
+      provider_status: body.provider_status || response.status,
+      latitude,
+      longitude,
+      message: 'Naver coordinates are outside Korea geocode bounds',
+      road_address: first.road_address,
+      jibun_address: first.jibun_address,
+    }) as Record<string, unknown>;
+  }
   return stripUndefined({
-    status: latitude !== null && longitude !== null ? 'ok' : 'empty',
+    status: marketBackfillCoordinatesInKorea(latitude, longitude) ? 'ok' : 'empty',
     provider_status: body.provider_status || response.status,
     latitude,
     longitude,
     road_address: first.road_address,
     jibun_address: first.jibun_address,
+  }) as Record<string, unknown>;
+}
+
+function marketGeocodeLocationKey(row: Record<string, unknown>, info: Record<string, unknown>, address: string) {
+  const generatedAddress = marketNormalizedAddress(firstDefined(info.generated_address, address));
+  if (generatedAddress) return `address:${generatedAddress}`;
+  const pnu = safeText(row.pnu).replace(/\s+/gu, '');
+  if (pnu) return `pnu:${pnu}`;
+  return '';
+}
+
+function marketNormalizedAddress(value: unknown) {
+  return safeText(value)
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function marketBackfillSeedStatusIsTrusted(info: Record<string, unknown>, currentGeocode: Record<string, unknown>) {
+  const status = safeText(currentGeocode.status).toLowerCase();
+  if (!status || ['stale', 'stale_cache', 'fallback', 'failed', 'out_of_range', 'empty', 'missing', 'region'].includes(status)) return false;
+  const provenance = [
+    info.coordinate_source,
+    currentGeocode.source,
+    currentGeocode.coordinate_source,
+    currentGeocode.cache_status,
+  ].map((value) => safeText(value)).join('|');
+  return !/(?:stale|fallback|missing|region)/iu.test(provenance);
+}
+
+function marketBackfillCoordinateSeed(entry: { info: Record<string, unknown>; currentPayload: Record<string, unknown>; address: string }) {
+  const currentGeocode = marketPayloadObject(entry.currentPayload, 'market_geocode');
+  const latitude = marketNumeric(currentGeocode.latitude);
+  const longitude = marketNumeric(currentGeocode.longitude);
+  if (!marketBackfillCoordinatesInKorea(latitude, longitude)) return null;
+  if (!marketBackfillSeedStatusIsTrusted(entry.info, currentGeocode)) return null;
+  const generatedAddress = marketNormalizedAddress(firstDefined(entry.info.generated_address, entry.address));
+  const coordinateQuery = marketNormalizedAddress(currentGeocode.query);
+  if (!generatedAddress || !coordinateQuery || generatedAddress !== coordinateQuery) return null;
+  const coordinateAddress = safeText(firstDefined(
+    currentGeocode.query,
+    entry.info.coordinate_address,
+    currentGeocode.address,
+    currentGeocode.road_address,
+    currentGeocode.jibun_address,
+    entry.address,
+  ));
+  const coordinateSource = safeText(firstDefined(
+    entry.info.coordinate_source,
+    currentGeocode.coordinate_source,
+    'existing_group_coordinate',
+  ));
+  return stripUndefined({
+    status: 'seeded',
+    latitude,
+    longitude,
+    query: coordinateAddress,
+    coordinate_address: coordinateAddress,
+    coordinate_source: coordinateSource,
+    road_address: currentGeocode.road_address,
+    jibun_address: currentGeocode.jibun_address,
+    source: 'existing_group_coordinate',
   }) as Record<string, unknown>;
 }
 
@@ -5354,9 +5447,15 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
   const limit = Math.min(Math.max(Number(payload.limit || 500), 1), 1200);
   const offset = Math.max(Number(payload.offset || 0), 0);
   const shouldGeocode = payload.geocode === true;
-  const geocodeLimit = Math.min(Math.max(Number(payload.geocode_limit || 0), 0), 25);
+  const geocodeLimit = shouldGeocode ? Math.min(Math.max(Number(payload.geocode_limit || 25), 1), 25) : 0;
   let geocodeCount = 0;
   const requestedKind = safeText(payload.kind || payload.table || 'all');
+  const latestOnly = payload.latest_only === true;
+  const requestedReportPeriod = safeText(payload.report_period);
+  if (latestOnly && requestedReportPeriod) return fail(400, 'Use latest_only or report_period, not both', ctx.origin);
+  if ((latestOnly || requestedReportPeriod) && !['lease', 'll_sector_market_lease_observations'].includes(requestedKind)) {
+    return fail(400, 'latest_only and report_period are only supported for lease address backfill', ctx.origin);
+  }
   const sourceResult = await ctx.serviceClient
     .from('ll_source_files')
     .select('source_file_id,file_name,active_version,created_at')
@@ -5369,38 +5468,153 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
   const activeSourceId = safeText(sourceResult.data?.source_file_id);
   if (!activeSourceId) return fail(404, 'Active market source is missing', ctx.origin);
 
+  let selectedLeasePeriod = requestedReportPeriod;
+  if (latestOnly) {
+    const latestPeriodResult = await ctx.serviceClient
+      .from('ll_sector_market_lease_observations')
+      .select('report_year,report_quarter,report_period')
+      .eq('source_file_id', activeSourceId)
+      .order('report_year', { ascending: false })
+      .order('report_quarter', { ascending: false })
+      .order('report_period', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestPeriodResult.error) {
+      if (isMissingRelationError(latestPeriodResult.error)) return fail(404, 'Lease observations are missing', ctx.origin);
+      return fail(500, 'Failed to resolve latest lease report period', ctx.origin, { error: latestPeriodResult.error.message });
+    }
+    selectedLeasePeriod = safeText(latestPeriodResult.data?.report_period);
+    if (!selectedLeasePeriod) return fail(404, 'Latest lease report period is missing', ctx.origin);
+  }
+
   const configs = [
     { kind: 'lease', table: 'll_sector_market_lease_observations', idColumn: 'observation_id' },
     { kind: 'supply', table: 'll_sector_market_supply_cases', idColumn: 'supply_case_id' },
     { kind: 'transaction', table: 'll_sector_market_transaction_cases', idColumn: 'transaction_case_id' },
   ].filter((config) => requestedKind === 'all' || requestedKind === config.kind || requestedKind === config.table);
   const generatedAt = new Date().toISOString();
-  const results = [];
+  const MARKET_BACKFILL_PAGE_SIZE = 1000;
+  const results: Record<string, unknown>[] = [];
+  const allFailures: Record<string, unknown>[] = [];
   for (const config of configs) {
-    const { data, error } = await ctx.serviceClient
-      .from(config.table)
-      .select(SECTOR_MARKET_ADDRESS_BACKFILL_COLUMNS[config.table] || '*')
-      .eq('source_file_id', activeSourceId)
-      .order(config.idColumn, { ascending: true })
-      .range(offset, offset + limit - 1);
-    if (error) {
-      if (isMissingRelationError(error)) {
-        results.push({ ...config, skipped: 'missing_table' });
-        continue;
+    const geocodeLeasePeriodScope = shouldGeocode && config.kind === 'lease' && Boolean(selectedLeasePeriod);
+    const queryOffset = geocodeLeasePeriodScope ? 0 : offset;
+    const queryLimit = geocodeLeasePeriodScope ? MARKET_BACKFILL_PAGE_SIZE : limit;
+    let expectedRows = 0;
+    let fetchedRows = 0;
+    let rows: Record<string, unknown>[] = [];
+    if (geocodeLeasePeriodScope) {
+      const { count, error: countError } = await ctx.serviceClient
+        .from(config.table)
+        .select(config.idColumn, { count: 'exact', head: true })
+        .eq('source_file_id', activeSourceId)
+        .eq('report_period', selectedLeasePeriod);
+      if (countError) {
+        if (isMissingRelationError(countError)) return fail(404, 'Lease observations are missing', ctx.origin, { table: config.table });
+        return fail(500, 'Failed to count market address rows', ctx.origin, { table: config.table, error: countError.message });
       }
-      return fail(500, 'Failed to read market address rows', ctx.origin, { table: config.table, error: error.message });
+      expectedRows = count || 0;
+      if (expectedRows === 0) return fail(404, 'Lease report period has no rows', ctx.origin, {
+        table: config.table,
+        report_period: selectedLeasePeriod,
+        expected_rows: expectedRows,
+        fetched_rows: fetchedRows,
+      });
+      for (let pageOffset = 0; pageOffset < expectedRows; pageOffset += MARKET_BACKFILL_PAGE_SIZE) {
+        const { data: pageData, error: pageError } = await ctx.serviceClient
+          .from(config.table)
+          .select(SECTOR_MARKET_ADDRESS_BACKFILL_COLUMNS[config.table] || '*')
+          .eq('source_file_id', activeSourceId)
+          .eq('report_period', selectedLeasePeriod)
+          .order(config.idColumn, { ascending: true })
+          .range(pageOffset, pageOffset + MARKET_BACKFILL_PAGE_SIZE - 1);
+        if (pageError) return fail(500, 'Failed to read market address page', ctx.origin, { table: config.table, report_period: selectedLeasePeriod, error: pageError.message });
+        rows.push(...((pageData || []) as Record<string, unknown>[]));
+      }
+      fetchedRows = rows.length;
+      if (fetchedRows !== expectedRows) return fail(409, 'Market address page count does not match readback count', ctx.origin, {
+        table: config.table,
+        report_period: selectedLeasePeriod,
+        expected_rows: expectedRows,
+        fetched_rows: fetchedRows,
+      });
+    } else {
+      let query = ctx.serviceClient
+        .from(config.table)
+        .select(SECTOR_MARKET_ADDRESS_BACKFILL_COLUMNS[config.table] || '*')
+        .eq('source_file_id', activeSourceId);
+      if (config.kind === 'lease' && selectedLeasePeriod) query = query.eq('report_period', selectedLeasePeriod);
+      const { data, error } = await query
+        .order(config.idColumn, { ascending: true })
+        .range(queryOffset, queryOffset + queryLimit - 1);
+      if (error) {
+        if (isMissingRelationError(error)) {
+          results.push({ ...config, skipped: 'missing_table' });
+          continue;
+        }
+        return fail(500, 'Failed to read market address rows', ctx.origin, { table: config.table, error: error.message });
+      }
+      rows = (data || []) as Record<string, unknown>[];
+      expectedRows = rows.length;
+      fetchedRows = rows.length;
     }
     let changed = 0;
     let missing = 0;
     const samples: Record<string, unknown>[] = [];
-    for (const row of (data || []) as Record<string, unknown>[]) {
+    const rowEntries = rows.map((row) => {
       const info = marketAddressInfo(row, config.kind);
       const address = safeText(info.generated_address || info.address);
+      const currentPayload = marketPayload(row);
+      const trustedSeed = marketBackfillCoordinateSeed({ info, currentPayload, address });
+      return { row, info, address, currentPayload, trustedSeed };
+    });
+    const groups = new Map<string, { key: string; address: string; rows: typeof rowEntries; hasCoordinates: boolean; seed: Record<string, unknown> | null }>();
+    for (const entry of rowEntries) {
+      if (!entry.address) continue;
+      const key = marketGeocodeLocationKey(entry.row, entry.info, entry.address);
+      if (!key) continue;
+      const current = groups.get(key) || { key, address: entry.address, rows: [], hasCoordinates: false, seed: entry.trustedSeed };
+      current.rows.push(entry);
+      const hasCoordinates = Boolean(entry.trustedSeed);
+      current.hasCoordinates = current.hasCoordinates || hasCoordinates;
+      if (!current.seed && entry.trustedSeed) current.seed = entry.trustedSeed;
+      groups.set(key, current);
+    }
+    const pendingGroups = shouldGeocode
+      ? [...groups.values()].filter((group) => !group.seed)
+      : [];
+    const groupsToGeocode = !dryRun && shouldGeocode
+      ? pendingGroups.slice(0, Math.max(0, geocodeLimit - geocodeCount))
+      : [];
+    const seedGeocodeResults = shouldGeocode
+      ? new Map<string, Record<string, unknown>>(
+        [...groups.values()]
+          .filter((group) => group.seed)
+          .map((group) => [group.key, group.seed as Record<string, unknown>]),
+      )
+      : new Map<string, Record<string, unknown>>();
+    const geocodeResults = new Map<string, Record<string, unknown>>(seedGeocodeResults);
+    const failures: Record<string, unknown>[] = [];
+    for (const group of groupsToGeocode) {
+      const groupIndex = geocodeCount;
+      await marketBackfillNaverPacing(groupIndex);
+      geocodeCount += 1;
+      const geocode = await marketBackfillGeocode(ctx, group.address);
+      if (geocode.status !== 'ok') {
+        failures.push({ location_key: group.key, address: group.address, ...geocode });
+        continue;
+      }
+      geocodeResults.set(group.key, geocode);
+    }
+    const geocodedLocationKeys = new Set<string>();
+    const seededLocationKeys = new Set<string>();
+    let propagatedRows = 0;
+    for (const entry of rowEntries) {
+      const { row, info, address, currentPayload } = entry;
       if (!address) {
         missing += 1;
         continue;
       }
-      const currentPayload = marketPayload(row);
       const nextPayload: Record<string, unknown> = {
         ...currentPayload,
         generated_address: address,
@@ -5408,19 +5622,29 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
         generated_address_source: info.address_source || 'generated_source_address',
         generated_address_updated_at: generatedAt,
       };
-      const hasCoordinates = marketNumeric(info.latitude) !== null && marketNumeric(info.longitude) !== null;
-      let geocodeApplied = false;
-      if (!dryRun && shouldGeocode && !hasCoordinates && geocodeCount < geocodeLimit) {
-        geocodeCount += 1;
+      const groupKey = marketGeocodeLocationKey(row, info, address);
+      const group = groups.get(groupKey);
+      const coordinate = geocodeResults.get(groupKey);
+      const hasTrustedCoordinate = Boolean(entry.trustedSeed);
+      const geocodeApplied = Boolean(coordinate && !hasTrustedCoordinate);
+      if (geocodeApplied && coordinate) {
         nextPayload.market_geocode = {
-          ...(marketPayloadObject(currentPayload, 'market_geocode')),
-          ...(await marketBackfillGeocode(ctx, address)),
-          query: address,
+          ...coordinate,
+          query: safeText(coordinate.query) || group?.address || address,
+          location_key: groupKey,
           updated_at: generatedAt,
         };
-        geocodeApplied = true;
+        if (group?.seed) {
+          seededLocationKeys.add(groupKey);
+          propagatedRows += 1;
+        } else {
+          geocodedLocationKeys.add(groupKey);
+        }
       }
-      if (geocodeApplied || safeText(currentPayload.generated_address) !== address || safeText(currentPayload.generated_address_rule) !== safeText(nextPayload.generated_address_rule)) {
+      const updateRequired = geocodeLeasePeriodScope
+        ? geocodeApplied
+        : geocodeApplied || safeText(currentPayload.generated_address) !== address || safeText(currentPayload.generated_address_rule) !== safeText(nextPayload.generated_address_rule);
+      if (updateRequired) {
         changed += 1;
         if (samples.length < 5) {
           samples.push({
@@ -5428,6 +5652,7 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
             before: currentPayload.generated_address || row.legal_address || null,
             after: address,
             rule: nextPayload.generated_address_rule,
+            location_key: groupKey || null,
           });
         }
         if (!dryRun) {
@@ -5439,10 +5664,84 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
         }
       }
     }
-    results.push({ ...config, offset, limit, scanned: (data || []).length, changed, missing, dry_run: dryRun, samples });
+    const remainingLocations = shouldGeocode ? Math.max(0, pendingGroups.length - geocodedLocationKeys.size) : 0;
+    allFailures.push(...failures.map((failure) => ({ kind: config.kind, ...failure })));
+    results.push({
+      ...config,
+      offset,
+      query_offset: queryOffset,
+      limit,
+      query_limit: queryLimit,
+      report_period: config.kind === 'lease' ? selectedLeasePeriod || null : null,
+      latest_only: latestOnly,
+      expected_rows: expectedRows,
+      fetched_rows: fetchedRows,
+      scanned: fetchedRows,
+      scanned_rows: fetchedRows,
+      changed,
+      updated_rows: changed,
+      missing,
+      unique_locations: groups.size,
+      geocoded_locations: geocodedLocationKeys.size,
+      seeded_locations: seededLocationKeys.size,
+      propagated_rows: propagatedRows,
+      skipped_existing_locations: [...groups.values()].filter((group) => group.hasCoordinates).length,
+      remaining_locations: remainingLocations,
+      geocode_pacing_ms: MARKET_BACKFILL_NAVER_PACING_MS,
+      failures,
+      dry_run: dryRun,
+      samples,
+    });
   }
-  await auditOptional(ctx.serviceClient, ctx.user.id, 'sector-market/address-backfill', 200, { dry_run: dryRun, limit, offset, requestedKind, results });
-  return jsonResponse({ ok: true, data: { source_file_id: activeSourceId, source_file_name: sourceResult.data?.file_name || null, dry_run: dryRun, offset, limit, results } }, 200, ctx.origin);
+  const totals = results.reduce<{
+    expected_rows: number;
+    fetched_rows: number;
+    scanned_rows: number;
+    unique_locations: number;
+    geocoded_locations: number;
+    seeded_locations: number;
+    propagated_rows: number;
+    updated_rows: number;
+    remaining_locations: number;
+  }>((acc, result) => ({
+    expected_rows: acc.expected_rows + Number(result.expected_rows || 0),
+    fetched_rows: acc.fetched_rows + Number(result.fetched_rows || 0),
+    scanned_rows: acc.scanned_rows + Number(result.scanned_rows || 0),
+    unique_locations: acc.unique_locations + Number(result.unique_locations || 0),
+    geocoded_locations: acc.geocoded_locations + Number(result.geocoded_locations || 0),
+    seeded_locations: acc.seeded_locations + Number(result.seeded_locations || 0),
+    propagated_rows: acc.propagated_rows + Number(result.propagated_rows || 0),
+    updated_rows: acc.updated_rows + Number(result.updated_rows || 0),
+    remaining_locations: acc.remaining_locations + Number(result.remaining_locations || 0),
+  }), { expected_rows: 0, fetched_rows: 0, scanned_rows: 0, unique_locations: 0, geocoded_locations: 0, seeded_locations: 0, propagated_rows: 0, updated_rows: 0, remaining_locations: 0 });
+  const ok = allFailures.length === 0;
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'sector-market/address-backfill', ok ? 200 : 207, {
+    dry_run: dryRun,
+    limit,
+    offset,
+    requestedKind,
+    latest_only: latestOnly,
+    report_period: selectedLeasePeriod || null,
+    geocode_pacing_ms: MARKET_BACKFILL_NAVER_PACING_MS,
+    ...totals,
+    failure_count: allFailures.length,
+  });
+  return jsonResponse({
+    ok,
+    data: {
+      source_file_id: activeSourceId,
+      source_file_name: sourceResult.data?.file_name || null,
+      dry_run: dryRun,
+      offset,
+      limit,
+      latest_only: latestOnly,
+      report_period: selectedLeasePeriod || null,
+      geocode_pacing_ms: MARKET_BACKFILL_NAVER_PACING_MS,
+      ...totals,
+      failures: allFailures,
+      results,
+    },
+  }, ok ? 200 : 207, ctx.origin);
 }
 
 function normalizeSectorMarketReadView(payload: Record<string, unknown>) {

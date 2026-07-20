@@ -74,8 +74,12 @@ async function invoke(supabaseUrl, anonKey, token, action, payload = {}) {
     body: JSON.stringify({ action, payload }),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok || body?.ok === false) throw new Error(`${action} failed (${response.status}): ${body.message || body.error || 'unknown error'}`);
-  return body.data || {};
+  if (!response.ok) throw new Error(`${action} failed (${response.status}): ${body.message || body.error || 'unknown error'}`);
+  return { ok: body?.ok !== false, data: body.data || {}, error: body.message || body.error || '' };
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function main() {
@@ -85,37 +89,66 @@ async function main() {
   if (!supabaseUrl || !anonKey) throw new Error('Set LOGISTICS_SUPABASE_URL/VITE_SUPABASE_URL and LOGISTICS_SUPABASE_ANON_KEY/VITE_SUPABASE_ANON_KEY.');
   const auth = await signIn(supabaseUrl, anonKey);
   const runAll = hasFlag('--all');
+  const untilComplete = hasFlag('--until-complete');
+  const latestOnly = hasFlag('--latest');
+  const reportPeriod = argValue('--period');
+  const geocode = hasFlag('--geocode');
+  if (latestOnly && reportPeriod) throw new Error('Use --latest or --period, not both.');
+  if (untilComplete && !geocode) throw new Error('--until-complete requires --geocode.');
+  if (untilComplete && !hasFlag('--apply')) throw new Error('--until-complete requires --apply.');
+  if (untilComplete && !latestOnly && !reportPeriod) throw new Error('--until-complete requires --latest or --period for a stable lease scope.');
+  if (untilComplete && runAll) throw new Error('Use either --until-complete or --all, not both.');
   const limit = Number(argValue('--limit', '1000')) || 1000;
   let offset = Number(argValue('--offset', '0')) || 0;
+  const kind = argValue('--kind', latestOnly || reportPeriod ? 'lease' : 'all');
+  if ((latestOnly || reportPeriod) && !['lease', 'll_sector_market_lease_observations'].includes(kind)) {
+    throw new Error('--latest and --period only support --kind lease.');
+  }
   const basePayload = {
     dry_run: !hasFlag('--apply'),
-    kind: argValue('--kind', 'all'),
+    kind,
     limit,
-    geocode: hasFlag('--geocode'),
-    geocode_limit: Number(argValue('--geocode-limit', '0')) || 0,
+    geocode,
+    geocode_limit: geocode ? Math.min(Math.max(Number(argValue('--geocode-limit', '25')) || 25, 1), 25) : 0,
+    latest_only: latestOnly,
+    report_period: reportPeriod || undefined,
   };
   const batches = [];
+  let firstRequest = true;
   do {
+    if (!firstRequest) await wait(6500);
+    firstRequest = false;
     const payload = { ...basePayload, offset };
-    const data = await invoke(supabaseUrl, anonKey, auth.token, 'sector-market/address-backfill', payload);
-    batches.push({ payload, data });
+    const response = await invoke(supabaseUrl, anonKey, auth.token, 'sector-market/address-backfill', payload);
+    const data = response.data;
+    batches.push({ payload, ok: response.ok, error: response.error || undefined, data });
+    if (!response.ok) break;
+    if (untilComplete) {
+      if (Number(data.remaining_locations || 0) === 0) break;
+      continue;
+    }
     const maxScanned = Math.max(...(Array.isArray(data.results) ? data.results.map((row) => Number(row.scanned || 0)) : [0]));
     if (!runAll || maxScanned < limit) break;
     offset += limit;
-  } while (offset < 20000);
+  } while (untilComplete || offset < 20000);
   const report = {
-    ok: true,
+    ok: batches.every((batch) => batch.ok),
     generated_at: new Date().toISOString(),
     auth_source: auth.source,
-    payload: { ...basePayload, run_all: runAll, starting_offset: Number(argValue('--offset', '0')) || 0 },
+    payload: { ...basePayload, run_all: runAll, until_complete: untilComplete, starting_offset: Number(argValue('--offset', '0')) || 0 },
     batches,
     totals: batches.reduce((acc, batch) => {
       for (const result of batch.data.results || []) {
         const key = result.kind || result.table || 'unknown';
-        const current = acc[key] || { scanned: 0, changed: 0, missing: 0 };
-        current.scanned += Number(result.scanned || 0);
+        const current = acc[key] || { scanned_rows: 0, changed: 0, missing: 0, unique_locations: 0, geocoded_locations: 0, updated_rows: 0, remaining_locations: 0, failures: [] };
+        current.scanned_rows += Number(result.scanned_rows ?? result.scanned ?? 0);
         current.changed += Number(result.changed || 0);
         current.missing += Number(result.missing || 0);
+        current.unique_locations += Number(result.unique_locations || 0);
+        current.geocoded_locations += Number(result.geocoded_locations || 0);
+        current.updated_rows += Number(result.updated_rows || 0);
+        current.remaining_locations = Number(result.remaining_locations || 0);
+        current.failures.push(...(Array.isArray(result.failures) ? result.failures : []));
         acc[key] = current;
       }
       return acc;
@@ -125,7 +158,8 @@ async function main() {
   const latestJson = path.join(OUT_DIR, 'market-address-backfill-latest.json');
   fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(latestJson, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(JSON.stringify({ ok: true, artifact: outJson, payload: report.payload, totals: report.totals, batch_count: batches.length, last_batch: batches.at(-1) }, null, 2));
+  console.log(JSON.stringify({ ok: report.ok, artifact: outJson, payload: report.payload, totals: report.totals, batch_count: batches.length, last_batch: batches.at(-1) }, null, 2));
+  if (!report.ok) process.exitCode = 1;
 }
 
 main().catch((error) => {
