@@ -26,3 +26,19 @@ test('push edge reports provider acceptance separately from browser display and 
   assert.doesNotMatch(source, /\bsent\s*:/u, 'provider acceptance must not be reported as browser-display success');
   assert.match(source, /ok:\s*false,\s*outcome:\s*'ignored'/u, 'ignored webhooks must not be reported as successful delivery');
 });
+
+test('push edge keeps offline notifications deliverable and retries only transient delivery failures', () => {
+  const source = fs.readFileSync(PUSH_EDGE_PATH, 'utf8');
+
+  assert.match(source, /const WEB_PUSH_TTL_SECONDS = 24 \* 60 \* 60;/u, 'push TTL must retain notifications for at least 24 hours');
+  assert.match(source, /TTL:\s*WEB_PUSH_TTL_SECONDS/u, 'provider delivery must use the 24-hour TTL constant');
+  assert.match(source, /const MAX_DELIVERY_RETRIES = 3;/u, 'transient delivery retries must be capped at three');
+  assert.match(source, /function isRetryableProviderFailure\(statusCode: number \| null, error: unknown\)/u, 'retry eligibility must be explicit and testable');
+  assert.match(source, /statusCode === 429 \|\| \(statusCode !== null && statusCode >= 500 && statusCode <= 599\)/u, 'only rate limits and 5xx responses may be retried by HTTP status');
+  assert.match(source, /isNetworkException\(error\)/u, 'network exceptions must be retried separately from non-HTTP provider failures');
+  assert.match(source, /retryCount >= MAX_DELIVERY_RETRIES/u, 'delivery retries must stop at the configured bound');
+  assert.match(source, /Math\.min\(MAX_RETRY_DELAY_MS, RETRY_BASE_DELAY_MS \* 2 \*\* retryCount\)/u, 'retry delays must use a bounded exponential backoff');
+  assert.match(source, /function webPushTopic\(notificationId: string\)/u, 'the notification id must be normalized into a Web Push topic');
+  assert.match(source, /notificationId\.replace\(\/\[\^A-Za-z0-9_-\]\/g, '_'\)\.slice\(0, 32\)/u, 'the Web Push topic must be URL-safe and at most 32 characters');
+  assert.match(source, /topic:\s*webPushTopic\(taskShare\.notification_id\)/u, 'all attempts for one notification must use the same Web Push topic header');
+});

@@ -38,6 +38,26 @@ type PushRuntimeConfig = {
 
 const encoder = new TextEncoder();
 const BUSINESS_NOTIFICATION_TYPES = ['task_share', 'data_update', 'lease_maturity', 'loan_maturity', 'system'];
+const WEB_PUSH_TTL_SECONDS = 24 * 60 * 60;
+const MAX_DELIVERY_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 250;
+const MAX_RETRY_DELAY_MS = 2_000;
+const NETWORK_ERROR_CODES = new Set([
+  'EAI_AGAIN',
+  'ECONNABORTED',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'EHOSTUNREACH',
+  'ENETDOWN',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'EPIPE',
+  'ETIMEDOUT',
+  'UND_ERR_BODY_TIMEOUT',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_SOCKET',
+]);
 
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -79,6 +99,25 @@ function notificationPath(payload: unknown) {
 function providerFailureStatus(error: unknown) {
   const statusCode = Number((error as { statusCode?: unknown }).statusCode);
   return Number.isInteger(statusCode) && statusCode >= 100 && statusCode <= 599 ? statusCode : null;
+}
+
+function isNetworkException(error: unknown) {
+  if (!isRecord(error)) return false;
+  const code = text(error.code, 100).toUpperCase();
+  const name = text(error.name, 100);
+  return NETWORK_ERROR_CODES.has(code) || name === 'AbortError';
+}
+
+function isRetryableProviderFailure(statusCode: number | null, error: unknown) {
+  return statusCode === 429 || (statusCode !== null && statusCode >= 500 && statusCode <= 599) || isNetworkException(error);
+}
+
+function webPushTopic(notificationId: string) {
+  return notificationId.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 32);
+}
+
+function sleep(delayMs: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, delayMs));
 }
 
 Deno.serve(async (request) => {
@@ -139,26 +178,35 @@ Deno.serve(async (request) => {
     path: notificationPath(taskShare.payload),
   });
   const results = await Promise.all((subscriptions || []).map(async (subscription: SubscriptionRow) => {
-    try {
-      await webpush.sendNotification({
-        endpoint: subscription.endpoint,
-        keys: { p256dh: subscription.p256dh_key, auth: subscription.auth_key },
-      }, payload, {
-        vapidDetails: { subject: vapidSubject, publicKey, privateKey },
-        TTL: 60,
-        urgency: 'high',
-      });
-      return { providerAccepted: true, removedExpired: false, failureStatus: null };
-    } catch (error) {
-      const statusCode = providerFailureStatus(error);
-      if (statusCode === 404 || statusCode === 410) {
-        const { error: deletionError } = await serviceClient
-          .from('ll_notification_subscriptions')
-          .delete()
-          .eq('id', subscription.id);
-        return { providerAccepted: false, removedExpired: !deletionError, failureStatus: null };
+    let retryCount = 0;
+    while (true) {
+      try {
+        await webpush.sendNotification({
+          endpoint: subscription.endpoint,
+          keys: { p256dh: subscription.p256dh_key, auth: subscription.auth_key },
+        }, payload, {
+          vapidDetails: { subject: vapidSubject, publicKey, privateKey },
+          TTL: WEB_PUSH_TTL_SECONDS,
+          topic: webPushTopic(taskShare.notification_id),
+          urgency: 'high',
+        });
+        return { providerAccepted: true, removedExpired: false, failureStatus: null };
+      } catch (error) {
+        const statusCode = providerFailureStatus(error);
+        if (statusCode === 404 || statusCode === 410) {
+          const { error: deletionError } = await serviceClient
+            .from('ll_notification_subscriptions')
+            .delete()
+            .eq('id', subscription.id);
+          return { providerAccepted: false, removedExpired: !deletionError, failureStatus: null };
+        }
+        if (!isRetryableProviderFailure(statusCode, error) || retryCount >= MAX_DELIVERY_RETRIES) {
+          return { providerAccepted: false, removedExpired: false, failureStatus: statusCode === null ? 'unknown' : String(statusCode) };
+        }
+        const delayMs = Math.min(MAX_RETRY_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** retryCount);
+        retryCount += 1;
+        await sleep(delayMs);
       }
-      return { providerAccepted: false, removedExpired: false, failureStatus: statusCode === null ? 'unknown' : String(statusCode) };
     }
   }));
 
