@@ -14,7 +14,7 @@ function between(start, end) {
   return source.slice(startIndex, endIndex);
 }
 
-test('MarketMapPanel keeps the Naver canvas and refreshes it only after a real container resize', () => {
+test('MarketMapPanel keeps the Naver canvas and refreshes only for creation, viewport change, or a real resize', () => {
   const panel = between('function MarketMapPanel({', 'function ChartTooltip({');
   const healthMonitor = between('const startNaverHealthMonitor = (map) => {', 'const ensureNaverMaps = async () => {');
   const ensureNaver = between('const ensureNaverMaps = async () => {', 'ensureNaverMaps();');
@@ -31,7 +31,7 @@ test('MarketMapPanel keeps the Naver canvas and refreshes it only after a real c
   assert.match(ensureNaver, /const canReuseNaverMap = mapProviderRef\.current === 'naver'/u);
   assert.match(ensureNaver, /if \(!canReuseNaverMap\) \{\s*setMapStatus\(\{ status: 'checking'/u);
   assert.match(ensureNaver, /observeNaverMapResize\(map\);/u);
-  assert.match(ensureNaver, /if \(createdNaverMap\) refreshNaverMap\(map\);/u);
+  assert.match(ensureNaver, /if \(createdNaverMap \|\| shouldFitRegionMode \|\| shouldFitSelectedRegion\) refreshNaverMap\(map\);/u);
   assert.doesNotMatch(healthMonitor, /refreshNaverMap\(map\);/u);
 });
 

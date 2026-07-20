@@ -3567,7 +3567,7 @@ function MarketMapPanel({
           fittedRegionRef.current = selectedMapRegion;
         }
         observeNaverMapResize(map);
-        if (createdNaverMap) refreshNaverMap(map);
+        if (createdNaverMap || shouldFitRegionMode || shouldFitSelectedRegion) refreshNaverMap(map);
         window.requestAnimationFrame(() => {
           clampRegionClusterMarkers();
           const nextZoom = Number(map.getZoom?.());

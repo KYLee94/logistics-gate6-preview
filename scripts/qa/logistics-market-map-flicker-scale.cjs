@@ -20,7 +20,7 @@ const checks = [
   ['marker_effect_cleanup_keeps_zoom_listener', stableCleanup],
   ['naver_health_not_repeated_after_verified', /naverHealthVerifiedRef\.current && !hasNaverMapAuthFailure/u.test(source)],
   ['naver_canvas_reused_when_provider_is_unchanged', /const canReuseNaverMap = mapProviderRef\.current === 'naver'/u.test(source)],
-  ['naver_refresh_only_runs_for_new_map_or_resize', /if \(createdNaverMap\) refreshNaverMap\(map\);/u.test(source) && /const observeNaverMapResize = \(map\) => \{/u.test(source)],
+  ['naver_refresh_only_runs_for_new_map_viewport_change_or_resize', /if \(createdNaverMap \|\| shouldFitRegionMode \|\| shouldFitSelectedRegion\) refreshNaverMap\(map\);/u.test(source) && /const observeNaverMapResize = \(map\) => \{/u.test(source)],
   ['health_poll_does_not_repaint_map', !/refreshNaverMap\(map\);/u.test(healthMonitor)],
   ['resize_observer_skips_unchanged_size', /nextSize === mapCanvasSizeRef\.current/u.test(source)],
   ['marker_sync_ignores_equivalent_render_data', /const markerSignature = useMemo\(\(\) => markerRows\.map/u.test(source) && /\[markerSignature, selectedMapRegion/u.test(source)],
