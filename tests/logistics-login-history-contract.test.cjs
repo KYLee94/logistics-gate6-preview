@@ -10,6 +10,12 @@ const migrationPath = path.join(
   'migrations',
   '20260729090000_gate6_login_event_history.sql',
 );
+const backfillMigrationPath = path.join(
+  ROOT,
+  'supabase',
+  'migrations',
+  '20260729094500_backfill_login_events_from_last_login.sql',
+);
 const edgeSource = fs.readFileSync(
   path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 'index.ts'),
   'utf8',
@@ -39,6 +45,15 @@ test('login events use one minimal private persistence table', () => {
   assert.match(migration, /revoke all on table public\.ll_login_events from public, anon, authenticated/u);
   assert.doesNotMatch(migration, /\n\s+(?:password|ip_address|user_agent)\s+[a-z]/iu);
   assert.match(migration, /outcome in \('attempted', 'failed', 'success'\)/u);
+});
+
+test('existing per-user last login values are preserved as initial event history', () => {
+  assert.ok(fs.existsSync(backfillMigrationPath), 'missing login event backfill migration');
+  const migration = fs.readFileSync(backfillMigrationPath, 'utf8');
+  assert.match(migration, /insert into public\.ll_login_events/u);
+  assert.match(migration, /from public\.ll_user_permissions/u);
+  assert.match(migration, /where last_login_at is not null/u);
+  assert.match(migration, /on conflict \(event_id\) do nothing/u);
 });
 
 test('public first-login attempts are rate-limited and limited to active permission profiles', () => {
