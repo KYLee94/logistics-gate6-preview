@@ -195,11 +195,11 @@ test('dispatcher action은 최신 source에서 재계산되며 permissions/evalu
   assert.deepEqual(manifestActions.filter((action) => !directActions.includes(action)), []);
 });
 
-test('ACTION_MANIFEST의 public endpoint는 maps config와 logistics status만 허용한다', () => {
+test('ACTION_MANIFEST의 public endpoint는 지도 설정, 로그인 상태, 제한된 최초 접속 기록만 허용한다', () => {
   const actionManifest = sourceBlock(edgeSource, 'const ACTION_MANIFEST =', ']);');
   assert.match(
     actionManifest,
-    /\.\.\.\['naver\/maps-config', 'auth\/logistics-status'\]\.map\(\(action\) => \[action, 'public'\]/u,
+    /\.\.\.\['naver\/maps-config', 'auth\/logistics-status', 'auth\/login-attempt\/record'\]\.map\(\(action\) => \[action, 'public'\]/u,
   );
   assert.doesNotMatch(actionManifest, /auth\/first-login\/setup|auth\/password-reset\/access-code|weekly-assets\/latest-preview/u);
 });

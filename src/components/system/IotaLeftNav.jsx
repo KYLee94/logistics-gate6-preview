@@ -132,7 +132,7 @@ const workspaceItems = [
 
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
 const LOGISTICS_FEATURE_ACCESS_USERS_CACHE_KEY = 'logisticsFeatureAccessUsers:v1';
-const LOGISTICS_LOGIN_HISTORY_CACHE_KEY = 'logisticsLoginHistory:v2';
+const LOGISTICS_LOGIN_HISTORY_CACHE_KEY = 'logisticsLoginHistory:v3';
 const LOGISTICS_NAV_AUTO_COLLAPSE_MS = 60_000;
 const HAYUN_PROFILE_IMAGE_URL = 'hayun-jeong.jpg';
 const LOGISTICS_FEATURES = [
@@ -332,9 +332,10 @@ const writeFeatureAccessUsersCache = (rows = []) => {
 const normalizeLoginCapabilityUserRow = (row = {}) => {
     const lastLoginAt = row.last_login_at || row.last_login || row.last_sign_in_at || row.lastLoginAt || null;
     const hasAuthUser = row.has_auth_user === true || Boolean(lastLoginAt);
+    const loginStatus = String(row.login_status || '').trim();
     return {
         ...row,
-        login_status: hasAuthUser ? (row.login_status || '로그인 가능') : '최초 접속 전',
+        login_status: loginStatus || (hasAuthUser ? '로그인 가능' : '최초 접속 전'),
         last_sign_in_at: lastLoginAt,
     };
 };
@@ -1779,7 +1780,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                     </thead>
                                                     <tbody className="divide-y divide-[#2C2C2E] text-[#E5E5E5]">
                                                         {recentLoginHistoryRows.length ? recentLoginHistoryRows.map((row, index) => (
-                                                            <tr key={`${row.email || 'login'}-${row.logged_at || index}`} className="hover:bg-white/[0.03]">
+                                                            <tr key={row.event_id || `${row.email || 'login'}-${row.logged_at || index}`} className="hover:bg-white/[0.03]">
                                                                 <td className="whitespace-nowrap px-4 py-3 text-[#C7C7CC]">{formatLoginHistoryTime(row.logged_at)}</td>
                                                                 <td className="px-4 py-3">{row.organization || '-'}</td>
                                                                 <td className="px-4 py-3 font-semibold">

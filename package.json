@@ -94,6 +94,7 @@
     "qa:dart-chart:browser": "node scripts/qa/logistics-dart-chart-browser-smoke.cjs",
     "qa:external-api": "node scripts/qa/logistics-external-api-smoke.cjs",
     "qa:external-refresh-buttons:browser": "node scripts/qa/logistics-external-refresh-buttons-browser-smoke.cjs",
+    "test:login-history:contract": "node --test tests/logistics-login-history-contract.test.cjs",
     "qa:login-history": "node scripts/qa/logistics-login-history-smoke.cjs",
     "qa:login-history:browser": "node scripts/qa/logistics-login-history-browser-smoke.cjs",
     "qa:logout:browser": "node scripts/qa/logistics-logout-browser-smoke.cjs",

@@ -31,6 +31,40 @@ const fetchLogisticsAuthStatus = async (email) => {
         return null;
     }
 };
+const recordLogisticsFirstLoginAttempt = async ({ email, eventId, outcome, failureCode = '' }) => {
+    try {
+        await fetch(`${supabaseUrl}/functions/v1/ll-dashboard-api`, {
+            method: 'POST',
+            headers: {
+                apikey: supabaseAnonKey,
+                authorization: `Bearer ${supabaseAnonKey}`,
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                action: 'auth/login-attempt/record',
+                payload: {
+                    email,
+                    event_id: eventId,
+                    outcome,
+                    failure_code: outcome === 'failed' ? failureCode : undefined,
+                },
+            }),
+        });
+    } catch {
+        // Login attempt tracking must never block authentication.
+    }
+};
+const classifyLogisticsAuthFailure = (error) => {
+    const status = Number(error?.status || 0);
+    const code = String(error?.code || '').toLowerCase();
+    const message = String(error?.message || '').toLowerCase();
+    if (status === 429 || code.includes('rate') || message.includes('rate limit')) return 'rate_limited';
+    if (code.includes('weak_password') || message.includes('password') || message.includes('비밀번호')) return 'password_policy';
+    if (code.includes('user_already_exists') || message.includes('already registered') || message.includes('already exists')) return 'account_exists';
+    if (code.includes('invalid_credentials') || message.includes('invalid login credentials')) return 'invalid_credentials';
+    if (message.includes('network') || message.includes('fetch')) return 'network_error';
+    return 'auth_error';
+};
 const buildPasswordRecoveryRedirectUrl = () => LOGISTICS_PASSWORD_RECOVERY_REDIRECT_URL;
 const clearPasswordRecoveryUrl = () => {
     try {
@@ -65,7 +99,7 @@ const navigateAfterSuccessfulAuth = (onLogin) => {
         navigateToPostLoginPath({ replace: true });
     }, 0);
 };
-const recordLogisticsLoginHistory = async (email, authEmail, source = 'web_app') => {
+const recordLogisticsLoginHistory = async (email, authEmail, source = 'web_app', eventId = '') => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) return;
@@ -76,8 +110,7 @@ const recordLogisticsLoginHistory = async (email, authEmail, source = 'web_app')
                     email,
                     auth_email: authEmail || email,
                     source,
-                    client_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    user_agent: navigator.userAgent,
+                    event_id: eventId,
                 },
             },
         });
@@ -412,10 +445,20 @@ export default function AuthSetup({ onLogin }) {
     const proceedLogin = async () => {
         setShowConfirmModal(false);
         setErrorMessage('');
+        const loginEventId = crypto.randomUUID();
+        const shouldTrackFirstLogin = selectedMemberInfo?.has_successful_login !== true;
+        let firstLoginAttemptWrite = Promise.resolve();
         
         try {
             const normalizedEmail = email.trim().toLowerCase();
             const authEmail = currentAuthEmail() || normalizedEmail;
+            if (shouldTrackFirstLogin) {
+                firstLoginAttemptWrite = recordLogisticsFirstLoginAttempt({
+                    email: normalizedEmail,
+                    eventId: loginEventId,
+                    outcome: 'attempted',
+                });
+            }
             await persistLoginHints({
                 email: normalizedEmail,
                 password,
@@ -433,6 +476,15 @@ export default function AuthSetup({ onLogin }) {
                 });
 
                 if (error) {
+                    await firstLoginAttemptWrite;
+                    if (shouldTrackFirstLogin) {
+                        await recordLogisticsFirstLoginAttempt({
+                            email: normalizedEmail,
+                            eventId: loginEventId,
+                            outcome: 'failed',
+                            failureCode: classifyLogisticsAuthFailure(error),
+                        });
+                    }
                     triggerError(error.message || '최초 접속 설정에 실패했습니다.');
                     return;
                 }
@@ -451,7 +503,8 @@ export default function AuthSetup({ onLogin }) {
                         auth_id: data.session.user.id,
                     },
                 });
-                await recordLogisticsLoginHistory(normalizedEmail, authEmail, 'web_app');
+                await firstLoginAttemptWrite;
+                await recordLogisticsLoginHistory(normalizedEmail, authEmail, 'web_app', loginEventId);
             } else {
                 // Sign in existing user
                 const { data, error } = await supabase.auth.signInWithPassword({
@@ -460,6 +513,15 @@ export default function AuthSetup({ onLogin }) {
                 });
 
                 if (error) {
+                    await firstLoginAttemptWrite;
+                    if (shouldTrackFirstLogin) {
+                        await recordLogisticsFirstLoginAttempt({
+                            email: normalizedEmail,
+                            eventId: loginEventId,
+                            outcome: 'failed',
+                            failureCode: classifyLogisticsAuthFailure(error),
+                        });
+                    }
                     triggerError('로그인 실패: 패스워드를 확인해주세요.');
                     return;
                 }
@@ -476,7 +538,8 @@ export default function AuthSetup({ onLogin }) {
                             email: authEmail,
                         },
                     });
-                    await recordLogisticsLoginHistory(normalizedEmail, authEmail, 'web_app');
+                    await firstLoginAttemptWrite;
+                    await recordLogisticsLoginHistory(normalizedEmail, authEmail, 'web_app', loginEventId);
                 }
             }
 
@@ -485,7 +548,16 @@ export default function AuthSetup({ onLogin }) {
                 navigateAfterSuccessfulAuth(onLogin);
             }, 700);
 
-        } catch {
+        } catch (error) {
+            await firstLoginAttemptWrite;
+            if (shouldTrackFirstLogin) {
+                await recordLogisticsFirstLoginAttempt({
+                    email: email.trim().toLowerCase(),
+                    eventId: loginEventId,
+                    outcome: 'failed',
+                    failureCode: classifyLogisticsAuthFailure(error),
+                });
+            }
             triggerError('인증 처리 중 오류가 발생했습니다.');
         }
     };

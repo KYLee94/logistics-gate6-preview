@@ -10,6 +10,7 @@ const DASHBOARD_PERMISSION_CACHE_KEYS = [
   'logisticsFeatureAccessConfig',
   'logisticsFeatureAccessUsers:v1',
   'logisticsLoginHistory:v2',
+  'logisticsLoginHistory:v3',
 ];
 const ACTIVE_ACCOUNT_STATUS = 'active';
 let refreshOperationPromise = null;

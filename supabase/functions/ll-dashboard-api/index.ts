@@ -500,7 +500,7 @@ const LOGISTICS_FEATURE_KEYS = new Set([
 ]);
 type ActionClassification = 'public' | 'authenticated' | 'permission_admin' | 'approval_management';
 const ACTION_MANIFEST = new Map<string, ActionClassification>([
-  ...['naver/maps-config', 'auth/logistics-status'].map((action) => [action, 'public'] as const),
+  ...['naver/maps-config', 'auth/logistics-status', 'auth/login-attempt/record'].map((action) => [action, 'public'] as const),
   ...['auth/users/list', 'permissions/evaluate', 'auth/users/upsert', 'auth/user-permissions/update', 'feature-access/get', 'feature-access/update'].map((action) => [action, 'permission_admin'] as const),
   ...['edits/approve', 'edits/reject'].map((action) => [action, 'approval_management'] as const),
   ...[
@@ -533,7 +533,7 @@ const ACTION_MANIFEST = new Map<string, ActionClassification>([
 ]);
 type ActionScopeContract = 'public' | 'self' | 'global' | 'asset' | 'multi_asset';
 const ACTION_SCOPE_MANIFEST = new Map<string, ActionScopeContract>([
-  ...['naver/maps-config', 'auth/logistics-status'].map((action) => [action, 'public'] as const),
+  ...['naver/maps-config', 'auth/logistics-status', 'auth/login-attempt/record'].map((action) => [action, 'public'] as const),
   ...[
     'auth/me', 'auth/login-history/record', 'notifications/list', 'notifications/dismiss', 'notifications/mark-read',
     'notifications/push/config', 'notifications/push/subscribe', 'notifications/push/unsubscribe',
@@ -26041,18 +26041,20 @@ function publicLoginCapabilityRow(permission: Record<string, unknown>, authUsers
 function publicLoginHistoryRow(row: Record<string, unknown>, permissionByEmail?: Map<string, Record<string, unknown>>) {
   const eventPayload = (row.event_payload && typeof row.event_payload === 'object') ? row.event_payload as Record<string, unknown> : {};
   const requestPayload = (row.request_payload && typeof row.request_payload === 'object') ? row.request_payload as Record<string, unknown> : {};
-  const email = normalizeAuthEmail(eventPayload.email || requestPayload.email || eventPayload.auth_email || requestPayload.auth_email);
+  const email = normalizeAuthEmail(row.email || eventPayload.email || requestPayload.email || eventPayload.auth_email || requestPayload.auth_email);
   const authEmail = normalizeAuthEmail(eventPayload.auth_email || requestPayload.auth_email || email);
   const permission = permissionByEmail?.get(email) || permissionByEmail?.get(authEmail) || null;
   return stripUndefined({
-    logged_at: row.created_at,
+    event_id: row.event_id || row.id || null,
+    logged_at: row.updated_at || row.created_at,
     email,
     auth_email: authEmail,
     organization: permission?.organization || eventPayload.organization || requestPayload.organization || '-',
     staff_name: permission?.staff_name || eventPayload.staff_name || requestPayload.staff_name || staffNameForEmail(email),
+    image_url: permission?.image_url || null,
     logistics_role: permission?.logistics_role || eventPayload.logistics_role || requestPayload.logistics_role || null,
-    status: row.event_status || ((Number(row.status_code) >= 200 && Number(row.status_code) < 400) ? 'success' : 'failed'),
-    source_label: eventPayload.source === 'web_app' ? '웹 로그인' : '로그인',
+    status: row.outcome || row.event_status || ((Number(row.status_code) >= 200 && Number(row.status_code) < 400) ? 'success' : 'failed'),
+    source_label: row.event_type === 'password_recovery' ? '비밀번호 재설정' : '웹 로그인',
   }) as Record<string, unknown>;
 }
 
@@ -26331,12 +26333,50 @@ async function recordLogisticsLoginHistory(ctx: Context, payload: Record<string,
   if (requestedEmail && !allowedEmails.has(requestedEmail)) {
     return fail(403, 'Login history email scope denied', ctx.origin);
   }
-  const { error } = await ctx.serviceClient
+  const source = safeText(payload.source);
+  if (LOGIN_HISTORY_TEST_PATTERN.test(source)) {
+    return jsonResponse({ ok: true, stored: false, filtered_test_event: true }, 200, ctx.origin);
+  }
+
+  const requestedEventId = safeText(payload.event_id).toLowerCase();
+  const eventId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(requestedEventId)
+    ? requestedEventId
+    : crypto.randomUUID();
+  const { data: existingEvent, error: existingError } = await ctx.serviceClient
+    .from('ll_login_events')
+    .select('email,event_type,outcome')
+    .eq('event_id', eventId)
+    .maybeSingle();
+  if (existingError) return fail(500, 'Failed to verify login event', ctx.origin);
+  if (existingEvent && normalizeAuthEmail(existingEvent.email) !== permissionEmail) {
+    return fail(403, 'Login event scope denied', ctx.origin);
+  }
+
+  const now = new Date().toISOString();
+  const eventType = existingEvent?.event_type === 'first_login'
+    ? 'first_login'
+    : source === 'password_recovery'
+      ? 'password_recovery'
+      : 'login';
+  const { error: eventError } = await ctx.serviceClient
+    .from('ll_login_events')
+    .upsert({
+      event_id: eventId,
+      email: permissionEmail,
+      auth_user_id: ctx.user.id,
+      event_type: eventType,
+      outcome: 'success',
+      failure_code: null,
+      updated_at: now,
+    }, { onConflict: 'event_id' });
+  if (eventError) return fail(500, 'Failed to save login event', ctx.origin);
+
+  const { error: permissionError } = await ctx.serviceClient
     .from('ll_user_permissions')
-    .update({ last_login_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({ last_login_at: now, updated_at: now })
     .eq('email', permissionEmail);
-  if (error) return fail(500, 'Failed to update login status', ctx.origin);
-  return jsonResponse({ ok: true, stored: true }, 200, ctx.origin);
+  if (permissionError) return fail(500, 'Failed to update login status', ctx.origin);
+  return jsonResponse({ ok: true, stored: true, event_id: eventId }, 200, ctx.origin);
 }
 
 async function listLogisticsLoginHistory(ctx: Context, payload: Record<string, unknown>) {
@@ -26363,23 +26403,48 @@ async function listLogisticsLoginHistory(ctx: Context, payload: Record<string, u
     if (email && isActivePermission(row)) permissionByEmail.set(email, row);
   });
 
-  const rows = ((permissionRows || []) as Record<string, unknown>[])
-    .filter((row) => isActivePermission(row) && safeText(row.last_login_at))
-    .sort((left, right) => safeText(right.last_login_at).localeCompare(safeText(left.last_login_at)))
+  const eventQueryLimit = Math.min(Math.max(limit * 3, limit), 300);
+  const { data: eventRows, error: eventError, count: storedHistoryRows } = await ctx.serviceClient
+    .from('ll_login_events')
+    .select('event_id,email,event_type,outcome,updated_at', { count: 'exact' })
+    .eq('outcome', 'success')
+    .order('updated_at', { ascending: false })
+    .limit(eventQueryLimit);
+  if (eventError) return fail(500, 'Failed to read login history', ctx.origin);
+  const { data: firstAccessEventRows, error: firstAccessEventError } = await ctx.serviceClient
+    .from('ll_login_events')
+    .select('email,outcome,failure_code,updated_at')
+    .eq('event_type', 'first_login')
+    .order('updated_at', { ascending: false })
+    .limit(300);
+  if (firstAccessEventError) return fail(500, 'Failed to read first login status', ctx.origin);
+  const rows = ((eventRows || []) as Record<string, unknown>[])
+    .filter((row) => !LOGIN_HISTORY_TEST_PATTERN.test(normalizeAuthEmail(row.email)))
     .slice(0, limit)
-    .map((row) => publicLoginHistoryRow({
-      created_at: row.last_login_at,
-      status_code: 200,
-      event_status: 'success',
-      event_payload: {
-        email: canonicalPermissionEmail(row),
-        staff_name: row.staff_name,
-        organization: row.organization,
-        logistics_role: row.logistics_role,
-        source: 'web_app',
-      },
-    }, permissionByEmail));
-  const users = loginCapabilityRows((permissionRows || []) as Record<string, unknown>[], authUsers);
+    .map((row) => publicLoginHistoryRow(row, permissionByEmail));
+  const latestFirstAccessByEmail = new Map<string, Record<string, unknown>>();
+  ((firstAccessEventRows || []) as Record<string, unknown>[]).forEach((row) => {
+    const email = normalizeAuthEmail(row.email);
+    if (email && !latestFirstAccessByEmail.has(email)) latestFirstAccessByEmail.set(email, row);
+  });
+  const users = loginCapabilityRows((permissionRows || []) as Record<string, unknown>[], authUsers)
+    .map((row) => {
+      if (row.last_sign_in_at) return row;
+      const firstAccess = latestFirstAccessByEmail.get(normalizeAuthEmail(row.email));
+      if (!firstAccess) return row;
+      const outcome = safeText(firstAccess.outcome);
+      const loginStatus = outcome === 'failed'
+        ? '최초 접속 실패'
+        : outcome === 'attempted' && !row.has_auth_user
+          ? '최초 접속 시도'
+          : row.login_status;
+      return stripUndefined({
+        ...row,
+        login_status: loginStatus,
+        first_login_attempted_at: firstAccess.updated_at,
+        first_login_failure_code: outcome === 'failed' ? firstAccess.failure_code : null,
+      }) as Record<string, unknown>;
+    });
 
   await audit(ctx.serviceClient, ctx.user.id, 'auth/login-history/list', 200, {
     returned_history_rows: rows.length,
@@ -26392,13 +26457,83 @@ async function listLogisticsLoginHistory(ctx: Context, payload: Record<string, u
       rows,
       users,
       summary: {
-        stored_history_rows: rows.length,
+        stored_history_rows: storedHistoryRows ?? rows.length,
         permission_user_count: users.length,
+        first_login_attempted_count: users.filter((row) => Boolean(row.first_login_attempted_at)).length,
+        first_login_failed_count: users.filter((row) => row.login_status === '최초 접속 실패').length,
         auth_user_read_ok: !authReadError,
         auth_read_error: authReadError || null,
       },
     },
   }, 200, ctx.origin);
+}
+
+async function recordPublicFirstLoginAttempt(origin: string, payload: Record<string, unknown>) {
+  const email = normalizeAuthEmail(payload.email);
+  const eventId = safeText(payload.event_id).toLowerCase();
+  const outcome = safeText(payload.outcome).toLowerCase();
+  const requestedFailureCode = safeText(payload.failure_code).toLowerCase();
+  const validEventId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(eventId);
+  const validFailureCodes = new Set([
+    'invalid_credentials',
+    'password_policy',
+    'account_exists',
+    'rate_limited',
+    'network_error',
+    'auth_error',
+  ]);
+  if (!validEventId || !['attempted', 'failed'].includes(outcome)) {
+    return fail(400, 'Login attempt payload is invalid', origin);
+  }
+  if (outcome === 'failed' && !validFailureCodes.has(requestedFailureCode)) {
+    return fail(400, 'Login failure category is invalid', origin);
+  }
+  if (!checkRateLimit('public:login-attempt:global', 'auth/login-attempt/record', 120, 60_000)
+    || !checkRateLimit(`public:login-attempt:${email || 'invalid'}`, 'auth/login-attempt/record', 8, 60_000)) {
+    return fail(429, 'Too many login attempt requests', origin);
+  }
+  if (!email || !email.endsWith('@igisam.com')) {
+    return jsonResponse({ ok: true, stored: false }, 200, origin);
+  }
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceRoleKey = readEdgeSecret('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceRoleKey) return fail(503, 'Login attempt tracking is temporarily unavailable', origin);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const profileResult = await readActiveCanonicalProfile(serviceClient, email);
+  if (profileResult.error) return fail(503, 'Login attempt tracking is temporarily unavailable', origin);
+  const permission = profileResult.permission;
+  if (!isActivePermission(permission || null)) {
+    return jsonResponse({ ok: true, stored: false }, 200, origin);
+  }
+  const permissionEmail = canonicalPermissionEmail(permission, email);
+  const { data: existingEvent, error: existingError } = await serviceClient
+    .from('ll_login_events')
+    .select('email,outcome')
+    .eq('event_id', eventId)
+    .maybeSingle();
+  if (existingError) return fail(503, 'Login attempt tracking is temporarily unavailable', origin);
+  if (existingEvent && (
+    normalizeAuthEmail(existingEvent.email) !== permissionEmail
+    || existingEvent.outcome === 'success'
+  )) {
+    return jsonResponse({ ok: true, stored: false }, 200, origin);
+  }
+
+  const { error } = await serviceClient
+    .from('ll_login_events')
+    .upsert({
+      event_id: eventId,
+      email: permissionEmail,
+      event_type: 'first_login',
+      outcome,
+      failure_code: outcome === 'failed' ? requestedFailureCode : null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'event_id' });
+  if (error) return fail(503, 'Login attempt tracking is temporarily unavailable', origin);
+  return jsonResponse({ ok: true, stored: true }, 200, origin);
 }
 
 async function listLogisticsLoginCapability(ctx: Context) {
@@ -26464,6 +26599,7 @@ async function callLogisticsAuthStatus(origin: string, payload: Record<string, u
     allowed,
     auth_email: allowed ? authEmail : null,
     has_auth_user: allowed ? Boolean(authUser) : false,
+    has_successful_login: allowed ? Boolean(permission?.last_login_at) : false,
     account_status: permission?.account_status || null,
     ...(allowed ? {
       staff_name: staffName,
@@ -26510,6 +26646,7 @@ Deno.serve(async (request): Promise<Response> => {
 
   if (action === 'naver/maps-config') return callNaverMapsConfig(origin);
   if (action === 'auth/logistics-status') return callLogisticsAuthStatus(origin, payload);
+  if (action === 'auth/login-attempt/record') return recordPublicFirstLoginAttempt(origin, payload);
 
   let ctx: Context;
   try {
