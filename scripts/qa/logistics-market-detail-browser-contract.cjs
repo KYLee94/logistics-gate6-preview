@@ -67,7 +67,10 @@ async function invokeDetail(supabaseUrl, anonKey, token, dataset, payload = {}) 
     body: JSON.stringify({ action: 'sector-market/detail/list', payload: { dataset, ...payload } }),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok || body?.ok === false) throw new Error(`${dataset} failed (${response.status}): ${body.message || body.error || 'unknown error'}`);
+  if (!response.ok || body?.ok === false) {
+    const details = body?.detail ? ` ${JSON.stringify(body.detail)}` : '';
+    throw new Error(`${dataset} failed (${response.status}): ${body.message || body.error || 'unknown error'}${details}`);
+  }
   return body.data || {};
 }
 

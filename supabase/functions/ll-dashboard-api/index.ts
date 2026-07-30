@@ -6243,7 +6243,10 @@ function sectorMarketDetailSearchTerm(value: unknown) {
 
 function sectorMarketDetailSelectColumns(config: SectorMarketDetailDataset) {
   return [...new Set([
-    ...config.columns.map((column) => column.dbKey || column.key).filter(Boolean),
+    ...config.columns
+      .filter((column) => column.dbKey || !column.sourcePatterns?.length)
+      .map((column) => column.dbKey || column.key)
+      .filter(Boolean),
     config.sourceRowColumn || '',
   ])].filter(Boolean).join(',');
 }
