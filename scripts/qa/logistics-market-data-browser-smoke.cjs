@@ -824,7 +824,18 @@ async function main() {
           const dialog = page.locator('[role="dialog"]').last();
           supplyAreaCharts.cumulative_modal_visible = await dialog.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
           if (supplyAreaCharts.cumulative_modal_visible) {
-            supplyAreaCharts.cumulative_modal_table_rows = await dialog.locator('[data-testid="supply-area-value-explorer"] ~ [data-sortable-table="true"] tbody tr').count().catch(() => 0);
+            const cumulativeRows = dialog.locator('[data-sortable-table="true"] tbody tr');
+            await page.waitForFunction(() => {
+              const dialogs = [...document.querySelectorAll('[role="dialog"]')]
+                .filter((candidate) => candidate instanceof HTMLElement && candidate.offsetParent !== null);
+              const activeDialog = dialogs.at(-1);
+              return [...(activeDialog?.querySelectorAll('[data-sortable-table="true"] tbody tr') || [])]
+                .some((candidate) => {
+                  const value = (candidate.textContent || '').replace(/\s+/gu, ' ').trim();
+                  return value && !/표시할 데이터가 없습니다/u.test(value);
+                });
+            }, null, { timeout: 30000 }).catch(() => null);
+            supplyAreaCharts.cumulative_modal_table_rows = await cumulativeRows.count().catch(() => 0);
             await page.keyboard.press('Escape').catch(() => null);
           }
         }
