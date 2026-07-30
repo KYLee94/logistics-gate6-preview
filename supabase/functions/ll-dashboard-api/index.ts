@@ -6426,19 +6426,22 @@ function sectorMarketSourceColumnIndex(rawKey: string) {
   return matched ? Number(matched[1]) : 0;
 }
 
-function sectorMarketSourceDetailFieldSchemaFromHeaderRow(headerRow: Record<string, unknown>) {
+function sectorMarketSourceDetailFieldSchemaFromHeaderRow(
+  headerRow: Record<string, unknown>,
+  source: Record<string, unknown>,
+  sheetName: string,
+) {
   const internalHeader = /(pnu|\uBC95\uC815\uB3D9.*\uCF54\uB4DC|source|hash|row.*number|^code$|uuid)/iu;
   const headerValues = headerRow.row_values && typeof headerRow.row_values === 'object'
     ? headerRow.row_values as Record<string, unknown>
     : {};
-  return Object.entries(headerValues)
-    .sort(([leftKey], [rightKey]) => {
-      const leftIndex = sectorMarketSourceColumnIndex(leftKey) || Number.MAX_SAFE_INTEGER;
-      const rightIndex = sectorMarketSourceColumnIndex(rightKey) || Number.MAX_SAFE_INTEGER;
-      return leftIndex - rightIndex;
-    })
-    .map(([rawKey, rawLabel]) => {
-      const columnIndex = sectorMarketSourceColumnIndex(rawKey);
+  return workbookSchemaColumnsForSheet(source, sheetName)
+    .slice()
+    .sort((left, right) => Number(left.column_index || 0) - Number(right.column_index || 0))
+    .map((column) => {
+      const rawKey = safeText(column.normalized_header);
+      const rawLabel = headerValues[rawKey];
+      const columnIndex = Number(column.column_index || sectorMarketSourceColumnIndex(rawKey));
       const label = safeText(rawLabel).replace(/\s+/gu, ' ').trim();
       return {
         key: `field_${columnIndex}`,
@@ -6577,7 +6580,11 @@ async function callSectorMarketSourceDetailList(
     ? rows.filter((row) => Number(row.row_number || 0) > SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION.boundaryRow)
     : [];
   const schema = config.mode === 'supply_cumulative'
-    ? sectorMarketSourceDetailFieldSchemaFromHeaderRow(cumulativeSectionRows.find((row) => Number(row.row_number || 0) === SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION.headerRow) || {})
+    ? sectorMarketSourceDetailFieldSchemaFromHeaderRow(
+      cumulativeSectionRows.find((row) => Number(row.row_number || 0) === SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION.headerRow) || {},
+      activeSource || {},
+      sheetName,
+    )
     : sectorMarketSourceDetailFieldSchema(activeSource || {}, sheetName);
   if (config.mode === 'supply_cumulative') {
     if (!schema.length) return fail(503, 'Market source cumulative header is not available', ctx.origin);

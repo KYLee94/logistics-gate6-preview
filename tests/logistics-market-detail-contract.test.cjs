@@ -106,6 +106,17 @@ test('public detail responses only return display columns and remove raw source 
   assert.match(edge, /internalHeader\s*=.*pnu.*source.*hash/iu, 'source-schema columns must exclude internal identifiers');
 });
 
+test('consolidated tables skip source-only columns and cumulative headers keep workbook column order', () => {
+  const edge = read(EDGE_PATH);
+  const selector = functionBlock(edge, 'sectorMarketDetailSelectColumns');
+  const cumulativeHeader = functionBlock(edge, 'sectorMarketSourceDetailFieldSchemaFromHeaderRow');
+
+  assert.match(selector, /column\.dbKey\s*\|\|\s*!column\.sourcePatterns\?\.length/u);
+  assert.match(cumulativeHeader, /workbookSchemaColumnsForSheet\(source,\s*sheetName\)/u);
+  assert.match(cumulativeHeader, /column\.normalized_header/u);
+  assert.match(cumulativeHeader, /column\.column_index/u);
+});
+
 test('detail API returns business columns with groups and a single canonical pagination total', () => {
   const edge = read(EDGE_PATH);
   const handler = functionBlock(edge, 'callSectorMarketDetailList');
