@@ -231,8 +231,6 @@ type SectorMarketSourceDetailDataset = {
 const SECTOR_MARKET_DETAIL_DATASETS: Record<string, SectorMarketDetailDataset> = {
   lease_history: {
     table: 'll_sector_market_lease_observations',
-    sourceRowColumn: 'source_row_id',
-    sourceFileColumn: 'source_file_id',
     defaultOrders: [['report_year', false], ['report_quarter', false], ['center_name', true]],
     filterColumns: { period: 'report_period', region: 'region', temperature_type: 'temperature_type', size_bucket: 'size_bucket', center_name: 'center_name' },
     sortColumns: { period: 'report_period', center_name: 'center_name', region: 'region', rent: 'rent_manwon_per_py', vacancy_rate: 'vacancy_rate' },
@@ -261,8 +259,6 @@ const SECTOR_MARKET_DETAIL_DATASETS: Record<string, SectorMarketDetailDataset> =
   },
   lease_current: {
     table: 'll_sector_market_lease_observations',
-    sourceRowColumn: 'source_row_id',
-    sourceFileColumn: 'source_file_id',
     latestPeriod: { field: 'report_period', orders: [['report_year', false], ['report_quarter', false]] },
     defaultOrders: [['center_name', true], ['temperature_type', true]],
     filterColumns: { region: 'region', temperature_type: 'temperature_type', size_bucket: 'size_bucket', center_name: 'center_name' },
@@ -271,8 +267,6 @@ const SECTOR_MARKET_DETAIL_DATASETS: Record<string, SectorMarketDetailDataset> =
   },
   supply_new: {
     table: 'll_sector_market_supply_cases',
-    sourceRowColumn: 'source_row_id',
-    sourceFileColumn: 'source_file_id',
     fixedFilters: { supply_kind: 'new_supply' },
     defaultOrders: [['completion_date', false], ['warehouse_name', true]],
     filterColumns: { region: 'region', temperature_type: 'temperature_type', expected_year: 'expected_year', warehouse_name: 'warehouse_name', center_name: 'warehouse_name' },
@@ -305,8 +299,6 @@ const SECTOR_MARKET_DETAIL_DATASETS: Record<string, SectorMarketDetailDataset> =
   },
   supply_pipeline: {
     table: 'll_sector_market_supply_cases',
-    sourceRowColumn: 'source_row_id',
-    sourceFileColumn: 'source_file_id',
     fixedFilters: { supply_kind: 'pipeline' },
     defaultOrders: [['expected_year', true], ['expected_quarter', true], ['warehouse_name', true]],
     filterColumns: { region: 'region', temperature_type: 'temperature_type', expected_year: 'expected_year', progress_status: 'progress_status', warehouse_name: 'warehouse_name', center_name: 'warehouse_name' },
@@ -338,8 +330,6 @@ const SECTOR_MARKET_DETAIL_DATASETS: Record<string, SectorMarketDetailDataset> =
   },
   transaction_cases: {
     table: 'll_sector_market_transaction_cases',
-    sourceRowColumn: 'source_row_id',
-    sourceFileColumn: 'source_file_id',
     defaultOrders: [['transaction_year', false], ['transaction_quarter', false], ['warehouse_name', true]],
     filterColumns: {
       region: 'capital_region',
@@ -401,8 +391,6 @@ const SECTOR_MARKET_DETAIL_DATASETS: Record<string, SectorMarketDetailDataset> =
   },
   cap_rate: {
     table: 'll_sector_market_cap_rate_series',
-    sourceRowColumn: 'source_row_id',
-    sourceFileColumn: 'source_file_id',
     defaultOrders: [['report_year', false], ['report_quarter', false]],
     filterColumns: { report_year: 'report_year', report_quarter: 'report_quarter' },
     sortColumns: { report_year: 'report_year', report_quarter: 'report_quarter' },
@@ -438,7 +426,6 @@ const SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION = {
 
 const SECTOR_MARKET_LATEST_LEASE_KPI_DATASET: SectorMarketDetailDataset = {
   table: 'll_sector_market_lease_observations',
-  sourceFileColumn: 'source_file_id',
   defaultOrders: [['report_year', false], ['report_quarter', false]],
   filterColumns: {},
   sortColumns: {},
