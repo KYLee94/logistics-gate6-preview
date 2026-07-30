@@ -44,6 +44,14 @@ function timestamp() {
   return new Date().toISOString().replace(/[-:]/gu, '').replace(/\..+$/u, '').replace('T', '-');
 }
 
+function chromeExecutablePath() {
+  return [
+    process.env.CHROME_PATH,
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  ].filter(Boolean).find((candidate) => fs.existsSync(candidate)) || undefined;
+}
+
 function joinUrl(baseUrl, route) {
   return new URL(route.replace(/^\/+|\/+$/gu, ''), baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).toString();
 }
@@ -104,31 +112,50 @@ async function signInThroughBrowser(page, email, password) {
     await continueButton.click();
   }
   const passwordInput = page.locator('input[type="password"]').first();
-  if (await passwordInput.isVisible().catch(() => false)) {
+  if (await passwordInput.waitFor({ state: 'visible', timeout: 20000 }).then(() => true).catch(() => false)) {
     await passwordInput.fill(password);
     const submitButton = page.getByRole('button', { name: /로그인|확인|계속/u }).first();
     await waitVisible(submitButton, 'login button');
     await submitButton.click();
+    await passwordInput.waitFor({ state: 'hidden', timeout: 30000 });
   }
 }
 
-async function openSupplyPopup(page, sectionTestId, expectedDataset) {
+async function openSupplyPopup(page, sectionTestId, expectedDataset, functionActions) {
   const section = page.locator(`[data-testid="${sectionTestId}"]`);
   await waitVisible(section, `${expectedDataset} section`);
-  const table = section.locator('[data-sortable-table="true"]').first();
+  const table = section.locator('[data-sortable-table="true"]:visible').last();
   await waitVisible(table, `${expectedDataset} table`);
+  await page.waitForFunction(({ sectionId }) => {
+    const sectionNode = document.querySelector(`[data-testid="${sectionId}"]`);
+    const rows = [...(sectionNode?.querySelectorAll('[data-sortable-table="true"] tbody tr') || [])];
+    return rows.some((candidate) => {
+      const value = (candidate.textContent || '').replace(/\s+/gu, ' ').trim();
+      return value && !/표시할 데이터가 없습니다/u.test(value);
+    });
+  }, { sectionId: sectionTestId }, { timeout: 30000 });
   const row = table.locator('tbody tr').first();
   await waitVisible(row, `${expectedDataset} row`);
   const responsePromise = page.waitForResponse((response) => {
     if (!response.url().includes('/functions/v1/ll-dashboard-api')) return false;
     const body = response.request().postDataJSON?.() || {};
     return body.action === 'sector-market/detail/list' && body.payload?.dataset === expectedDataset;
-  }, { timeout: 20000 });
+  }, { timeout: 20000 }).catch(() => null);
+  const rowText = (await row.innerText()).replace(/\s+/gu, ' ').trim();
   await row.click();
-  await responsePromise;
 
   const dialog = page.locator('[role="dialog"]').last();
-  await waitVisible(dialog, `${expectedDataset} dialog`);
+  if (!await dialog.waitFor({ state: 'visible', timeout: 20000 }).then(() => true).catch(() => false)) {
+    fs.mkdirSync(OUT_DIR, { recursive: true });
+    const failureScreenshot = path.join(OUT_DIR, `market-detail-browser-contract-${timestamp()}-${expectedDataset}-no-dialog.png`);
+    await page.screenshot({ path: failureScreenshot, fullPage: false }).catch(() => {});
+    throw new Error(`${expectedDataset}: dialog was not visible; row=${JSON.stringify(rowText)}; actions=${JSON.stringify(functionActions.slice(-10))}; screenshot=${path.relative(ROOT, failureScreenshot).replace(/\\/gu, '/')}`);
+  }
+  const response = await responsePromise;
+  if (!response) {
+    const requestState = await dialog.locator('[data-testid="market-detail-request-state"]').innerText().catch(() => 'request state not rendered');
+    throw new Error(`${expectedDataset}: detail response was not observed; row=${JSON.stringify(rowText)}; state=${JSON.stringify(requestState)}; actions=${JSON.stringify(functionActions.slice(-10))}`);
+  }
   const box = await dialog.boundingBox();
   const viewport = page.viewportSize();
   const tableRows = await dialog.locator('[data-sortable-table="true"] tbody tr').count();
@@ -176,7 +203,7 @@ async function main() {
     apiChecks.push({ dataset, total: firstPage.total, default_rows: firstPage.rows.length, capped_rows: cappedPage.rows.length });
   }
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, executablePath: chromeExecutablePath() });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   const functionActions = [];
@@ -189,6 +216,7 @@ async function main() {
   try {
     await page.goto(joinUrl(baseUrl, 'market-data/supply-pipeline'), { waitUntil: 'domcontentloaded', timeout: 60000 });
     await signInThroughBrowser(page, email, password);
+    await page.goto(joinUrl(baseUrl, 'market-data/supply-pipeline'), { waitUntil: 'domcontentloaded', timeout: 60000 });
     await waitVisible(page.locator('[data-testid="market-data-dashboard"]'), 'market dashboard after real login');
     await Promise.all(SUPPLY_SECTIONS.map(({ testId, dataset }) => waitVisible(
       page.locator(`[data-testid="${testId}"] [data-sortable-table="true"]`).first(),
@@ -200,7 +228,7 @@ async function main() {
 
     const supplyChecks = [];
     for (const { testId, dataset } of SUPPLY_SECTIONS) {
-      supplyChecks.push(await openSupplyPopup(page, testId, dataset));
+      supplyChecks.push(await openSupplyPopup(page, testId, dataset, functionActions));
     }
     if (!supplyChecks.every((check) => check.ok)) throw new Error(`Supply popup contract failed: ${JSON.stringify(supplyChecks)}`);
     if (functionActions.some((action) => /(?:ingest|upload|create|update|delete|approve|submit)/iu.test(action))) {

@@ -5882,17 +5882,18 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       const sourceRows = Array.isArray(response?.rows) ? response.rows : (Array.isArray(response?.items) ? response.items : null);
       const rows = sourceRows ? normalizeMarketDetailRows(sourceRows) : null;
       if (!rows) throw new Error('상세 데이터 응답 형식을 확인할 수 없습니다.');
+      const hasDetailRows = rows.length > 0;
       const nextState = {
         requestKey,
         loading: false,
         error: '',
-        rows,
-        columns: normalizeMarketDetailColumns(response?.columns || response?.schema?.columns, detailRequest.fallbackColumns),
-        pagination: response?.pagination || {
+        rows: hasDetailRows ? rows : null,
+        columns: hasDetailRows ? normalizeMarketDetailColumns(response?.columns || response?.schema?.columns, detailRequest.fallbackColumns) : null,
+        pagination: hasDetailRows ? (response?.pagination || {
           page,
           page_size: requestPayload.page_size,
           total_count: Number(response?.total ?? response?.total_count ?? rows.length),
-        },
+        }) : null,
       };
       if (marketDetailRequestRef.current !== requestId) return;
       marketDetailCacheRef.current.set(requestKey, nextState);

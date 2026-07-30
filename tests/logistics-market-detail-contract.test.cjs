@@ -110,11 +110,14 @@ test('consolidated tables skip source-only columns and cumulative headers keep w
   const edge = read(EDGE_PATH);
   const selector = functionBlock(edge, 'sectorMarketDetailSelectColumns');
   const cumulativeHeader = functionBlock(edge, 'sectorMarketSourceDetailFieldSchemaFromHeaderRow');
+  const cumulativeReader = functionBlock(edge, 'callSectorMarketSourceDetailList');
 
   assert.match(selector, /column\.dbKey\s*\|\|\s*!column\.sourcePatterns\?\.length/u);
   assert.match(cumulativeHeader, /workbookSchemaColumnsForSheet\(source,\s*sheetName\)/u);
   assert.match(cumulativeHeader, /column\.normalized_header/u);
   assert.match(cumulativeHeader, /column\.column_index/u);
+  assert.match(cumulativeReader, /sectorMarketSupplyCumulativeHeaderScore/u);
+  assert.match(cumulativeReader, /Number\(row\.row_number\s*\|\|\s*0\)\s*>\s*headerRowNumber/u);
 });
 
 test('detail API returns business columns with groups and a single canonical pagination total', () => {
@@ -130,6 +133,8 @@ test('detail API returns business columns with groups and a single canonical pag
   // The Edge contract calls the exact total `total`; the popup must not silently
   // downgrade to the first page row count, otherwise the next-page control disappears.
   const paginationState = sourceWindow(ui, 'const sourceRows = Array.isArray(response?.rows)');
+  assert.match(paginationState, /const hasDetailRows = rows\.length > 0/u);
+  assert.match(paginationState, /rows:\s*hasDetailRows\s*\?\s*rows\s*:\s*null/u);
   assert.match(paginationState, /total_count:\s*Number\(response\?\.total\s*\?\?\s*response\?\.total_count\s*\?\?\s*rows\.length\)/u);
   assert.match(ui, /column_groups:\s*detailRequest\.columnGroups\s*\|\|\s*\[\]/u);
 });

@@ -419,9 +419,8 @@ const SECTOR_MARKET_SOURCE_DETAIL_DATASETS: Record<string, SectorMarketSourceDet
   },
 };
 const SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION = {
-  boundaryRow: 27,
+  boundaryRow: 20,
   headerRow: 28,
-  firstDataRow: 29,
 } as const;
 
 const SECTOR_MARKET_LATEST_LEASE_KPI_DATASET: SectorMarketDetailDataset = {
@@ -6454,6 +6453,14 @@ function sectorMarketSourceDetailFieldSchemaFromHeaderRow(
     .filter((column) => column.label && column.columnIndex > 0 && !internalHeader.test(`${column.rawKey} ${column.label}`));
 }
 
+function sectorMarketSupplyCumulativeHeaderScore(row: Record<string, unknown>) {
+  const values = row.row_values && typeof row.row_values === 'object'
+    ? Object.values(row.row_values as Record<string, unknown>)
+    : [];
+  const headerTerms = /(창고명|물류센터|권역|대지면적|건축면적|연면적|건폐율|용적률|주용도|구조|건축허가|착공일|사용승인|소유주|시행주체|상.?저온|비고)/iu;
+  return values.reduce<number>((score, value) => score + (headerTerms.test(safeText(value)) ? 1 : 0), 0);
+}
+
 function sectorMarketSourceDetailValue(row: Record<string, unknown>, rawKey: string) {
   const rawValues = row.row_values && typeof row.row_values === 'object'
     ? row.row_values as Record<string, unknown>
@@ -6579,16 +6586,25 @@ async function callSectorMarketSourceDetailList(
   const cumulativeSectionRows = config.mode === 'supply_cumulative'
     ? rows.filter((row) => Number(row.row_number || 0) > SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION.boundaryRow)
     : [];
+  const cumulativeHeaderRow: { row: Record<string, unknown>; score: number } | null = config.mode === 'supply_cumulative'
+    ? cumulativeSectionRows
+      .filter((row) => Number(row.row_number || 0) <= SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION.headerRow + 12)
+      .map((row) => ({ row, score: sectorMarketSupplyCumulativeHeaderScore(row) }))
+      .sort((left, right) => right.score - left.score || Number(left.row.row_number || 0) - Number(right.row.row_number || 0))[0]
+    : null;
   const schema = config.mode === 'supply_cumulative'
     ? sectorMarketSourceDetailFieldSchemaFromHeaderRow(
-      cumulativeSectionRows.find((row) => Number(row.row_number || 0) === SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION.headerRow) || {},
+      cumulativeHeaderRow?.score && cumulativeHeaderRow.score >= 4
+        ? cumulativeHeaderRow.row
+        : cumulativeSectionRows.find((row) => Number(row.row_number || 0) === SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION.headerRow) || {},
       activeSource || {},
       sheetName,
     )
     : sectorMarketSourceDetailFieldSchema(activeSource || {}, sheetName);
   if (config.mode === 'supply_cumulative') {
     if (!schema.length) return fail(503, 'Market source cumulative header is not available', ctx.origin);
-    rows = cumulativeSectionRows.filter((row) => Number(row.row_number || 0) >= SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION.firstDataRow);
+    const headerRowNumber = Number(cumulativeHeaderRow?.row?.row_number || SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION.headerRow);
+    rows = cumulativeSectionRows.filter((row) => Number(row.row_number || 0) > headerRowNumber);
   }
   const mapped = rows
     .filter((row) => sectorMarketSourceDetailHasData(row, schema, config.mode === 'supply_cumulative' ? 1 : 2))
