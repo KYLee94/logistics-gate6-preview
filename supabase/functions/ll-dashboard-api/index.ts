@@ -201,6 +201,256 @@ const SECTOR_MARKET_SELECT_COLUMNS: Record<string, string> = {
     'payload',
   ].join(','),
 };
+
+type SectorMarketDetailColumn = {
+  key: string;
+  label: string;
+  group: string;
+  unit?: string;
+  dbKey?: string;
+  sourcePatterns?: RegExp[];
+};
+
+type SectorMarketDetailDataset = {
+  table: string;
+  sourceRowColumn?: string;
+  sourceFileColumn?: string;
+  fixedFilters?: Record<string, unknown>;
+  latestPeriod?: { field: string; orders: Array<[string, boolean]> };
+  defaultOrders: Array<[string, boolean]>;
+  filterColumns: Record<string, string>;
+  sortColumns: Record<string, string>;
+  columns: SectorMarketDetailColumn[];
+};
+
+type SectorMarketSourceDetailDataset = {
+  sheetPattern: RegExp;
+  mode: 'lease_statistics' | 'supply_cumulative' | 'transaction_statistics';
+};
+
+const SECTOR_MARKET_DETAIL_DATASETS: Record<string, SectorMarketDetailDataset> = {
+  lease_history: {
+    table: 'll_sector_market_lease_observations',
+    sourceRowColumn: 'source_row_id',
+    sourceFileColumn: 'source_file_id',
+    defaultOrders: [['report_year', false], ['report_quarter', false], ['center_name', true]],
+    filterColumns: { period: 'report_period', region: 'region', temperature_type: 'temperature_type', size_bucket: 'size_bucket', center_name: 'center_name' },
+    sortColumns: { period: 'report_period', center_name: 'center_name', region: 'region', rent: 'rent_manwon_per_py', vacancy_rate: 'vacancy_rate' },
+    columns: [
+      { key: 'period', label: '기간', group: '기본 정보', dbKey: 'report_period' },
+      { key: 'center_name', label: '물류센터명', group: '기본 정보' },
+      { key: 'legal_address', label: '소재지', group: '기본 정보' },
+      { key: 'region', label: '권역', group: '기본 정보' },
+      { key: 'temperature_type', label: '용도', group: '기본 정보' },
+      { key: 'size_bucket', label: '규모', group: '기본 정보' },
+      { key: 'completion_year', label: '준공년도', group: '면적·건물', unit: '년' },
+      { key: 'gross_area_py', label: '연면적', group: '면적·건물', unit: '평' },
+      { key: 'leasable_area_py', label: '보관면적', group: '면적·건물', unit: '평' },
+      { key: 'deposit_manwon_per_py', label: '보증금', group: '임대 조건', unit: '만원/평' },
+      { key: 'rent_manwon_per_py', label: '임대료', group: '임대 조건', unit: '만원/평' },
+      { key: 'management_fee_manwon_per_py', label: '관리비', group: '임대 조건', unit: '만원/평' },
+      { key: 'rent_free_months_per_year', label: '렌트프리', group: '임대 조건', unit: '개월/년' },
+      { key: 'fit_out_months', label: 'Fit-out', group: '임대 조건', unit: '개월' },
+      { key: 'tenant_improvement_manwon_per_py', label: 'TI', group: '임대 조건', unit: '만원/평' },
+      { key: 'vacancy_area_py', label: '공실면적', group: '공실', unit: '평' },
+      { key: 'vacancy_rate', label: '공실률', group: '공실', unit: '%' },
+      { key: 'vacancy_calculation', label: '공실 산정', group: '공실', sourcePatterns: [/공실.*계산/iu, /vacancy.*calculation/iu] },
+      { key: 'high_vacancy_flag', label: '고공실 여부', group: '공실', sourcePatterns: [/공실률.*10.*이상/iu, /high.*vacancy/iu] },
+      { key: 'note', label: '비고', group: '기타', sourcePatterns: [/^비고$/iu, /note/iu] },
+    ],
+  },
+  lease_current: {
+    table: 'll_sector_market_lease_observations',
+    sourceRowColumn: 'source_row_id',
+    sourceFileColumn: 'source_file_id',
+    latestPeriod: { field: 'report_period', orders: [['report_year', false], ['report_quarter', false]] },
+    defaultOrders: [['center_name', true], ['temperature_type', true]],
+    filterColumns: { region: 'region', temperature_type: 'temperature_type', size_bucket: 'size_bucket', center_name: 'center_name' },
+    sortColumns: { center_name: 'center_name', region: 'region', rent: 'rent_manwon_per_py', vacancy_rate: 'vacancy_rate' },
+    columns: [],
+  },
+  supply_new: {
+    table: 'll_sector_market_supply_cases',
+    sourceRowColumn: 'source_row_id',
+    sourceFileColumn: 'source_file_id',
+    fixedFilters: { supply_kind: 'new_supply' },
+    defaultOrders: [['completion_date', false], ['warehouse_name', true]],
+    filterColumns: { region: 'region', temperature_type: 'temperature_type', expected_year: 'expected_year', warehouse_name: 'warehouse_name', center_name: 'warehouse_name' },
+    sortColumns: { warehouse_name: 'warehouse_name', expected_year: 'expected_year', completion_date: 'completion_date', gross_area_py: 'gross_area_py' },
+    columns: [
+      { key: 'warehouse_name', label: '물류센터명', group: '기본 정보' },
+      { key: 'legal_address', label: '소재지', group: '기본 정보' },
+      { key: 'region_group', label: '광역 권역', group: '기본 정보' },
+      { key: 'region', label: '권역', group: '기본 정보' },
+      { key: 'construction_type', label: '건축 구분', group: '건축·용도' },
+      { key: 'main_use', label: '주용도', group: '건축·용도' },
+      { key: 'temperature_type', label: '용도', group: '건축·용도' },
+      { key: 'structure', label: '구조', group: '건축·용도', sourcePatterns: [/^구조$/iu, /structure/iu] },
+      { key: 'site_area_sqm', label: '대지면적', group: '면적·건물', unit: '㎡' },
+      { key: 'site_area_py', label: '대지면적', group: '면적·건물', unit: '평' },
+      { key: 'building_area_sqm', label: '건축면적', group: '면적·건물', unit: '㎡' },
+      { key: 'gross_area_sqm', label: '연면적', group: '면적·건물', unit: '㎡' },
+      { key: 'gross_area_py', label: '연면적', group: '면적·건물', unit: '평' },
+      { key: 'building_coverage_ratio', label: '건폐율', group: '면적·건물', unit: '%', sourcePatterns: [/건폐율/iu] },
+      { key: 'floor_area_ratio', label: '용적률', group: '면적·건물', unit: '%', sourcePatterns: [/용적률/iu] },
+      { key: 'above_ground_floors', label: '지상층', group: '면적·건물', sourcePatterns: [/지상.*층/iu] },
+      { key: 'below_ground_floors', label: '지하층', group: '면적·건물', sourcePatterns: [/지하.*층/iu] },
+      { key: 'permit_date', label: '건축허가일', group: '일정' },
+      { key: 'start_date', label: '실제 착공일', group: '일정' },
+      { key: 'completion_date', label: '사용승인일', group: '일정' },
+      { key: 'owner_name', label: '소유주·시행주체', group: '사업 주체' },
+      { key: 'construction_company', label: '시공사', group: '사업 주체' },
+      { key: 'note', label: '비고', group: '기타', sourcePatterns: [/^비고$/iu, /note/iu] },
+    ],
+  },
+  supply_pipeline: {
+    table: 'll_sector_market_supply_cases',
+    sourceRowColumn: 'source_row_id',
+    sourceFileColumn: 'source_file_id',
+    fixedFilters: { supply_kind: 'pipeline' },
+    defaultOrders: [['expected_year', true], ['expected_quarter', true], ['warehouse_name', true]],
+    filterColumns: { region: 'region', temperature_type: 'temperature_type', expected_year: 'expected_year', progress_status: 'progress_status', warehouse_name: 'warehouse_name', center_name: 'warehouse_name' },
+    sortColumns: { warehouse_name: 'warehouse_name', expected_year: 'expected_year', progress_status: 'progress_status', gross_area_py: 'gross_area_py' },
+    columns: [
+      { key: 'expected_year', label: '준공 예정 연도', group: '일정', unit: '년' },
+      { key: 'expected_quarter', label: '준공 예정 분기', group: '일정' },
+      { key: 'initial_expected_year', label: '초기 예정 연도', group: '일정', unit: '년' },
+      { key: 'initial_expected_quarter', label: '초기 예정 분기', group: '일정' },
+      { key: 'progress_status', label: '진행 상황', group: '일정' },
+      { key: 'schedule_confidence', label: '일정 확정 여부', group: '일정' },
+      { key: 'permit_number', label: '건축 인허가번호', group: '건축·인허가', sourcePatterns: [/인허가.*번호/iu, /건축.*번호/iu] },
+      { key: 'permit_date', label: '건축허가일', group: '건축·인허가' },
+      { key: 'start_date', label: '실제 착공일', group: '건축·인허가' },
+      { key: 'construction_delay_date', label: '착공연기일', group: '건축·인허가', sourcePatterns: [/착공.*연기/iu] },
+      { key: 'warehouse_name', label: '물류센터명', group: '기본 정보' },
+      { key: 'legal_address', label: '소재지', group: '기본 정보' },
+      { key: 'region', label: '권역', group: '기본 정보' },
+      { key: 'main_use', label: '주용도', group: '기본 정보' },
+      { key: 'temperature_type', label: '용도', group: '기본 정보' },
+      { key: 'site_area_py', label: '대지면적', group: '면적·건물', unit: '평' },
+      { key: 'building_area_py', label: '건축면적', group: '면적·건물', unit: '평' },
+      { key: 'gross_area_py', label: '연면적', group: '면적·건물', unit: '평' },
+      { key: 'owner_name', label: '소유주·시행주체', group: '사업 주체' },
+      { key: 'owner_type', label: '소유주 유형', group: '사업 주체' },
+      { key: 'construction_company', label: '시공사', group: '사업 주체' },
+      { key: 'note', label: '비고', group: '기타', sourcePatterns: [/^비고$/iu, /note/iu] },
+    ],
+  },
+  transaction_cases: {
+    table: 'll_sector_market_transaction_cases',
+    sourceRowColumn: 'source_row_id',
+    sourceFileColumn: 'source_file_id',
+    defaultOrders: [['transaction_year', false], ['transaction_quarter', false], ['warehouse_name', true]],
+    filterColumns: {
+      region: 'capital_region',
+      temperature_type: 'temperature_type',
+      temp: 'temperature_type',
+      size_bucket: 'size_bucket',
+      bucket: 'size_bucket',
+      transaction_year: 'transaction_year',
+      year: 'transaction_year',
+      transaction_type: 'transaction_type',
+      dealType: 'transaction_type',
+      warehouse_name: 'warehouse_name',
+      asset_name: 'warehouse_name',
+    },
+    sortColumns: { warehouse_name: 'warehouse_name', transaction_year: 'transaction_year', transaction_amount: 'transaction_amount_krw', unit_price: 'unit_price_thousand_krw_per_py', cap_rate: 'cap_rate' },
+    columns: [
+      { key: 'transaction_type', label: '거래 구분', group: '거래 기본' },
+      { key: 'transaction_year', label: '거래 연도', group: '거래 기본', unit: '년' },
+      { key: 'transaction_quarter', label: '거래 분기', group: '거래 기본' },
+      { key: 'contract_date', label: '계약일', group: '거래 기본' },
+      { key: 'closing_date', label: '잔금일', group: '거래 기본' },
+      { key: 'warehouse_name', label: '자산명', group: '자산·건축' },
+      { key: 'legal_address', label: '소재지', group: '자산·건축' },
+      { key: 'capital_region', label: '수도권 권역', group: '자산·건축' },
+      { key: 'national_region', label: '전국 권역', group: '자산·건축' },
+      { key: 'temperature_type', label: '용도', group: '자산·건축' },
+      { key: 'size_bucket', label: '규모', group: '자산·건축' },
+      { key: 'building_area_py', label: '건축면적', group: '면적', unit: '평' },
+      { key: 'gross_area_py', label: '연면적', group: '면적', unit: '평' },
+      { key: 'land_area_py', label: '대지면적', group: '면적', unit: '평' },
+      { key: 'transaction_amount_krw', label: '거래금액', group: '거래 조건', unit: '원' },
+      { key: 'unit_price_thousand_krw_per_py', label: '평당 거래가', group: '거래 조건', unit: '천원/평' },
+      { key: 'seller_name', label: '매도인', group: '매도·매수' },
+      { key: 'seller_type', label: '매도인 유형', group: '매도·매수' },
+      { key: 'buyer_name', label: '매수인', group: '매도·매수' },
+      { key: 'buyer_type', label: '매수인 유형', group: '매도·매수' },
+      { key: 'senior_loan_rate', label: '선순위 대출금리', group: '임대차·금융' },
+      { key: 'tenant_name', label: '임차인', group: '임대차·금융' },
+      { key: 'lease_start_date', label: '임대차 시작일', group: '임대차·금융' },
+      { key: 'lease_end_date', label: '임대차 종료일', group: '임대차·금융' },
+      { key: 'remaining_lease_months', label: '잔여 임차기간', group: '임대차·금융', unit: '개월' },
+      { key: 'leased_area_sqm', label: '임대면적', group: '임대차·금융', unit: '㎡' },
+      { key: 'target_area_sqm', label: '대상면적', group: '임대차·금융', unit: '㎡' },
+      { key: 'deposit_thousand_krw_per_py', label: '보증금', group: '임대차·금융', unit: '천원/평' },
+      { key: 'rent_thousand_krw_per_py', label: '임대료', group: '임대차·금융', unit: '천원/평' },
+      { key: 'management_fee_thousand_krw_per_py', label: '관리비', group: '임대차·금융', unit: '천원/평' },
+      { key: 'vacancy_rate', label: '공실률', group: '임대차·금융', unit: '%' },
+      { key: 'initial_cap_rate', label: 'Initial Cap Rate', group: '수익률', unit: '%' },
+      { key: 'stabilized_cap_rate', label: 'Stabilized Cap Rate', group: '수익률', unit: '%' },
+      { key: 'cap_rate', label: 'Cap Rate', group: '수익률', unit: '%' },
+      { key: 'structure', label: '구조', group: '자산·건축', sourcePatterns: [/^구조$/iu, /structure/iu] },
+      { key: 'investment_vehicle', label: '투자 Vehicle', group: '매도·매수', sourcePatterns: [/(투자.*vehicle|vehicle)/iu] },
+      { key: 'acquisition_form', label: '매입 형태', group: '매도·매수', sourcePatterns: [/(매입.*형태|acquisition.*form)/iu] },
+      { key: 'responsible_lease', label: '책임임차 여부', group: '임대차·금융', sourcePatterns: [/책임.*임차/iu] },
+      { key: 'rent_free', label: '렌트프리', group: '임대차·금융', sourcePatterns: [/(렌트.*프리|rent.*free)/iu] },
+      { key: 'rent_escalation', label: '임대료 인상률', group: '임대차·금융', unit: '%', sourcePatterns: [/(임대료.*인상|rent.*escalation)/iu] },
+      { key: 'note', label: '비고', group: '기타', sourcePatterns: [/^비고$/iu, /note/iu] },
+    ],
+  },
+  cap_rate: {
+    table: 'll_sector_market_cap_rate_series',
+    sourceRowColumn: 'source_row_id',
+    sourceFileColumn: 'source_file_id',
+    defaultOrders: [['report_year', false], ['report_quarter', false]],
+    filterColumns: { report_year: 'report_year', report_quarter: 'report_quarter' },
+    sortColumns: { report_year: 'report_year', report_quarter: 'report_quarter' },
+    columns: [
+      { key: 'report_year', label: '연도', group: '기간', unit: '년' },
+      { key: 'report_quarter', label: '분기', group: '기간' },
+      { key: 'capital_area_cap_rate', label: '수도권 Cap Rate', group: 'Cap Rate', unit: '%' },
+      { key: 'national_cap_rate', label: '전국 Cap Rate', group: 'Cap Rate', unit: '%' },
+    ],
+  },
+};
+
+SECTOR_MARKET_DETAIL_DATASETS.lease_current.columns = SECTOR_MARKET_DETAIL_DATASETS.lease_history.columns;
+const SECTOR_MARKET_SOURCE_DETAIL_DATASETS: Record<string, SectorMarketSourceDetailDataset> = {
+  lease_statistics: {
+    sheetPattern: /\uC784\uB300\s*\uC2DC\uC7A5\s*\uD1B5\uACC4/iu,
+    mode: 'lease_statistics',
+  },
+  supply_cumulative: {
+    sheetPattern: /\uB2F9\uBD84\uAE30\s*\uC2E0\uADDC\uACF5\uAE09/iu,
+    mode: 'supply_cumulative',
+  },
+  transaction_statistics: {
+    sheetPattern: /\uB9E4\uB9E4\s*\uD1B5\uACC4/iu,
+    mode: 'transaction_statistics',
+  },
+};
+const SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION = {
+  boundaryRow: 27,
+  headerRow: 28,
+  firstDataRow: 29,
+} as const;
+
+const SECTOR_MARKET_LATEST_LEASE_KPI_DATASET: SectorMarketDetailDataset = {
+  table: 'll_sector_market_lease_observations',
+  sourceFileColumn: 'source_file_id',
+  defaultOrders: [['report_year', false], ['report_quarter', false]],
+  filterColumns: {},
+  sortColumns: {},
+  columns: [
+    { key: 'report_period', label: '기간', group: 'internal' },
+    { key: 'report_year', label: '연도', group: 'internal' },
+    { key: 'report_quarter', label: '분기', group: 'internal' },
+    { key: 'leasable_area_py', label: '보관면적', group: 'internal' },
+    { key: 'rent_manwon_per_py', label: '임대료', group: 'internal' },
+    { key: 'vacancy_rate', label: '공실률', group: 'internal' },
+  ],
+};
 const SECTOR_MARKET_ADDRESS_BACKFILL_COLUMNS: Record<string, string> = {
   ll_sector_market_lease_observations: `observation_id,${SECTOR_MARKET_SELECT_COLUMNS.ll_sector_market_lease_observations}`,
   ll_sector_market_supply_cases: `supply_case_id,${SECTOR_MARKET_SELECT_COLUMNS.ll_sector_market_supply_cases}`,
@@ -507,7 +757,7 @@ const ACTION_MANIFEST = new Map<string, ActionClassification>([
     'health', 'ai/search-chat-demo', 'ai/provider-diagnostics', 'ai/gemini-diagnostics', 'auth/me',
     'auth/login-history/record', 'auth/login-history/list', 'auth/login-capability/list', 'quality/findings',
     'contract-data/apply', 'edits/submit', 'edits/list', 'edits/readback', 'notifications/list',
-    'notifications/dismiss', 'notifications/mark-read', 'sector-market/address-backfill', 'sector-market/read',
+    'notifications/dismiss', 'notifications/mark-read', 'sector-market/address-backfill', 'sector-market/read', 'sector-market/detail/list',
     'sector-market/status', 'investment-index/read', 'investment-index/cleanup-empty-loans', 'asset-spec/read',
     'asset-spec/save', 'asset-admin/gyeongsan-coupang-floor-count-preview', 'operating-costs/read',
     'data-management/catalog', 'data-management/rows', 'data-management/views', 'data-management/view-rows',
@@ -542,7 +792,7 @@ const ACTION_SCOPE_MANIFEST = new Map<string, ActionScopeContract>([
     'health', 'ai/search-chat-demo', 'ai/provider-diagnostics', 'ai/gemini-diagnostics',
     'auth/users/list', 'permissions/evaluate', 'auth/users/upsert', 'auth/user-permissions/update',
     'auth/login-history/list', 'auth/login-capability/list', 'feature-access/get', 'feature-access/update',
-    'sector-market/address-backfill', 'sector-market/read', 'sector-market/status',
+    'sector-market/address-backfill', 'sector-market/read', 'sector-market/detail/list', 'sector-market/status',
     'investment-index/read', 'investment-index/cleanup-empty-loans',
     'news/list', 'news/collect-run', 'news/restore-20260617',
     'market-docs/upload', 'market-docs/ingest', 'market-docs/embed', 'market-docs/status', 'market-docs/search',
@@ -5986,6 +6236,473 @@ function scrubSectorMarketInternalResponseKeys(value: unknown): unknown {
   return output;
 }
 
+function isMissingColumnError(error: unknown) {
+  const message = safeText((error as { message?: unknown })?.message);
+  const code = safeText((error as { code?: unknown })?.code);
+  return code === '42703' || code === 'PGRST204' || /column .* does not exist|could not find .* column/iu.test(message);
+}
+
+function sectorMarketCompatibilityColumns(columns: string) {
+  return columns
+    .split(',')
+    .map((column) => column.trim())
+    .filter((column) => column && column !== 'payload' && !column.startsWith('source_'))
+    .join(',');
+}
+
+function sectorMarketDetailSearchTerm(value: unknown) {
+  return safeText(value).replace(/\s+/gu, ' ').trim().slice(0, 100);
+}
+
+function sectorMarketDetailSelectColumns(config: SectorMarketDetailDataset) {
+  return [...new Set([
+    ...config.columns.map((column) => column.dbKey || column.key).filter(Boolean),
+    config.sourceRowColumn || '',
+  ])].filter(Boolean).join(',');
+}
+
+function sectorMarketDetailFilterValues(value: unknown) {
+  const values = Array.isArray(value) ? value : [value];
+  return values
+    .filter((item) => ['string', 'number', 'boolean'].includes(typeof item))
+    .map((item) => typeof item === 'string' ? item.trim() : item)
+    .filter((item) => item !== '')
+    .slice(0, 20);
+}
+
+async function readSectorMarketDetailPage(
+  ctx: Context,
+  config: SectorMarketDetailDataset,
+  activeSourceId: string,
+  filters: Record<string, unknown>,
+  orders: Array<[string, boolean]>,
+  offset: number,
+  pageSize: number,
+  search?: { column: string; value: string },
+) {
+  const selectColumns = sectorMarketDetailSelectColumns(config);
+  const run = async (useSourceFilter: boolean, columns: string) => {
+    let query = ctx.serviceClient
+      .from(config.table)
+      .select(columns, { count: 'exact' });
+    if (useSourceFilter && activeSourceId && config.sourceFileColumn) query = query.eq(config.sourceFileColumn, activeSourceId);
+    Object.entries(filters).forEach(([column, value]) => {
+      const values = sectorMarketDetailFilterValues(value);
+      if (!values.length) return;
+      query = values.length === 1 ? query.eq(column, values[0]) : query.in(column, values);
+    });
+    if (search?.column && search.value) query = query.ilike(search.column, `%${search.value.replace(/[%_]/gu, '\\$&')}%`);
+    orders.forEach(([column, ascending]) => {
+      query = query.order(column, { ascending });
+    });
+    return await query.range(offset, offset + pageSize - 1);
+  };
+
+  const primary = await run(Boolean(activeSourceId), selectColumns);
+  if (!primary.error || !isMissingColumnError(primary.error)) return { ...primary, compatibilityFallback: false };
+
+  // Never remove the active-source filter. If this deployment lacks that column,
+  // returning mixed historical versions is less safe than returning an error.
+  const fallback = await run(Boolean(activeSourceId), sectorMarketCompatibilityColumns(selectColumns));
+  return { ...fallback, compatibilityFallback: true };
+}
+
+function isActiveSectorMarketSource(row: Record<string, unknown>) {
+  const value = row.active_version;
+  return value === true || value === 1 || ['true', '1'].includes(safeText(value).toLowerCase());
+}
+
+async function readActiveSectorMarketSource(ctx: Context, includeSchema = false) {
+  const result = await ctx.serviceClient
+    .from('ll_source_files')
+    .select(includeSchema
+      ? 'source_file_id,source_version,file_name,active_version,report_period,as_of_date,workbook_schema'
+      : 'source_file_id,source_version,file_name,active_version,report_period,as_of_date')
+    .eq('source_domain', 'sector_market')
+    .order('active_version', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(10);
+  if (result.error) {
+    if (isMissingRelationError(result.error)) return null;
+    throw new Error(`Failed to read market source files: ${result.error.message}`);
+  }
+  const rows = (result.data || []) as Record<string, unknown>[];
+  return rows.find((row) => isActiveSectorMarketSource(row)) || null;
+}
+
+async function readSectorMarketRawValues(ctx: Context, sourceRowIds: string[]) {
+  const ids = [...new Set(sourceRowIds.filter(Boolean))].slice(0, 500);
+  if (!ids.length) return new Map<string, Record<string, unknown>>();
+  const { data, error } = await ctx.serviceClient
+    .from('ll_source_rows')
+    .select('source_row_id,row_values')
+    .in('source_row_id', ids);
+  if (error) {
+    if (isMissingRelationError(error) || isMissingColumnError(error)) return new Map<string, Record<string, unknown>>();
+    throw new Error(`Failed to read preserved market source rows: ${error.message}`);
+  }
+  return new Map(((data || []) as Record<string, unknown>[]).map((row) => [
+    safeText(row.source_row_id),
+    row.row_values && typeof row.row_values === 'object' ? row.row_values as Record<string, unknown> : {},
+  ]));
+}
+
+async function readLatestLeaseKpis(ctx: Context, activeSourceId: string) {
+  const latestResult = await readSectorMarketDetailPage(
+    ctx,
+    SECTOR_MARKET_LATEST_LEASE_KPI_DATASET,
+    activeSourceId,
+    {},
+    SECTOR_MARKET_LATEST_LEASE_KPI_DATASET.defaultOrders,
+    0,
+    1,
+  );
+  if (latestResult.error) return null;
+  const latestPeriod = safeText(((latestResult.data || []) as Record<string, unknown>[])[0]?.report_period);
+  if (!latestPeriod) return null;
+
+  const firstPage = await readSectorMarketDetailPage(
+    ctx,
+    SECTOR_MARKET_LATEST_LEASE_KPI_DATASET,
+    activeSourceId,
+    { report_period: latestPeriod },
+    SECTOR_MARKET_LATEST_LEASE_KPI_DATASET.defaultOrders,
+    0,
+    500,
+  );
+  if (firstPage.error) return null;
+  const rows = [...((firstPage.data || []) as Record<string, unknown>[])];
+  const total = Number(firstPage.count || rows.length);
+  for (let offset = rows.length; offset < total; offset += 500) {
+    const page = await readSectorMarketDetailPage(
+      ctx,
+      SECTOR_MARKET_LATEST_LEASE_KPI_DATASET,
+      activeSourceId,
+      { report_period: latestPeriod },
+      SECTOR_MARKET_LATEST_LEASE_KPI_DATASET.defaultOrders,
+      offset,
+      500,
+    );
+    if (page.error) return null;
+    const pageRows = (page.data || []) as Record<string, unknown>[];
+    rows.push(...pageRows);
+    if (pageRows.length < 500) break;
+  }
+  const leaseArea = rows.reduce((sum, row) => sum + Number(row.leasable_area_py || 0), 0);
+  return {
+    report_period: latestPeriod,
+    weighted_rent_manwon_per_py: leaseArea
+      ? rows.reduce((sum, row) => sum + Number(row.rent_manwon_per_py || 0) * Number(row.leasable_area_py || 0), 0) / leaseArea
+      : null,
+    weighted_vacancy_rate: leaseArea
+      ? rows.reduce((sum, row) => sum + Number(row.vacancy_rate || 0) * Number(row.leasable_area_py || 0), 0) / leaseArea
+      : null,
+  };
+}
+
+function sectorMarketRawFieldValue(rawValues: Record<string, unknown>, patterns: RegExp[] | undefined) {
+  if (!patterns?.length) return undefined;
+  for (const [key, value] of Object.entries(rawValues)) {
+    if (value === null || value === undefined || safeText(value) === '') continue;
+    if (patterns.some((pattern) => pattern.test(key))) return value;
+  }
+  return undefined;
+}
+
+function sectorMarketDetailValue(row: Record<string, unknown>, rawValues: Record<string, unknown>, column: SectorMarketDetailColumn) {
+  const direct = row[column.dbKey || column.key];
+  return firstPresent(direct, sectorMarketRawFieldValue(rawValues, column.sourcePatterns), null);
+}
+
+function sectorMarketDetailPublicColumns(config: SectorMarketDetailDataset) {
+  return config.columns.map(({ key, label, group, unit }) => stripUndefined({ key, label, group, unit }));
+}
+
+function sectorMarketSourceDetailFieldSchema(source: Record<string, unknown>, sheetName: string) {
+  const internalHeader = /(pnu|\uBC95\uC815\uB3D9.*\uCF54\uB4DC|source|hash|row.*number|^code$|uuid)/iu;
+  return workbookSchemaColumnsForSheet(source, sheetName)
+    .map((column, index) => ({
+      key: `field_${index + 1}`,
+      rawKey: safeText(column.normalized_header),
+      label: safeText(column.header_label),
+      group: '\uC6D0\uBCF8 \uC0C1\uC138',
+      columnIndex: Number(column.column_index || index + 1),
+    }))
+    .filter((column) => column.rawKey && column.label && !internalHeader.test(`${column.rawKey} ${column.label}`));
+}
+
+function sectorMarketSourceColumnIndex(rawKey: string) {
+  const matched = /^col_(\d+)$/iu.exec(safeText(rawKey));
+  return matched ? Number(matched[1]) : 0;
+}
+
+function sectorMarketSourceDetailFieldSchemaFromHeaderRow(headerRow: Record<string, unknown>) {
+  const internalHeader = /(pnu|\uBC95\uC815\uB3D9.*\uCF54\uB4DC|source|hash|row.*number|^code$|uuid)/iu;
+  const headerValues = headerRow.row_values && typeof headerRow.row_values === 'object'
+    ? headerRow.row_values as Record<string, unknown>
+    : {};
+  return Object.entries(headerValues)
+    .sort(([leftKey], [rightKey]) => {
+      const leftIndex = sectorMarketSourceColumnIndex(leftKey) || Number.MAX_SAFE_INTEGER;
+      const rightIndex = sectorMarketSourceColumnIndex(rightKey) || Number.MAX_SAFE_INTEGER;
+      return leftIndex - rightIndex;
+    })
+    .map(([rawKey, rawLabel]) => {
+      const columnIndex = sectorMarketSourceColumnIndex(rawKey);
+      const label = safeText(rawLabel).replace(/\s+/gu, ' ').trim();
+      return {
+        key: `field_${columnIndex}`,
+        rawKey,
+        label,
+        group: '\uC6D0\uBCF8 \uC0C1\uC138',
+        columnIndex,
+      };
+    })
+    .filter((column) => column.label && column.columnIndex > 0 && !internalHeader.test(`${column.rawKey} ${column.label}`));
+}
+
+function sectorMarketSourceDetailValue(row: Record<string, unknown>, rawKey: string) {
+  const rawValues = row.row_values && typeof row.row_values === 'object'
+    ? row.row_values as Record<string, unknown>
+    : {};
+  return rawValues[rawKey] ?? null;
+}
+
+function sectorMarketSourceDetailHasData(row: Record<string, unknown>, schema: Array<{ rawKey: string }>, minimumValues = 2) {
+  return schema.reduce((count, field) => {
+    const value = sectorMarketSourceDetailValue(row, field.rawKey);
+    return count + (value === null || value === undefined || safeText(value) === '' ? 0 : 1);
+  }, 0) >= minimumValues;
+}
+
+async function readSectorMarketSourceDetailRows(ctx: Context, sourceFileId: string, sheetNames: string[]) {
+  const rows: Record<string, unknown>[] = [];
+  const pageSize = 500;
+  for (let offset = 0; offset < 5000; offset += pageSize) {
+    const { data, error } = await ctx.serviceClient
+      .from('ll_source_rows')
+      .select('sheet_name,row_number,row_values')
+      .eq('source_file_id', sourceFileId)
+      .in('sheet_name', sheetNames)
+      .order('sheet_name', { ascending: true })
+      .order('row_number', { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) {
+      if (isMissingRelationError(error) || isMissingColumnError(error)) return { rows, error: null };
+      return { rows, error };
+    }
+    const pageRows = (data || []) as Record<string, unknown>[];
+    rows.push(...pageRows);
+    if (pageRows.length < pageSize) break;
+  }
+  return { rows, error: null };
+}
+
+function sectorMarketSourceDetailMatches(
+  values: Record<string, unknown>,
+  requestedFilters: Record<string, unknown>,
+  searchableValues: unknown[],
+) {
+  for (const [key, requested] of Object.entries(requestedFilters)) {
+    if (!Object.hasOwn(values, key)) continue;
+    const allowed = sectorMarketDetailFilterValues(requested).map((value) => safeText(value));
+    if (allowed.length && !allowed.includes(safeText(values[key]))) return false;
+  }
+  const search = sectorMarketDetailSearchTerm(requestedFilters.search).toLowerCase();
+  if (!search) return true;
+  return searchableValues.some((value) => safeText(value).toLowerCase().includes(search));
+}
+
+function sectorMarketSourceDetailSort<T extends Record<string, unknown>>(
+  rows: T[],
+  requestedSort: Record<string, unknown>,
+  allowedKeys: Set<string>,
+  fallbackKey: string,
+) {
+  const requestedKey = safeText(firstDefined(requestedSort.key, requestedSort.field, requestedSort.field_key));
+  const key = allowedKeys.has(requestedKey) ? requestedKey : fallbackKey;
+  const multiplier = safeText(requestedSort.direction).toLowerCase() === 'desc' ? -1 : 1;
+  return rows.slice().sort((left, right) => {
+    const leftValue = left[key];
+    const rightValue = right[key];
+    const leftNumber = Number(leftValue);
+    const rightNumber = Number(rightValue);
+    if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) return (leftNumber - rightNumber) * multiplier;
+    return safeText(leftValue).localeCompare(safeText(rightValue), 'ko') * multiplier;
+  });
+}
+
+async function callSectorMarketSourceDetailList(
+  ctx: Context,
+  dataset: string,
+  config: SectorMarketSourceDetailDataset,
+  payload: Record<string, unknown>,
+) {
+  const activeSource = await readActiveSectorMarketSource(ctx, true);
+  const sourceFileId = safeText(activeSource?.source_file_id);
+  if (!sourceFileId) return fail(503, 'Market source storage is not available', ctx.origin);
+  const sheetNames = workbookSchemaSheets(activeSource)
+    .map((sheet) => safeText(sheet.sheet_name))
+    .filter((sheetName) => config.sheetPattern.test(sheetName));
+  if (!sheetNames.length) return fail(404, 'Market source sheet was not found', ctx.origin);
+  const rawResult = await readSectorMarketSourceDetailRows(ctx, sourceFileId, sheetNames);
+  if (rawResult.error) return fail(500, 'Failed to read preserved market source rows', ctx.origin, { error: rawResult.error.message });
+
+  const page = Math.min(Math.max(Number(payload.page || 1), 1), 1000);
+  const pageSize = Math.min(Math.max(Number(payload.page_size || payload.pageSize || 100), 1), 500);
+  const requestedFilters = payload.filters && typeof payload.filters === 'object' && !Array.isArray(payload.filters)
+    ? payload.filters as Record<string, unknown>
+    : {};
+  const normalizedSearch = sectorMarketDetailSearchTerm(payload.search) || sectorMarketDetailSearchTerm(requestedFilters.search);
+  const filtersWithSearch = { ...requestedFilters, search: normalizedSearch };
+  const requestedSort = payload.sort && typeof payload.sort === 'object' && !Array.isArray(payload.sort)
+    ? payload.sort as Record<string, unknown>
+    : {};
+
+  if (config.mode === 'lease_statistics') {
+    const sheetName = sheetNames[0];
+    const parsed = parseLeaseStatisticRows(rawResult.rows.filter((row) => safeText(row.sheet_name) === sheetName), workbookSchemaColumnsForSheet(activeSource, sheetName));
+    const fields = [
+      ['period', '\uAE30\uAC04', 'period_label'], ['category', '\uBD84\uB958', 'category'], ['subcategory', '\uC138\uBD80 \uBD84\uB958', 'subcategory'],
+      ['segment', '\uAD6C\uBD84', 'segment_label'], ['metric', '\uC9C0\uD45C', 'metric_label'], ['region', '\uAD8C\uC5ED', 'region'],
+      ['size_bucket', '\uADDC\uBAA8', 'size_bucket'], ['value', '\uAC12', 'value'],
+    ] as const;
+    const mapped = parsed.map((row) => Object.fromEntries(fields.map(([key, , sourceKey]) => [key, row[sourceKey] ?? null])));
+    const filtered = mapped.filter((values) => sectorMarketSourceDetailMatches(values, filtersWithSearch, Object.values(values)));
+    const sorted = sectorMarketSourceDetailSort(filtered, requestedSort, new Set(fields.map(([key]) => key)), 'period');
+    return jsonResponse({ ok: true, data: {
+      dataset,
+      columns: fields.map(([key, label]) => ({ key, label, group: '\uC784\uB300\uC2DC\uC7A5 \uD1B5\uACC4' })),
+      rows: sorted.slice((page - 1) * pageSize, page * pageSize).map((values, index) => ({ row_key: `${dataset}-${page}-${index + 1}`, ...values })),
+      total: sorted.length,
+      page,
+      page_size: pageSize,
+      source: { source_version: activeSource?.source_version, file_name: activeSource?.file_name, report_period: activeSource?.report_period, as_of_date: activeSource?.as_of_date },
+    } }, 200, ctx.origin);
+  }
+
+  const sheetName = sheetNames[0];
+  let rows = rawResult.rows.filter((row) => safeText(row.sheet_name) === sheetName);
+  const cumulativeSectionRows = config.mode === 'supply_cumulative'
+    ? rows.filter((row) => Number(row.row_number || 0) > SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION.boundaryRow)
+    : [];
+  const schema = config.mode === 'supply_cumulative'
+    ? sectorMarketSourceDetailFieldSchemaFromHeaderRow(cumulativeSectionRows.find((row) => Number(row.row_number || 0) === SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION.headerRow) || {})
+    : sectorMarketSourceDetailFieldSchema(activeSource || {}, sheetName);
+  if (config.mode === 'supply_cumulative') {
+    if (!schema.length) return fail(503, 'Market source cumulative header is not available', ctx.origin);
+    rows = cumulativeSectionRows.filter((row) => Number(row.row_number || 0) >= SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION.firstDataRow);
+  }
+  const mapped = rows
+    .filter((row) => sectorMarketSourceDetailHasData(row, schema, config.mode === 'supply_cumulative' ? 1 : 2))
+    .map((row) => Object.fromEntries(schema.map((field) => [field.key, sectorMarketSourceDetailValue(row, field.rawKey)])));
+  const filtered = mapped.filter((values) => sectorMarketSourceDetailMatches(values, filtersWithSearch, Object.values(values)));
+  const sorted = sectorMarketSourceDetailSort(filtered, requestedSort, new Set(schema.map((field) => field.key)), schema[0]?.key || '');
+  return jsonResponse({ ok: true, data: {
+    dataset,
+    columns: schema.map(({ key, label, group }) => ({ key, label, group })),
+    rows: sorted.slice((page - 1) * pageSize, page * pageSize).map((values, index) => ({ row_key: `${dataset}-${page}-${index + 1}`, ...values })),
+    total: sorted.length,
+    page,
+    page_size: pageSize,
+    source: { source_version: activeSource?.source_version, file_name: activeSource?.file_name, report_period: activeSource?.report_period, as_of_date: activeSource?.as_of_date },
+  } }, 200, ctx.origin);
+}
+
+async function callSectorMarketDetailList(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasUserFeaturePermission(ctx.permission, 'market_research')) {
+    return fail(403, 'Market research permission required', ctx.origin);
+  }
+  const dataset = safeText(payload.dataset).toLowerCase();
+  const sourceConfig = SECTOR_MARKET_SOURCE_DETAIL_DATASETS[dataset];
+  if (sourceConfig) {
+    try {
+      return await callSectorMarketSourceDetailList(ctx, dataset, sourceConfig, payload);
+    } catch (error) {
+      return fail(500, 'Failed to read market detail rows', ctx.origin, { error: (error as Error).message });
+    }
+  }
+  const resolvedDataset = dataset === 'transactions' ? 'transaction_cases' : dataset;
+  const config = SECTOR_MARKET_DETAIL_DATASETS[resolvedDataset];
+  if (!config) {
+    return fail(400, 'Unsupported market detail dataset', ctx.origin, {
+      allowed_datasets: [...Object.keys(SECTOR_MARKET_DETAIL_DATASETS), ...Object.keys(SECTOR_MARKET_SOURCE_DETAIL_DATASETS)],
+    });
+  }
+
+  const page = Math.min(Math.max(Number(payload.page || 1), 1), 1000);
+  const pageSize = Math.min(Math.max(Number(payload.page_size || payload.pageSize || 100), 1), 500);
+  const requestedFilters = payload.filters && typeof payload.filters === 'object' && !Array.isArray(payload.filters)
+    ? payload.filters as Record<string, unknown>
+    : {};
+  const filters: Record<string, unknown> = { ...(config.fixedFilters || {}) };
+  Object.entries(config.filterColumns).forEach(([publicKey, databaseColumn]) => {
+    if (requestedFilters[publicKey] !== undefined) filters[databaseColumn] = requestedFilters[publicKey];
+  });
+  const search = sectorMarketDetailSearchTerm(payload.search) || sectorMarketDetailSearchTerm(requestedFilters.search);
+  const searchableColumn = config.columns.find((column) => ['center_name', 'warehouse_name'].includes(column.dbKey || column.key));
+  const searchFilter = search && searchableColumn
+    ? { column: searchableColumn.dbKey || searchableColumn.key, value: search }
+    : undefined;
+
+  const sortInput = payload.sort && typeof payload.sort === 'object' && !Array.isArray(payload.sort)
+    ? payload.sort as Record<string, unknown>
+    : {};
+  const requestedSortKey = safeText(firstDefined(sortInput.key, payload.sort_key, payload.sortKey));
+  const sortColumn = config.sortColumns[requestedSortKey];
+  const descending = safeText(firstDefined(sortInput.direction, payload.sort_direction, payload.sortDirection)).toLowerCase() === 'desc';
+  const orders = sortColumn ? [[sortColumn, !descending] as [string, boolean]] : config.defaultOrders;
+
+  let activeSource: Record<string, unknown> | null = null;
+  try {
+    activeSource = await readActiveSectorMarketSource(ctx);
+  } catch (error) {
+    return fail(500, 'Failed to resolve active market source', ctx.origin, { error: (error as Error).message });
+  }
+  const activeSourceId = safeText(activeSource?.source_file_id);
+  if (!activeSourceId) return fail(503, 'Active market source is not available', ctx.origin);
+  if (config.latestPeriod) {
+    const latest = await readSectorMarketDetailPage(ctx, config, activeSourceId, { ...(config.fixedFilters || {}) }, config.latestPeriod.orders, 0, 1);
+    if (latest.error) return fail(500, 'Failed to resolve latest market period', ctx.origin, { error: latest.error.message });
+    const latestPeriod = safeText(((latest.data || []) as Record<string, unknown>[])[0]?.[config.latestPeriod.field]);
+    if (latestPeriod) filters[config.latestPeriod.field] = latestPeriod;
+  }
+
+  const result = await readSectorMarketDetailPage(ctx, config, activeSourceId, filters, orders, (page - 1) * pageSize, pageSize, searchFilter);
+  if (result.error) {
+    if (isMissingRelationError(result.error)) return fail(503, 'Market detail storage is not available', ctx.origin);
+    return fail(500, 'Failed to read market detail rows', ctx.origin, { error: result.error.message });
+  }
+  const sourceRows = (result.data || []) as Record<string, unknown>[];
+  const rawBySourceRowId = await readSectorMarketRawValues(ctx, sourceRows.map((row) => safeText(row[config.sourceRowColumn || ''])));
+  const rows = sourceRows.map((row, index) => {
+    const rawValues = rawBySourceRowId.get(safeText(row[config.sourceRowColumn || ''])) || {};
+    return {
+      row_key: `${dataset}-${page}-${index + 1}`,
+      ...Object.fromEntries(config.columns.map((column) => [column.key, sectorMarketDetailValue(row, rawValues, column)])),
+    };
+  });
+
+  return jsonResponse({
+    ok: true,
+    data: scrubSectorMarketInternalResponseKeys({
+      dataset,
+      columns: sectorMarketDetailPublicColumns(config),
+      rows,
+      total: result.count || 0,
+      page,
+      page_size: pageSize,
+      source: activeSource ? {
+        source_version: activeSource.source_version,
+        file_name: activeSource.file_name,
+        report_period: activeSource.report_period,
+        as_of_date: activeSource.as_of_date,
+      } : null,
+      latest_period: config.latestPeriod ? filters[config.latestPeriod.field] || null : null,
+    }),
+  }, 200, ctx.origin);
+}
+
 function publicSectorMarketSource(row: Record<string, unknown> | null | undefined) {
   return stripUndefined({
     source_domain: row?.source_domain,
@@ -6434,11 +7151,18 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
     }),
   ]).filter((row) => isReasonableMarketCapRate(row.cap_rate));
-  const latestLeasePeriod = leases.map((row) => safeText(row.report_period)).filter(Boolean).sort().at(-1) || '';
+  const completeLatestLeaseKpis = (requestedView === 'overview' || requestedView === 'all' || !requestedView)
+    ? await readLatestLeaseKpis(ctx, activeSourceId)
+    : null;
+  const latestLeasePeriod = safeText(completeLatestLeaseKpis?.report_period)
+    || leases.map((row) => safeText(row.report_period)).filter(Boolean).sort().at(-1)
+    || '';
   const latestLeases = latestLeasePeriod ? leases.filter((row) => safeText(row.report_period) === latestLeasePeriod) : leases;
   const leaseArea = latestLeases.reduce((sum, row) => sum + Number(row.leasable_area_py || 0), 0);
-  const weightedRent = leaseArea ? latestLeases.reduce((sum, row) => sum + Number(row.rent_manwon_per_py || 0) * Number(row.leasable_area_py || 0), 0) / leaseArea : null;
-  const weightedVacancy = leaseArea ? latestLeases.reduce((sum, row) => sum + Number(row.vacancy_rate || 0) * Number(row.leasable_area_py || 0), 0) / leaseArea : null;
+  const sampledWeightedRent = leaseArea ? latestLeases.reduce((sum, row) => sum + Number(row.rent_manwon_per_py || 0) * Number(row.leasable_area_py || 0), 0) / leaseArea : null;
+  const sampledWeightedVacancy = leaseArea ? latestLeases.reduce((sum, row) => sum + Number(row.vacancy_rate || 0) * Number(row.leasable_area_py || 0), 0) / leaseArea : null;
+  const weightedRent = firstPresent(completeLatestLeaseKpis?.weighted_rent_manwon_per_py, sampledWeightedRent, null);
+  const weightedVacancy = firstPresent(completeLatestLeaseKpis?.weighted_vacancy_rate, sampledWeightedVacancy, null);
   const latestCapRate = capRates[0] || null;
   const supplyTotalPy = supply.reduce((sum, row) => sum + Number(row.gross_area_py || 0), 0);
   const aggregateArea = (rows: Record<string, unknown>[], key: string, valueField: string, weightField = 'area_py') => {
@@ -26689,6 +27413,7 @@ Deno.serve(async (request): Promise<Response> => {
   if (action === 'notifications/push/unsubscribe') return unsubscribePushNotifications(ctx, payload);
   if (action === 'sector-market/address-backfill') return callSectorMarketAddressBackfill(ctx, payload);
   if (action === 'sector-market/read' || action === 'sector-market/status') return callSectorMarketRead(ctx, payload);
+  if (action === 'sector-market/detail/list') return callSectorMarketDetailList(ctx, payload);
   if (action === 'investment-index/read') return callInvestmentIndexRead(ctx, payload);
   if (action === 'investment-index/cleanup-empty-loans') return callInvestmentIndexCleanupEmptyLoans(ctx, payload);
   if (action === 'asset-spec/read') return callAssetSpecRead(ctx, payload);

@@ -45,6 +45,8 @@
     "qa:market-data:temperature-semantics": "node scripts/qa/logistics-market-data-temperature-semantics-audit.cjs",
     "qa:market-data:supply-slicer-flow": "node scripts/qa/logistics-market-data-supply-slicer-flow.cjs",
     "qa:market-data:slicer-contract": "node scripts/qa/logistics-market-data-slicer-contract.cjs",
+    "test:market-data:detail-contract": "node --test tests/logistics-market-detail-contract.test.cjs",
+    "qa:market-data:detail-browser": "node scripts/qa/logistics-market-detail-browser-contract.cjs",
     "qa:out-of-scope-regression-inventory": "node scripts/qa/logistics-out-of-scope-regression-inventory.cjs",
     "qa:data-loading:stability": "node scripts/qa/logistics-data-loading-stability.cjs",
     "qa:data-loading:idle": "node scripts/qa/logistics-data-loading-idle.cjs",

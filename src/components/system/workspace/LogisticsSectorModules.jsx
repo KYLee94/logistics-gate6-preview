@@ -698,6 +698,55 @@ function firstText(...values) {
   return found === undefined ? '' : found;
 }
 
+const MARKET_DETAIL_BLOCKED_FIELD = /(^|_)(?:id|uuid|pnu|payload|source(?:_row|_file)?(?:_id|_number)?|row_hash|legal_dong_code)(?:_|$)/iu;
+const MARKET_DETAIL_BLOCKED_LABEL = /(?:uuid|pnu|payload|source[_\s-]?(?:row|file)|원천\s*(?:행|파일)|내부\s*(?:id|식별)|법정동\s*코드)/iu;
+
+function isMarketDetailColumnSafe(column) {
+  const key = text(column?.key || column?.field || column?.name, '');
+  const label = text(column?.label || column?.title || key, '');
+  return Boolean(key) && !MARKET_DETAIL_BLOCKED_FIELD.test(key) && !MARKET_DETAIL_BLOCKED_LABEL.test(label);
+}
+
+function normalizeMarketDetailColumns(columns, fallbackColumns = []) {
+  const normalized = safeArray(columns)
+    .filter(isMarketDetailColumnSafe)
+    .map((column) => {
+      const key = text(column.key || column.field || column.name, '');
+      const unit = text(column.unit, '');
+      const label = text(column.label || column.title || key, key);
+      return {
+        key,
+        label: unit && !label.includes(`(${unit})`) ? `${label}(${unit})` : label,
+        width: Number(column.width) || 150,
+        align: column.align === 'right' || column.numeric ? 'right' : undefined,
+        wrap: Boolean(column.wrap),
+        noTruncate: Boolean(column.wrap),
+      };
+    });
+  return normalized.length ? normalized : fallbackColumns;
+}
+
+function marketDetailValue(row, ...keys) {
+  return firstText(...keys.map((key) => row?.[key]));
+}
+
+function marketDetailNumber(row, ...keys) {
+  const value = marketDetailValue(row, ...keys);
+  return value === '' ? '-' : formatNumber(value, 1);
+}
+
+function normalizeMarketDetailRows(rows) {
+  return safeArray(rows).map((row) => {
+    if (!row || typeof row !== 'object' || Array.isArray(row) || !row.values || typeof row.values !== 'object' || Array.isArray(row.values)) {
+      return row;
+    }
+    return {
+      ...row.values,
+      row_key: row.row_key || row.values.row_key,
+    };
+  });
+}
+
 const CAPITAL_REGION_LABELS = new Set(['동남권', '남부권', '중앙권', '서부권', '서북권', '수도권기타권', '수도권']);
 const LOCAL_REGION_LABELS = new Set(['경남권', '충청권', '전라권', '경북권', '지방기타권', '부산권', '대구권', '광주권', '지방']);
 
@@ -2090,7 +2139,7 @@ function SortableTable({
   );
 }
 
-function Modal({ title, onClose, children, width = 'max-w-[1180px]', fullscreen = false, headerActions = null, stackLevel = 0 }) {
+function Modal({ title, onClose, children, width = 'max-w-[1180px]', fullscreen = false, headerActions = null, stackLevel = 0, modalType = '' }) {
   useEffect(() => {
     if (!title) return undefined;
     const handleKeyDown = (event) => {
@@ -2113,6 +2162,9 @@ function Modal({ title, onClose, children, width = 'max-w-[1180px]', fullscreen 
     >
       <div
         className={`relative z-[1] mx-auto ${fullscreen ? 'h-[calc(100vh-32px)] max-h-[calc(100vh-32px)]' : 'max-h-[86vh]'} ${width} overflow-hidden rounded-[16px] border border-[#3A3A3C] bg-[#1F1F1E] shadow-2xl`}
+        role="document"
+        data-testid="market-modal-container"
+        data-market-modal-type={modalType || undefined}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
       >
@@ -5682,6 +5734,10 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const marketReadPayload = useMemo(() => marketReadPayloadFor(currentTab), [currentTab]);
   const { loading, error, data, loadingStage, loadingTrace } = useEdgeData('sector-market/read', marketReadPayload);
   const [modal, setModal] = useState(null);
+  const [marketDetailState, setMarketDetailState] = useState({ requestKey: '', loading: false, error: '', rows: null, columns: null, pagination: null });
+  const marketDetailRequestRef = useRef(0);
+  const marketDetailCacheRef = useRef(new Map());
+  const marketDetailCacheSourceRef = useRef('');
   const [leaseCenterMapOpen, setLeaseCenterMapOpen] = useState(false);
   const [txnWindow, setTxnWindow] = useState('3y');
   const [txnRegion, setTxnRegion] = useState('전체');
@@ -5789,8 +5845,80 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const supplyStatisticRows = normalizedSupplyStatisticRows.length ? normalizedSupplyStatisticRows : overviewSupplyStatisticFallbackRows;
   const sourceAudit = summary.source_audit || {};
   const readback = summary.readback || {};
+  const activeMarketSource = sources.find((row) => row?.active_version === true) || {};
+  const marketDetailCacheSourceIdentity = [
+    summary.source?.source_file_id,
+    summary.source?.id,
+    sourceView.active_source?.source_file_id,
+    sourceView.active_source?.id,
+    activeMarketSource.source_file_id,
+    activeMarketSource.id,
+    summary.source?.source_version,
+    sourceView.active_source?.source_version,
+    activeMarketSource.source_version,
+  ].map((value) => text(value, '')).filter(Boolean).join('|');
   const hasMarketData = Boolean(data && Object.keys(data || {}).length);
   const isInitialMarketLoading = loading && !hasMarketData;
+  const loadMarketDetailPage = useCallback(async (detailRequest, page = 1) => {
+    if (!detailRequest?.dataset) return;
+    const requestPayload = {
+      dataset: detailRequest.dataset,
+      page,
+      page_size: detailRequest.pageSize || 100,
+      filters: detailRequest.filters || {},
+      column_groups: detailRequest.columnGroups || [],
+    };
+    const requestKey = `${detailRequest.key}:${page}`;
+    const cached = marketDetailCacheRef.current.get(requestKey);
+    if (cached) {
+      setMarketDetailState(cached);
+      return;
+    }
+    const requestId = marketDetailRequestRef.current + 1;
+    marketDetailRequestRef.current = requestId;
+    setMarketDetailState({ requestKey, loading: true, error: '', rows: null, columns: null, pagination: null });
+    try {
+      const response = await invokeEdgeDataWithTimeout('sector-market/detail/list', requestPayload);
+      const sourceRows = Array.isArray(response?.rows) ? response.rows : (Array.isArray(response?.items) ? response.items : null);
+      const rows = sourceRows ? normalizeMarketDetailRows(sourceRows) : null;
+      if (!rows) throw new Error('상세 데이터 응답 형식을 확인할 수 없습니다.');
+      const nextState = {
+        requestKey,
+        loading: false,
+        error: '',
+        rows,
+        columns: normalizeMarketDetailColumns(response?.columns || response?.schema?.columns, detailRequest.fallbackColumns),
+        pagination: response?.pagination || {
+          page,
+          page_size: requestPayload.page_size,
+          total_count: Number(response?.total ?? response?.total_count ?? rows.length),
+        },
+      };
+      if (marketDetailRequestRef.current !== requestId) return;
+      marketDetailCacheRef.current.set(requestKey, nextState);
+      setMarketDetailState(nextState);
+    } catch (detailError) {
+      if (marketDetailRequestRef.current !== requestId) return;
+      setMarketDetailState({
+        requestKey,
+        loading: false,
+        error: detailError?.message || '상세 데이터를 불러오지 못했습니다.',
+        rows: null,
+        columns: null,
+        pagination: null,
+      });
+    }
+  }, []);
+  useEffect(() => {
+    const previousIdentity = marketDetailCacheSourceRef.current;
+    if (previousIdentity && previousIdentity !== marketDetailCacheSourceIdentity) {
+      // A source replacement invalidates both cached details and any in-flight detail response.
+      marketDetailRequestRef.current += 1;
+      marketDetailCacheRef.current.clear();
+      setMarketDetailState({ requestKey: '', loading: false, error: '', rows: null, columns: null, pagination: null });
+    }
+    marketDetailCacheSourceRef.current = marketDetailCacheSourceIdentity;
+  }, [marketDetailCacheSourceIdentity]);
   const uploadMarketSourceWorkbook = async () => {
     if (!sourceUploadFile) {
       setSourceUploadState({ type: 'warning', message: '업데이트할 Excel 파일을 먼저 선택해 주세요.' });
@@ -6013,10 +6141,11 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const openLeaseStatisticModal = (row) => {
     const seriesLabel = currentTab === 'overview' ? text(row.series || row.segment_label, '') : leaseSegment;
     const clickedRegion = regionValue(row?.region || row?.label || '');
-    setModal({
+    openMarketDetailModal({
       type: 'lease-statistic-explorer',
       title: '최신 임대시장 통계 상세',
-      baseRows: leaseStatisticRows,
+      dataset: 'lease_statistics',
+      rows: leaseStatisticRows,
       filters: {
         period: currentTab === 'overview' ? overviewLeaseSelectedPeriod : selectedLeaseStatisticPeriod,
         metric: currentTab === 'overview' ? overviewLeaseSelectedMetric : leaseMeasure,
@@ -6024,6 +6153,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
         scope: '전체',
         region: clickedRegion || '전체',
       },
+      columnGroups: ['기간', '지표', '권역·규모·온도 구분', '값·단위'],
       columns: [
         { key: 'period_label', label: '시점', width: 120 },
         { key: 'region', label: '권역', width: 160, render: (item) => regionDisplay(item.region || item.label), sortValue: (item) => regionDisplay(item.region || item.label) },
@@ -6031,10 +6161,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
         { key: 'metric_label', label: '지표', width: 220 },
         { key: 'value', label: '값', align: 'right', render: (item) => leaseMetricFormatterFor(text(item.metric_key, leaseMeasure))(item.value), sortValue: (item) => number(item.value) },
       ],
-      width: 'max-w-[calc(100vw-32px)]',
       minWidth: 940,
-      maxHeight: 'calc(100vh - 150px)',
-      fullscreen: true,
       defaultSort: [{ key: 'segment_label', direction: 'asc' }, { key: 'value', direction: 'desc' }],
     });
   };
@@ -6334,22 +6461,21 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     const rawLabel = text(row.raw_label || row.label, '');
     const clickedBucket = TRANSACTION_SIZE_BUCKET_VALUES.includes(rawLabel) ? rawLabel : '';
     const clickedRegion = clickedBucket ? txnSizeRegion : rawLabel;
-    setModal({
+    openMarketDetailModal({
       type: 'transaction-size-explorer',
       title: `${metricTitle} 상세`,
-      baseRows: transactions,
+      dataset: 'transaction_cases',
+      rows: transactions,
       filters: {
-        year: txnSizePeriod || '2026',
+        transaction_year: txnSizePeriod || '2026',
         region: clickedRegion || txnSizeRegion || '전체',
-        bucket: clickedBucket || txnSizeBucket || '전체',
-        temp: txnSizeTemp || '전체',
-        dealType: txnType || '전체',
+        size_bucket: clickedBucket || txnSizeBucket || '전체',
+        temperature_type: txnSizeTemp || '전체',
+        transaction_type: txnType || '전체',
       },
-      columns: transactionColumns,
-      width: 'max-w-[calc(100vw-32px)]',
-      minWidth: 1180,
-      maxHeight: 'calc(100vh - 150px)',
-      fullscreen: true,
+      columnGroups: ['기본정보', '면적·건물', '거래조건', '매수·매도자', '임대차·금융', '수익률', '비고'],
+      columns: transactionDetailColumns,
+      minWidth: 1760,
       defaultSort: { key: 'transaction_amount_krw', direction: 'desc' },
     });
   };
@@ -6444,7 +6570,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       };
     })
     .sort((a, b) => regionOrderIndex(a.region_label) - regionOrderIndex(b.region_label) || number(b.value_py) - number(a.value_py));
-  const supplyAreaValueColumns = [
+  const SUPPLY_AREA_VALUE_COLUMNS = [
     { key: 'period_label', label: '시점', width: 120, sortValue: (row) => periodSortValue(row.period_label) },
     { key: 'scope_label', label: '수도권/지방', width: 130, render: (row) => text(row.scope_label), sortValue: (row) => text(row.scope_label) },
     { key: 'region_label', label: '권역', width: 190, render: (row) => text(row.region_label), sortValue: (row) => regionOrderIndex(row.region_label) },
@@ -6457,34 +6583,32 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       : supplyRowsForPeriod(periodLabel, seriesType).length
   );
   const openSupplyPeriodModal = (periodLabel, seriesType) => {
-    if (seriesType === 'cumulative_supply') {
-      const rows = supplyAreaValueRowsForPeriod(periodLabel, seriesType);
-      setModal({
-        type: 'supply-area-value-explorer',
-        title: `${periodLabel} 누적 공급 면적 전체 값`,
-        rows,
-        columns: supplyAreaValueColumns,
-        width: 'max-w-[calc(100vw-32px)]',
-        minWidth: 940,
-        maxHeight: 'calc(100vh - 150px)',
-        fullscreen: true,
-        defaultSort: [{ key: 'scope_label', direction: 'asc' }, { key: 'value_py', direction: 'desc' }],
-      });
-      return;
-    }
     const rows = supplyRowsForPeriod(periodLabel, seriesType);
-    const modalSuffix = seriesType === 'cumulative_supply'
-      ? '누적 공급 자산'
-      : (seriesType === 'supply_period' || seriesType === 'pipeline_supply' ? '공급 예정 자산' : '신규 공급 자산');
-    setModal({
-      title: `${periodLabel} ${modalSuffix}`,
+    const periodText = text(periodLabel, '');
+    const expectedYear = periodText.match(/(?:19|20)\d{2}/)?.[0] || '';
+    const expectedQuarterMatch = periodText.match(/(?:([1-4])\s*Q)|(?:Q\s*([1-4]))|(?:([1-4])\s*분기)/i);
+    const expectedQuarter = expectedQuarterMatch?.[1] || expectedQuarterMatch?.[2] || expectedQuarterMatch?.[3] || '';
+    const expectedHalf = periodText.match(/(?:[12]\s*H)|(?:H\s*[12])|(?:[12]\s*반기)/i)?.[0] || '';
+    const supplyDetail = seriesType === 'cumulative_supply'
+      ? { dataset: 'supply_cumulative', suffix: '누적 신규공급 사례', groups: ['기본정보', '면적·건물', '건축·인허가', '일정', '사업주체·시공사', '비고'] }
+      : (seriesType === 'new_supply'
+        ? { dataset: 'supply_new', suffix: '신규 공급 사례', groups: ['기본정보', '면적·건물', '건축·인허가', '일정', '사업주체·시공사', '비고'] }
+        : { dataset: 'supply_pipeline', suffix: '공급 예정 자산', groups: ['기본정보', '면적·건물', '건축·인허가', '일정', '사업주체·시공사', '비고'] });
+    const useFallbackRows = seriesType === 'cumulative_supply' || Boolean(expectedQuarter || expectedHalf);
+    openMarketDetailModal({
+      type: 'supply-detail-explorer',
+      title: `${periodLabel} ${supplyDetail.suffix}`,
+      dataset: supplyDetail.dataset,
       rows,
-      columns: supplyColumns,
-      width: 'max-w-[calc(100vw-32px)]',
-      minWidth: 1180,
-      maxHeight: 'calc(100vh - 150px)',
-      fullscreen: true,
+      columns: supplyDetailColumns,
+      filters: expectedYear ? { expected_year: expectedYear } : {},
+      columnGroups: supplyDetail.groups,
+      minWidth: 1680,
       defaultSort: [{ key: 'completion_period', direction: 'asc' }, { key: 'gross_area_py', direction: 'desc' }],
+      detailEnabled: !useFallbackRows && Boolean(expectedYear),
+      detailFallbackNotice: useFallbackRows
+        ? '선택한 기간은 현재 상세 데이터의 서버 기간 필터가 지원되지 않아, 화면에서 이미 계산한 해당 기간 사례만 표시합니다.'
+        : '',
     });
   };
   const leasePeriodOptions = ['전체', ...new Set(leases.map((row) => text(row.report_period, '')).filter(Boolean).sort())]
@@ -6503,14 +6627,16 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const openLeaseCenterModal = (row) => {
     const historyRows = centerHistoryRows(row);
     setLeaseCenterMapOpen(false);
-    setModal({
+    openMarketDetailModal({
       type: 'lease-center-detail',
       title: text(row.center_name),
+      dataset: 'lease_history',
       rows: historyRows,
-      columns: leaseHistoryColumns,
-      width: 'max-w-[calc(100vw-32px)]',
-      minWidth: 1320,
-      maxHeight: 680,
+      columns: leaseDetailColumns,
+      filters: { center_name: text(row.center_name, '') },
+      columnGroups: ['기본정보', '면적·건물', '임대조건', '공실', '비고'],
+      minWidth: 1680,
+      defaultSort: { key: 'report_period', direction: 'desc' },
       centerMapRow: leaseCenterMapRow(row, historyRows),
     });
   };
@@ -6526,10 +6652,6 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     { key: 'buyer_name', label: '매수인', render: (row) => text(row.buyer_name) },
     { key: 'seller_name', label: '매도인', render: (row) => text(row.seller_name) },
   ];
-  const transactionMarketAssetColumns = [
-    { key: 'year', label: '연도', width: 90, render: (row) => text(row.year || yearFrom(row)), sortValue: (row) => number(row.year || yearFrom(row)) },
-    ...transactionColumns,
-  ];
   const openOverviewTransactionModal = (row = {}) => {
     const clickedRegion = regionValue(row.region || row.label || '');
     const rows = overviewFilteredTransactions
@@ -6540,14 +6662,19 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
         temperature_label: transactionTemperatureFor(item),
         size_bucket_label: transactionSizeBucketFor(item),
       }));
-    setModal({
+    openMarketDetailModal({
+      type: 'transaction-detail-explorer',
       title: `${overviewTxnMetric === 'unit_price' ? '권역별 평당가' : '권역별 거래금액'} 상세`,
+      dataset: 'transaction_cases',
       rows,
-      columns: transactionColumns,
-      width: 'max-w-[calc(100vw-32px)]',
-      minWidth: 1180,
-      maxHeight: 'calc(100vh - 150px)',
-      fullscreen: true,
+      columns: transactionDetailColumns,
+      filters: {
+        transaction_year: overviewTxnPeriod,
+        temperature_type: overviewTxnTemp,
+        region: clickedRegion || overviewTxnRegion,
+      },
+      columnGroups: ['기본정보', '면적·건물', '거래조건', '매수·매도자', '임대차·금융', '수익률', '비고'],
+      minWidth: 1760,
       defaultSort: { key: overviewTxnMetric === 'unit_price' ? 'unit_price_krw_per_py' : 'transaction_amount_krw', direction: 'desc' },
     });
   };
@@ -6562,7 +6689,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     { key: 'vacancy_rate', label: '공실률', align: 'right', render: (row) => formatRate(row.vacancy_rate), sortValue: (row) => number(row.vacancy_rate) },
     { key: 'legal_address', label: '주소', width: 320, noTruncate: true, render: (row) => text(row.legal_address), sortValue: (row) => text(row.legal_address) },
   ];
-  const leaseHistoryColumns = [
+  const LEASE_HISTORY_COLUMNS = [
     { key: 'report_period', label: '시점', width: 110, render: (row) => readablePeriod(row.report_period), sortValue: (row) => text(row.report_period) },
     ...leaseColumns,
   ];
@@ -6586,6 +6713,138 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       sortValue: (row) => text(firstText(row.legal_address, row.address, row.center_name, row.warehouse_name), ''),
     },
   ];
+  const leaseDetailColumns = [
+    { key: 'report_period', label: '기준시점', width: 120, render: (row) => readablePeriod(marketDetailValue(row, 'report_period', 'period_label')) },
+    { key: 'center_name', label: '물류센터명', width: 200, render: (row) => marketDetailValue(row, 'center_name', 'warehouse_name') },
+    { key: 'region', label: '권역', width: 150, render: (row) => regionDisplay(marketDetailValue(row, 'region')) },
+    { key: 'legal_address', label: '소재지', width: 320, wrap: true, render: (row) => marketDetailValue(row, 'legal_address', 'address') },
+    { key: 'temperature_type', label: '용도', width: 120, render: (row) => normalizeMarketTemperature(marketDetailValue(row, 'temperature_type', 'use_type')) },
+    { key: 'size_bucket_label', label: '규모', width: 120, render: (row) => marketDetailValue(row, 'size_bucket_label', 'size_bucket') },
+    { key: 'gross_area_py', label: '연면적(평)', align: 'right', render: (row) => marketDetailNumber(row, 'gross_area_py') },
+    { key: 'gross_area_m2', label: '연면적(㎡)', align: 'right', render: (row) => marketDetailNumber(row, 'gross_area_m2', 'gross_area_sqm') },
+    { key: 'leasable_area_py', label: '임대면적(평)', align: 'right', render: (row) => marketDetailNumber(row, 'leasable_area_py', 'lease_area_py') },
+    { key: 'deposit_manwon_per_py', label: '보증금(만원/평)', align: 'right', render: (row) => marketDetailNumber(row, 'deposit_manwon_per_py') },
+    { key: 'rent_manwon_per_py', label: '임대료(만원/평)', align: 'right', render: (row) => marketDetailNumber(row, 'rent_manwon_per_py') },
+    { key: 'management_fee_manwon_per_py', label: '관리비(만원/평)', align: 'right', render: (row) => marketDetailNumber(row, 'management_fee_manwon_per_py') },
+    { key: 'rent_free_months_per_year', label: 'Rent Free(개월/년)', align: 'right', render: (row) => marketDetailNumber(row, 'rent_free_months_per_year') },
+    { key: 'fit_out_months', label: 'Fit-out(개월)', align: 'right', render: (row) => marketDetailNumber(row, 'fit_out_months') },
+    { key: 'ti_manwon_per_py', label: 'TI(만원/평)', align: 'right', render: (row) => marketDetailNumber(row, 'ti_manwon_per_py', 'tenant_improvement_manwon_per_py') },
+    { key: 'vacancy_area_py', label: '공실면적(평)', align: 'right', render: (row) => marketDetailNumber(row, 'vacancy_area_py') },
+    { key: 'vacancy_rate', label: '공실률(%)', align: 'right', render: (row) => formatRate(marketDetailValue(row, 'vacancy_rate')) },
+    { key: 'remarks', label: '비고', width: 240, wrap: true, render: (row) => marketDetailValue(row, 'remarks', 'note') },
+  ];
+  const supplyDetailColumns = [
+    { key: 'center_name', label: '자산명', width: 200, render: (row) => marketDetailValue(row, 'center_name', 'warehouse_name', 'asset_name') },
+    { key: 'region', label: '권역', width: 150, render: (row) => regionDisplay(marketDetailValue(row, 'region')) },
+    { key: 'sub_region', label: '세부 권역', width: 150, render: (row) => marketDetailValue(row, 'sub_region', 'subregion') },
+    { key: 'legal_address', label: '소재지', width: 340, wrap: true, render: (row) => marketDetailValue(row, 'legal_address', 'address') },
+    { key: 'temperature_type', label: '용도', width: 120, render: (row) => normalizeMarketTemperature(marketDetailValue(row, 'temperature_type', 'use_type')) },
+    { key: 'main_use', label: '주용도', width: 160, render: (row) => marketDetailValue(row, 'main_use', 'building_use') },
+    { key: 'structure', label: '구조', width: 150, render: (row) => marketDetailValue(row, 'structure', 'building_structure') },
+    { key: 'site_area_m2', label: '대지면적(㎡)', align: 'right', render: (row) => marketDetailNumber(row, 'site_area_m2', 'site_area_sqm') },
+    { key: 'building_area_m2', label: '건축면적(㎡)', align: 'right', render: (row) => marketDetailNumber(row, 'building_area_m2', 'building_area_sqm') },
+    { key: 'gross_area_m2', label: '연면적(㎡)', align: 'right', render: (row) => marketDetailNumber(row, 'gross_area_m2', 'gross_area_sqm') },
+    { key: 'gross_area_py', label: '연면적(평)', align: 'right', render: (row) => marketDetailNumber(row, 'gross_area_py') },
+    { key: 'building_coverage_ratio', label: '건폐율(%)', align: 'right', render: (row) => marketDetailNumber(row, 'building_coverage_ratio', 'coverage_ratio') },
+    { key: 'floor_area_ratio', label: '용적률(%)', align: 'right', render: (row) => marketDetailNumber(row, 'floor_area_ratio', 'far') },
+    { key: 'above_ground_floors', label: '지상층', align: 'right', render: (row) => marketDetailValue(row, 'above_ground_floors', 'ground_floors') },
+    { key: 'below_ground_floors', label: '지하층', align: 'right', render: (row) => marketDetailValue(row, 'below_ground_floors', 'basement_floors') },
+    { key: 'completion_period', label: '준공 예정', width: 140, render: supplyPeriodLabel },
+    { key: 'initial_completion_period', label: '최초 준공 예정', width: 150, render: (row) => marketDetailValue(row, 'initial_completion_period', 'initial_expected_period') },
+    { key: 'building_permit_number', label: '건축 인허가번호', width: 190, render: (row) => marketDetailValue(row, 'building_permit_number', 'permit_number') },
+    { key: 'permit_date', label: '허가일', width: 130, render: (row) => marketDetailValue(row, 'permit_date') },
+    { key: 'construction_start_date', label: '실제 착공일', width: 140, render: (row) => marketDetailValue(row, 'construction_start_date', 'actual_start_date') },
+    { key: 'construction_delay_date', label: '착공 연기일', width: 140, render: (row) => marketDetailValue(row, 'construction_delay_date', 'start_delay_date') },
+    { key: 'approval_date', label: '사용승인일', width: 140, render: (row) => marketDetailValue(row, 'approval_date', 'use_approval_date') },
+    { key: 'owner_or_developer', label: '소유주·시행사', width: 200, render: (row) => marketDetailValue(row, 'owner_or_developer', 'owner_name', 'developer_name') },
+    { key: 'owner_type', label: '소유주 유형', width: 150, render: (row) => marketDetailValue(row, 'owner_type') },
+    { key: 'construction_company', label: '시공사', width: 180, render: (row) => marketDetailValue(row, 'construction_company', 'constructor_name') },
+    { key: 'status', label: '진행상황', width: 150, render: (row) => marketDetailValue(row, 'status', 'progress_status') },
+    { key: 'remarks', label: '비고', width: 240, wrap: true, render: (row) => marketDetailValue(row, 'remarks', 'note') },
+  ];
+  const transactionDetailColumns = [
+    { key: 'transaction_period', label: '거래시점', width: 120, render: (row) => marketDetailValue(row, 'transaction_period', 'transaction_date') },
+    { key: 'asset_name', label: '자산명', width: 200, render: (row) => marketDetailValue(row, 'asset_name', 'center_name') },
+    { key: 'region', label: '권역', width: 150, render: (row) => regionDisplay(marketDetailValue(row, 'region')) },
+    { key: 'legal_address', label: '소재지', width: 340, wrap: true, render: (row) => marketDetailValue(row, 'legal_address', 'address') },
+    { key: 'temperature_type', label: '용도', width: 120, render: (row) => transactionTemperatureFor(row) },
+    { key: 'gross_area_py', label: '연면적(평)', align: 'right', render: (row) => marketDetailNumber(row, 'gross_area_py', 'area_py') },
+    { key: 'gross_area_m2', label: '연면적(㎡)', align: 'right', render: (row) => marketDetailNumber(row, 'gross_area_m2', 'gross_area_sqm') },
+    { key: 'transaction_amount_krw', label: '거래금액(원)', align: 'right', render: (row) => formatKrw(marketDetailValue(row, 'transaction_amount_krw')) },
+    { key: 'unit_price_krw_per_py', label: '평당가(원/평)', align: 'right', render: (row) => formatKrw(marketDetailValue(row, 'unit_price_krw_per_py')) },
+    { key: 'buyer_name', label: '매수인', width: 180, render: (row) => marketDetailValue(row, 'buyer_name') },
+    { key: 'buyer_type', label: '매수인 유형', width: 150, render: (row) => marketDetailValue(row, 'buyer_type') },
+    { key: 'seller_name', label: '매도인', width: 180, render: (row) => marketDetailValue(row, 'seller_name') },
+    { key: 'seller_type', label: '매도인 유형', width: 150, render: (row) => marketDetailValue(row, 'seller_type') },
+    { key: 'tenant_name', label: '임차인', width: 180, render: (row) => marketDetailValue(row, 'tenant_name') },
+    { key: 'deposit_krw', label: '보증금(원)', align: 'right', render: (row) => formatKrw(marketDetailValue(row, 'deposit_krw')) },
+    { key: 'monthly_rent_krw', label: '월 임대료(원)', align: 'right', render: (row) => formatKrw(marketDetailValue(row, 'monthly_rent_krw')) },
+    { key: 'monthly_management_fee_krw', label: '월 관리비(원)', align: 'right', render: (row) => formatKrw(marketDetailValue(row, 'monthly_management_fee_krw')) },
+    { key: 'initial_cap_rate', label: 'Initial Cap Rate(%)', align: 'right', render: (row) => formatRate(marketDetailValue(row, 'initial_cap_rate')) },
+    { key: 'stabilized_cap_rate', label: 'Stabilized Cap Rate(%)', align: 'right', render: (row) => formatRate(marketDetailValue(row, 'stabilized_cap_rate')) },
+    { key: 'remarks', label: '비고', width: 240, wrap: true, render: (row) => marketDetailValue(row, 'remarks', 'note') },
+  ];
+  const openMarketDetailModal = ({ type, title, dataset, rows, columns, filters = {}, columnGroups = [], minWidth = 1180, defaultSort, centerMapRow = null, detailEnabled = true, detailFallbackNotice = '' }) => {
+    const detailRequest = detailEnabled ? {
+      key: `${dataset}:${stableDataManagementStringify({ filters, columnGroups })}`,
+      dataset,
+      filters,
+      columnGroups,
+      pageSize: 100,
+      fallbackColumns: columns,
+    } : null;
+    setModal({
+      type,
+      title,
+      rows,
+      baseRows: rows,
+      columns,
+      filters,
+      width: 'max-w-[calc(100vw-32px)]',
+      minWidth,
+      maxHeight: 'calc(100vh - 150px)',
+      fullscreen: true,
+      defaultSort,
+      centerMapRow,
+      detailRequest,
+      detailFallbackNotice,
+    });
+  };
+  const openSupplyAssetModal = (row, dataset) => {
+    const warehouseName = text(row.center_name || row.warehouse_name, '');
+    openMarketDetailModal({
+      type: 'supply-detail-explorer',
+      title: warehouseName,
+      dataset,
+      rows: [row],
+      columns: supplyDetailColumns,
+      filters: { warehouse_name: warehouseName, search: warehouseName },
+      columnGroups: ['기본정보', '면적·건물', '건축·인허가', '일정', '사업주체·시공사', '비고'],
+      minWidth: 1680,
+      defaultSort: { key: 'completion_period', direction: 'asc' },
+    });
+  };
+  const openTransactionDetailModal = (row) => {
+    const warehouseName = text(row.asset_name || row.center_name, '');
+    const transactionYear = text(row.transaction_year || row.year || row.transaction_period || row.transaction_date, '').match(/(?:19|20)\d{2}/)?.[0] || '';
+    openMarketDetailModal({
+      type: 'transaction-detail-explorer',
+      title: warehouseName,
+      dataset: 'transaction_cases',
+      rows: [row],
+      columns: transactionDetailColumns,
+      filters: { warehouse_name: warehouseName, transaction_year: transactionYear, search: warehouseName },
+      columnGroups: ['기본정보', '면적·건물', '거래조건', '매수·매도자', '임대차·금융', '수익률', '비고'],
+      minWidth: 1760,
+      defaultSort: { key: 'transaction_period', direction: 'desc' },
+    });
+  };
+  const modalDetailRequest = modal?.detailRequest;
+  useEffect(() => {
+    if (!modalDetailRequest) return undefined;
+    void loadMarketDetailPage(modalDetailRequest, 1);
+    return undefined;
+  }, [loadMarketDetailPage, modalDetailRequest]);
   const updateModalFilter = (key, value) => {
     setModal((current) => (current ? {
       ...current,
@@ -6593,6 +6852,17 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
         ...(current.filters || {}),
         [key]: value,
       },
+      detailRequest: current.detailRequest ? {
+        ...current.detailRequest,
+        filters: {
+          ...(current.detailRequest.filters || {}),
+          [key]: value,
+        },
+        key: `${current.detailRequest.dataset}:${stableDataManagementStringify({
+          filters: { ...(current.detailRequest.filters || {}), [key]: value },
+          columnGroups: current.detailRequest.columnGroups || [],
+        })}`,
+      } : current.detailRequest,
     } : current));
   };
   useEffect(() => {
@@ -6605,13 +6875,13 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
         size_bucket_label: transactionSizeBucketFor(row),
         temperature_label: transactionTemperatureFor(row),
       }))
-      .filter((row) => !modal.filters?.year || modal.filters.year === '전체' || String(yearFrom(row)) === String(modal.filters.year))
+      .filter((row) => !modal.filters?.transaction_year || modal.filters.transaction_year === '전체' || String(yearFrom(row)) === String(modal.filters.transaction_year))
       .filter((row) => regionMatches(modal.filters?.region || '전체', row.region))
-      .filter((row) => !modal.filters?.bucket || modal.filters.bucket === '전체' || transactionSizeBucketFor(row) === modal.filters.bucket)
-      .filter((row) => !modal.filters?.temp || modal.filters.temp === '전체' || transactionTemperatureFor(row) === modal.filters.temp)
+      .filter((row) => !modal.filters?.size_bucket || modal.filters.size_bucket === '전체' || transactionSizeBucketFor(row) === modal.filters.size_bucket)
+      .filter((row) => !modal.filters?.temperature_type || modal.filters.temperature_type === '전체' || transactionTemperatureFor(row) === modal.filters.temperature_type)
       .filter((row) => {
         const dealType = text(row.transaction_type || row.deal_type, '');
-        return !modal.filters?.dealType || modal.filters.dealType === '전체' || dealType === modal.filters.dealType;
+        return !modal.filters?.transaction_type || modal.filters.transaction_type === '전체' || dealType === modal.filters.transaction_type;
       })
       .sort((a, b) => number(b.transaction_amount_krw) - number(a.transaction_amount_krw))
     : [];
@@ -6635,13 +6905,19 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     .sort((a, b) => periodSortValue(a) - periodSortValue(b));
   const leaseStatisticModalSegmentOptions = [...new Set(safeArray(modal?.baseRows).map((row) => text(row.segment_label, '')).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'ko'));
-  const popupRows = modal?.type === 'lease-history'
+  const fallbackPopupRows = modal?.type === 'lease-history'
     ? filteredLeaseHistoryRows
     : (modal?.type === 'transaction-size-explorer'
       ? transactionExplorerRows
       : (modal?.type === 'lease-statistic-explorer'
         ? leaseStatisticExplorerRows
         : (modal?.rows || (modal?.row ? [modal.row] : []))));
+  const activeMarketDetail = modal?.detailRequest && marketDetailState.requestKey.startsWith(`${modal.detailRequest.key}:`)
+    ? marketDetailState
+    : null;
+  const popupRows = Array.isArray(activeMarketDetail?.rows) ? activeMarketDetail.rows : fallbackPopupRows;
+  const popupColumns = activeMarketDetail?.columns || modal?.columns || transactionColumns;
+  const popupPagination = activeMarketDetail?.pagination;
   return (
     <div
       className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14"
@@ -6741,21 +7017,14 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               ))}
             </div>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(420px,0.75fr)_minmax(560px,1.25fr)]">
-              <MarketMapPanel title="거래 자산 위치" rows={filteredTransactions} labelKey="asset_name" onSelect={(row) => setModal({ title: text(row.asset_name), row, columns: transactionColumns })} />
+              <MarketMapPanel title="거래 자산 위치" rows={filteredTransactions} labelKey="asset_name" onSelect={openTransactionDetailModal} />
               <SortableTable
                 minWidth={1120}
                 stickyCount={2}
                 defaultSort={{ key: 'transaction_amount_krw', direction: 'desc' }}
                 columns={transactionColumns}
                 rows={filteredTransactions}
-                onRowClick={(row) => setModal({
-                  title: text(row.asset_name),
-                  row,
-                  columns: transactionColumns,
-                  width: 'max-w-[calc(100vw-32px)]',
-                  maxHeight: 'calc(100vh - 150px)',
-                  fullscreen: true,
-                })}
+                onRowClick={openTransactionDetailModal}
               />
             </div>
           </section>
@@ -6767,14 +7036,16 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               right={(
                 <button
                   type="button"
-                  onClick={() => setModal({
+                  onClick={() => openMarketDetailModal({
+                    type: 'transaction-detail-explorer',
                     title: '2020년 이후 권역별 거래시장 규모 상세',
+                    dataset: 'transaction_cases',
                     rows: transactionMarketAssetRows,
-                    columns: transactionMarketAssetColumns,
-                    width: 'max-w-[calc(100vw-32px)]',
-                    minWidth: 1280,
-                    maxHeight: 'calc(100vh - 150px)',
-                    fullscreen: true,
+                    columns: transactionDetailColumns,
+                    detailEnabled: false,
+                    detailFallbackNotice: '여러 연도를 합산한 통계는 현재 상세 데이터의 서버 범위 필터가 지원되지 않아, 화면의 기간별 원본 사례를 그대로 표시합니다.',
+                    columnGroups: ['기본정보', '면적·건물', '거래조건', '매수·매도자', '임대차·금융', '수익률', '비고'],
+                    minWidth: 1760,
                     defaultSort: [{ key: 'year', direction: 'asc' }, { key: 'transaction_amount_krw', direction: 'desc' }],
                   })}
                   className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5"
@@ -6792,14 +7063,15 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               colorFor={regionSeriesColor}
               height={390}
               showTotalLabels
-              onPeriodClick={(period) => setModal({
+              onPeriodClick={(period) => openMarketDetailModal({
+                type: 'transaction-detail-explorer',
                 title: `${period}년 거래시장 규모 상세`,
+                dataset: 'transaction_cases',
                 rows: transactionMarketAssetRows.filter((row) => String(row.year) === String(period)),
-                columns: transactionMarketAssetColumns,
-                width: 'max-w-[calc(100vw-32px)]',
-                minWidth: 1280,
-                maxHeight: 'calc(100vh - 150px)',
-                fullscreen: true,
+                columns: transactionDetailColumns,
+                filters: { transaction_year: String(period) },
+                columnGroups: ['기본정보', '면적·건물', '거래조건', '매수·매도자', '임대차·금융', '수익률', '비고'],
+                minWidth: 1760,
                 defaultSort: { key: 'transaction_amount_krw', direction: 'desc' },
               })}
             />
@@ -6832,14 +7104,14 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               right={(
                 <button
                   type="button"
-                  onClick={() => setModal({
+                  onClick={() => openMarketDetailModal({
+                    type: 'cap-rate-explorer',
                     title: 'Cap Rate 추이 상세',
+                    dataset: 'cap_rate',
                     rows: capRateWideRows,
                     columns: capRateWideColumns,
-                    width: 'max-w-[calc(100vw-32px)]',
                     minWidth: 1040,
-                    maxHeight: 'calc(100vh - 150px)',
-                    fullscreen: true,
+                    columnGroups: ['기간', '권역', 'Cap Rate', '산정방식'],
                     defaultSort: { key: 'label', direction: 'asc' },
                   })}
                   className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5"
@@ -6858,14 +7130,14 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               splitPeriodAxis
               legendAlign="center"
               height={360}
-              onPointClick={() => setModal({
+              onPointClick={() => openMarketDetailModal({
+                type: 'cap-rate-explorer',
                 title: 'Cap Rate 추이 전체 상세',
+                dataset: 'cap_rate',
                 rows: capRateWideRows,
                 columns: capRateWideColumns,
-                width: 'max-w-[calc(100vw-32px)]',
                 minWidth: 1040,
-                maxHeight: 'calc(100vh - 150px)',
-                fullscreen: true,
+                columnGroups: ['기간', '권역', 'Cap Rate', '산정방식'],
                 defaultSort: { key: 'label', direction: 'asc' },
               })}
             />
@@ -6882,7 +7154,21 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               right={(
                 <button
                   type="button"
-                  onClick={() => setModal({ type: 'lease-history', title: '임대시장 전체 기록', columns: leaseHistoryColumns, width: 'max-w-[calc(100vw-32px)]', minWidth: 1460, maxHeight: 680 })}
+                  onClick={() => openMarketDetailModal({
+                    type: 'lease-history',
+                    title: '임대시장 전체 기록',
+                    dataset: 'lease_history',
+                    rows: filteredLeaseHistoryRows,
+                    columns: leaseDetailColumns,
+                    filters: {
+                      period: leaseHistoryPeriod,
+                      region: leaseHistoryRegion,
+                      search: leaseHistorySearch,
+                    },
+                    columnGroups: ['기본정보', '면적·건물', '임대조건', '공실', '비고'],
+                    minWidth: 1680,
+                    defaultSort: { key: 'report_period', direction: 'desc' },
+                  })}
                   className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5"
                 >
                   전체 기록 보기
@@ -6969,7 +7255,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
 
       {currentTab === 'supply' ? (
         <div className="space-y-5">
-          <section className={`${CARD} p-5`}>
+          <section className={`${CARD} p-5`} data-testid="market-supply-new">
             <ModuleHeader eyebrow="NEW SUPPLY" title="최근 신규 공급 사례" subtitle="당분기 신규공급 사례 기준으로 지도 위치와 자산별 공급 면적을 함께 확인합니다." />
             <FilterPanel columns="md:grid-cols-2 xl:grid-cols-4" className="mb-4">
               <FilterBlock>
@@ -6977,11 +7263,11 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               </FilterBlock>
             </FilterPanel>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(420px,0.75fr)_minmax(560px,1.25fr)]">
-              <MarketMapPanel title="당분기 신규공급" rows={newSupplyRows} labelKey="center_name" onSelect={(row) => setModal({ title: text(row.center_name), row, columns: supplyColumns })} />
-              <SortableTable minWidth={980} maxHeight={580} stickyCount={2} defaultSort={{ key: 'gross_area_py', direction: 'desc' }} columns={supplyColumns} rows={newSupplyRows} onRowClick={(row) => setModal({ title: text(row.center_name), row, columns: supplyColumns })} />
+              <MarketMapPanel title="당분기 신규공급" rows={newSupplyRows} labelKey="center_name" onSelect={(row) => openSupplyAssetModal(row, 'supply_new')} />
+              <SortableTable minWidth={980} maxHeight={580} stickyCount={2} defaultSort={{ key: 'gross_area_py', direction: 'desc' }} columns={supplyColumns} rows={newSupplyRows} onRowClick={(row) => openSupplyAssetModal(row, 'supply_new')} />
             </div>
           </section>
-          <section className={`${CARD} p-5`}>
+          <section className={`${CARD} p-5`} data-testid="market-supply-pipeline">
             <ModuleHeader eyebrow="PIPELINE" title="공급 예정 물량" subtitle="공급 예정 물량 구분 시트 기준입니다. 기간 선택은 지도, 표, 차트 결과에 동시에 적용됩니다." />
             <FilterPanel columns="md:grid-cols-2 xl:grid-cols-[260px_minmax(420px,1fr)]" className="mb-4">
               <FilterBlock>
@@ -7033,18 +7319,18 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               </FilterBlock>
             </FilterPanel>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(420px,0.75fr)_minmax(560px,1.25fr)]">
-              <MarketMapPanel title="공급 예정 지도" rows={rangedPipelineRows} labelKey="center_name" onSelect={(row) => setModal({ title: text(row.center_name), row, columns: supplyColumns })} />
-              <SortableTable minWidth={980} maxHeight={580} stickyCount={2} defaultSort={{ key: 'expected_year', direction: 'asc' }} columns={supplyColumns} rows={rangedPipelineRows} onRowClick={(row) => setModal({ title: text(row.center_name), row, columns: supplyColumns })} />
+              <MarketMapPanel title="공급 예정 지도" rows={rangedPipelineRows} labelKey="center_name" onSelect={(row) => openSupplyAssetModal(row, 'supply_pipeline')} />
+              <SortableTable minWidth={980} maxHeight={580} stickyCount={2} defaultSort={{ key: 'expected_year', direction: 'asc' }} columns={supplyColumns} rows={rangedPipelineRows} onRowClick={(row) => openSupplyAssetModal(row, 'supply_pipeline')} />
             </div>
             <div className="mt-5">
               <SupplyAreaChart rows={supplyChartRowsInRange} seriesType="pipeline_supply" title="향후 공급 예정 물량" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={supplyDetailCountForPeriod} />
             </div>
           </section>
-          <section className={`${CARD} p-5`}>
+          <section className={`${CARD} p-5`} data-testid="market-supply-cumulative">
             <ModuleHeader eyebrow="CUMULATIVE" title="2024년 이후 누적 신규공급 사례" subtitle="2024년 이후 신규공급 누적 기준으로 지도와 상세 표를 확인합니다." />
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(420px,0.75fr)_minmax(560px,1.25fr)]">
-              <MarketMapPanel title="누적 신규공급" rows={cumulativeNewRows} labelKey="center_name" onSelect={(row) => setModal({ title: text(row.center_name), row, columns: supplyColumns })} />
-              <SortableTable minWidth={980} maxHeight={580} stickyCount={2} defaultSort={{ key: 'gross_area_py', direction: 'desc' }} columns={supplyColumns} rows={cumulativeNewRows} onRowClick={(row) => setModal({ title: text(row.center_name), row, columns: supplyColumns })} />
+              <MarketMapPanel title="누적 신규공급" rows={cumulativeNewRows} labelKey="center_name" onSelect={(row) => openSupplyAssetModal(row, 'supply_cumulative')} />
+              <SortableTable minWidth={980} maxHeight={580} stickyCount={2} defaultSort={{ key: 'gross_area_py', direction: 'desc' }} columns={supplyColumns} rows={cumulativeNewRows} onRowClick={(row) => openSupplyAssetModal(row, 'supply_cumulative')} />
             </div>
             <div className="mt-5">
               <SupplyAreaChart rows={supplyChartRowsInRange} seriesType="cumulative_supply" title="누적 공급 면적" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={supplyDetailCountForPeriod} />
@@ -7157,6 +7443,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
         }}
         width={modal?.width || 'max-w-[1180px]'}
         fullscreen={modal?.fullscreen}
+        modalType={modal?.type}
         headerActions={modal?.type === 'lease-center-detail' ? (
           <button
             type="button"
@@ -7177,11 +7464,20 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
         ) : null}
         {modal?.type === 'lease-history' ? (
           <div className="mb-4 grid grid-cols-1 items-stretch gap-3 xl:grid-cols-[220px_1fr_320px]" data-market-filter-block="true">
-            <FilterPills label="시점" value={leaseHistoryPeriod} onChange={setLeaseHistoryPeriod} options={leasePeriodOptions} />
-            <RegionFilterGroups label="권역" value={leaseHistoryRegion} onChange={setLeaseHistoryRegion} options={regions} />
+            <FilterPills label="시점" value={leaseHistoryPeriod} onChange={(value) => {
+              setLeaseHistoryPeriod(value);
+              updateModalFilter('period', value);
+            }} options={leasePeriodOptions} />
+            <RegionFilterGroups label="권역" value={leaseHistoryRegion} onChange={(value) => {
+              setLeaseHistoryRegion(value);
+              updateModalFilter('region', value);
+            }} options={regions} />
             <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
               센터명/주소 검색
-              <input value={leaseHistorySearch} onChange={(event) => setLeaseHistorySearch(event.target.value)} className="mt-2 h-9 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" placeholder="센터명 또는 주소" />
+              <input value={leaseHistorySearch} onChange={(event) => {
+                setLeaseHistorySearch(event.target.value);
+                updateModalFilter('search', event.target.value);
+              }} className="mt-2 h-9 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" placeholder="센터명 또는 주소" />
             </label>
           </div>
         ) : null}
@@ -7203,15 +7499,15 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
             {!modalFiltersCollapsed ? (
               <div className="grid grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(280px,0.8fr)_minmax(520px,1.35fr)_minmax(300px,0.85fr)]" data-market-filter-block="true">
                 <div className="grid h-full min-h-[92px] content-start gap-3 rounded-[10px] border border-[#333333] bg-[#171717] p-3" data-market-filter-card="true">
-                  <FilterSelect label="연도" value={modal.filters?.year || '전체'} onChange={(value) => updateModalFilter('year', value)} options={['전체', ...transactionPeriodOptions].map((item) => ({ value: item, label: item === '전체' ? '전체' : `${item}년` }))} />
+                  <FilterSelect label="연도" value={modal.filters?.transaction_year || '전체'} onChange={(value) => updateModalFilter('transaction_year', value)} options={['전체', ...transactionPeriodOptions].map((item) => ({ value: item, label: item === '전체' ? '전체' : `${item}년` }))} />
                   <RegionFilterGroups label="권역" value={modal.filters?.region || '전체'} onChange={(value) => updateModalFilter('region', value)} options={regions} />
                 </div>
                 <div className="grid h-full min-h-[92px] gap-3 rounded-[10px] border border-[#333333] bg-[#171717] p-3 md:grid-cols-2" data-market-filter-card="true">
-                  <FilterPills label="규모" value={modal.filters?.bucket || '전체'} onChange={(value) => updateModalFilter('bucket', value)} options={transactionSizeOptions.map((item) => ({ value: item, label: item === '전체' ? '전체' : stripLeadingNumberLabel(item) }))} />
-                  <FilterPills label="상/저온" value={modal.filters?.temp || '전체'} onChange={(value) => updateModalFilter('temp', value)} options={transactionSizeTempOptions} help={MARKET_TEMPERATURE_HELP} />
+                  <FilterPills label="규모" value={modal.filters?.size_bucket || '전체'} onChange={(value) => updateModalFilter('size_bucket', value)} options={transactionSizeOptions.map((item) => ({ value: item, label: item === '전체' ? '전체' : stripLeadingNumberLabel(item) }))} />
+                  <FilterPills label="상/저온" value={modal.filters?.temperature_type || '전체'} onChange={(value) => updateModalFilter('temperature_type', value)} options={transactionSizeTempOptions} help={MARKET_TEMPERATURE_HELP} />
                 </div>
                 <div className="h-full min-h-[92px] rounded-[10px] border border-[#333333] bg-[#171717] p-3" data-market-filter-card="true">
-                  <FilterPills label="거래유형" value={modal.filters?.dealType || '전체'} onChange={(value) => updateModalFilter('dealType', value)} options={transactionTypes.map((item) => ({ value: item, label: item }))} />
+                  <FilterPills label="거래유형" value={modal.filters?.transaction_type || '전체'} onChange={(value) => updateModalFilter('transaction_type', value)} options={transactionTypes.map((item) => ({ value: item, label: item }))} />
                 </div>
               </div>
             ) : null}
@@ -7257,12 +7553,59 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
             선택한 시점의 권역별 누적 공급 면적 전체 값 {formatNumber(popupRows.length)}건을 표시합니다.
           </div>
         ) : null}
+        {modal?.detailFallbackNotice ? (
+          <div className={`${INNER} mb-4 px-3 py-2 text-[12px] text-[#A1A1AA]`} data-testid="market-detail-fallback-notice">
+            {modal.detailFallbackNotice}
+          </div>
+        ) : null}
+        {modal?.detailRequest ? (
+          <div className={`${INNER} mb-4 flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-[12px] text-[#A1A1AA]`} data-testid="market-detail-request-state">
+            <div>
+              {activeMarketDetail?.loading ? '상세 항목을 불러오는 중입니다. 현재 표의 기존 값은 유지됩니다.' : null}
+              {!activeMarketDetail?.loading && activeMarketDetail?.error ? `상세 항목을 불러오지 못했습니다. 기존 표를 계속 표시합니다. (${activeMarketDetail.error})` : null}
+              {!activeMarketDetail?.loading && !activeMarketDetail?.error && popupPagination ? `전체 ${formatNumber(popupPagination.total_count || popupRows.length)}건 중 ${formatNumber(popupRows.length)}건` : null}
+              {!activeMarketDetail?.loading && !activeMarketDetail?.error && !popupPagination ? '기존 표의 값을 표시합니다.' : null}
+            </div>
+            <div className="flex items-center gap-2">
+              {activeMarketDetail?.error ? (
+                <button
+                  type="button"
+                  onClick={() => void loadMarketDetailPage(modal.detailRequest, 1)}
+                  className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5"
+                >
+                  다시 시도
+                </button>
+              ) : null}
+              {popupPagination && Number(popupPagination.total_count || 0) > Number(popupPagination.page_size || modal.detailRequest.pageSize || 100) ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={Number(popupPagination.page || 1) <= 1 || activeMarketDetail?.loading}
+                    onClick={() => void loadMarketDetailPage(modal.detailRequest, Math.max(1, Number(popupPagination.page || 1) - 1))}
+                    className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5 disabled:cursor-not-allowed disabled:text-[#6D6D72]"
+                  >
+                    이전
+                  </button>
+                  <span>{formatNumber(popupPagination.page || 1)} / {formatNumber(Math.max(1, Math.ceil(Number(popupPagination.total_count || 0) / Number(popupPagination.page_size || modal.detailRequest.pageSize || 100))))}</span>
+                  <button
+                    type="button"
+                    disabled={Number(popupPagination.page || 1) >= Math.ceil(Number(popupPagination.total_count || 0) / Number(popupPagination.page_size || modal.detailRequest.pageSize || 100)) || activeMarketDetail?.loading}
+                    onClick={() => void loadMarketDetailPage(modal.detailRequest, Number(popupPagination.page || 1) + 1)}
+                    className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5 disabled:cursor-not-allowed disabled:text-[#6D6D72]"
+                  >
+                    다음
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         <SortableTable
           minWidth={modal?.minWidth || 1180}
           maxHeight={modal?.maxHeight || 620}
           stickyCount={2}
           defaultSort={modal?.defaultSort}
-          columns={modal?.columns || transactionColumns}
+          columns={popupColumns}
           rows={popupRows}
           empty="상세 데이터가 없습니다."
         />
