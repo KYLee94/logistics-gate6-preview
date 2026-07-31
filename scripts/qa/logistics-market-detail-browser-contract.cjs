@@ -6,6 +6,17 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
 const DETAIL_DATASETS = ['lease_current', 'lease_history', 'lease_statistics', 'supply_new', 'supply_pipeline', 'supply_cumulative', 'transaction_cases', 'transaction_statistics', 'cap_rate'];
+const CAP_RATE_WIDE_HEADERS = [
+  '베이지안-수도권',
+  '베이지안-전국',
+  '가중평균-수도권',
+  '가중평균-전국',
+  '일반-수도권',
+  '일반-전국',
+];
+const CAP_RATE_SOURCE_ROW_COUNT = 148;
+const CAP_RATE_SOURCE_VALUE_COUNT = 296;
+const CAP_RATE_WIDE_PERIOD_ROW_COUNT = 115;
 const SUPPLY_SECTIONS = [
   { testId: 'market-supply-new', dataset: 'supply_new' },
   { testId: 'market-supply-pipeline', dataset: 'supply_pipeline' },
@@ -29,8 +40,8 @@ const POPUP_INVENTORY = [
   { id: 'transaction-period-chart', route: 'market-data/transactions', container: 'market-transactions-period', trigger: '[data-stacked-period-group="true"][data-stacked-period-clickable="true"]', dataset: 'transaction_cases', expectRequest: true },
   { id: 'transaction-size-unit-price', route: 'market-data/transactions', container: 'market-transactions-size-unit-price', trigger: '[data-bar-list-row="true"][data-bar-list-clickable="true"]', dataset: 'transaction_cases', expectRequest: true },
   { id: 'transaction-size-market', route: 'market-data/transactions', container: 'market-transactions-size-market', trigger: '[data-bar-list-row="true"][data-bar-list-clickable="true"]', dataset: 'transaction_cases', expectRequest: true },
-  { id: 'cap-rate-button', route: 'market-data/transactions', container: 'market-transactions-cap-rate', trigger: '[data-testid="market-transactions-cap-rate-button"]', dataset: 'cap_rate', expectRequest: true },
-  { id: 'cap-rate-point', route: 'market-data/transactions', container: 'market-transactions-cap-rate', trigger: '[data-multi-line-point="true"]', triggerFromEnd: true, dataset: 'cap_rate', expectRequest: true },
+  { id: 'cap-rate-button', route: 'market-data/transactions', container: 'market-transactions-cap-rate', trigger: '[data-testid="market-transactions-cap-rate-button"]', dataset: 'cap_rate', expectRequest: false },
+  { id: 'cap-rate-point', route: 'market-data/transactions', container: 'market-transactions-cap-rate', trigger: '[data-multi-line-point="true"]', triggerFromEnd: true, dataset: 'cap_rate', expectRequest: false },
 ];
 const FORBIDDEN_FIELDS = new Set(['id', 'payload', 'source_row_id', 'source_file_id', 'source_row_number', 'pnu', 'legal_dong_code', 'row_hash', 'natural_key']);
 
@@ -140,6 +151,43 @@ function isAddressLabel(value) {
   return /(?:소재지|주소|대지\s*위치|위치)/u.test(String(value || ''));
 }
 
+function normalizedText(value) {
+  return String(value || '').replace(/\s+/gu, ' ').trim();
+}
+
+function sameLabels(left, right) {
+  return left.length === right.length && left.every((label, index) => label === right[index]);
+}
+
+function assertCapRateNetworkContract(data) {
+  if (Number(data.source_row_count) !== CAP_RATE_SOURCE_ROW_COUNT) {
+    throw new Error(`cap_rate: expected source_row_count=${CAP_RATE_SOURCE_ROW_COUNT}, received ${data.source_row_count}`);
+  }
+  if (Number(data.source_value_count) !== CAP_RATE_SOURCE_VALUE_COUNT) {
+    throw new Error(`cap_rate: expected source_value_count=${CAP_RATE_SOURCE_VALUE_COUNT}, received ${data.source_value_count}`);
+  }
+  const rows = Array.isArray(data.rows) ? data.rows : [];
+  if (Number(data.total) !== CAP_RATE_WIDE_PERIOD_ROW_COUNT || rows.length !== CAP_RATE_WIDE_PERIOD_ROW_COUNT) {
+    throw new Error(`cap_rate: expected ${CAP_RATE_WIDE_PERIOD_ROW_COUNT} unique wide period rows, received total=${data.total}, rows=${rows.length}`);
+  }
+  if (rows.some((row) => Object.hasOwn(row, 'method') || Object.hasOwn(row, 'cap_rate_type'))) {
+    throw new Error('cap_rate: wide rows must not expose a separate Cap Rate type field');
+  }
+  const rateColumns = (Array.isArray(data.columns) ? data.columns : [])
+    .filter((column) => /(?:bayesian|weighted_average|general)_(?:capital_area|national)_cap_rate$/u.test(column.key));
+  const expectedKeys = [
+    'bayesian_capital_area_cap_rate',
+    'bayesian_national_cap_rate',
+    'weighted_average_capital_area_cap_rate',
+    'weighted_average_national_cap_rate',
+    'general_capital_area_cap_rate',
+    'general_national_cap_rate',
+  ];
+  if (!sameLabels(rateColumns.map((column) => column.key), expectedKeys) || !rateColumns.every((column) => column.unit === '%')) {
+    throw new Error(`cap_rate: network response must expose six ordered percent columns, received ${JSON.stringify(rateColumns)}`);
+  }
+}
+
 function detailDataFromResponse(response) {
   return response.json().then((body) => body?.data || {}).catch(() => ({}));
 }
@@ -207,13 +255,9 @@ async function inspectDialog(page, dialog, dataset, detailData = {}, contractId 
     const headerLabels = headers.map((header) => (header.textContent || '').replace(/\s+/gu, ' ').trim());
     const headerPositions = headers.map((header) => getComputedStyle(header).position);
     const addressColumnIndex = headerLabels.findIndex((label) => /(?:소재지|주소|대지\s*위치|위치)/u.test(label));
-    const methodColumnIndex = headerLabels.findIndex((label) => /Cap Rate 종류/u.test(label));
     const capRateColumnIndexes = headerLabels
-      .map((label, index) => (/Cap Rate/u.test(label) && !/종류/u.test(label) ? index : -1))
+      .map((label, index) => (/^(?:베이지안|가중평균|일반)-(?:수도권|전국)$/u.test(label) ? index : -1))
       .filter((index) => index >= 0);
-    const capRateMethods = methodColumnIndex < 0 ? [] : [...new Set(bodyRows.map((row) => (
-      row.querySelectorAll('td')[methodColumnIndex]?.textContent || ''
-    ).replace(/\s+/gu, ' ').trim()).filter(Boolean))];
     const capRateCells = bodyRows.flatMap((row) => capRateColumnIndexes.map((index) => (
       row.querySelectorAll('td')[index]?.textContent || ''
     ).replace(/\s+/gu, ' ').trim()).filter((value) => value && value !== '-'));
@@ -231,7 +275,8 @@ async function inspectDialog(page, dialog, dataset, detailData = {}, contractId 
       header_positions: headerPositions,
       identity_columns_first: /(?:자산명|물류센터명|센터명)/u.test(headerLabels[0] || '') && /(?:소재지|주소)/u.test(headerLabels[1] || ''),
       exactly_two_sticky_columns: headerPositions[0] === 'sticky' && headerPositions[1] === 'sticky' && headerPositions.slice(2).every((position) => position !== 'sticky'),
-      cap_rate_methods: capRateMethods,
+      cap_rate_type_column_count: headerLabels.filter((label) => /Cap Rate 종류/u.test(label)).length,
+      cap_rate_wide_headers: capRateColumnIndexes.map((index) => headerLabels[index]),
       cap_rate_value_count: capRateCells.length,
       invalid_cap_rate_value_count: capRateCells.filter((value) => !/^-?\d+(?:,\d{3})*\.\d{2}%$/u.test(value)).length,
       header_overlap_count: headerOverlapCount,
@@ -287,12 +332,33 @@ async function inspectDialog(page, dialog, dataset, detailData = {}, contractId 
       && layout.unreadable_cell_count === 0
       && (!requiresIdentityPin || (layout.identity_columns_first && layout.exactly_two_sticky_columns))
       && (!requiresCompleteCapRates || (
-        ['베이지안', '일반', '가중평균'].every((method) => layout.cap_rate_methods.includes(method))
+        tableRows === CAP_RATE_WIDE_PERIOD_ROW_COUNT
+        && layout.cap_rate_type_column_count === 0
+        && sameLabels(layout.cap_rate_wide_headers, CAP_RATE_WIDE_HEADERS)
         && layout.cap_rate_value_count > 0
         && layout.invalid_cap_rate_value_count === 0
       ))
       && layout.last_column_visible_at_scroll_end,
   };
+}
+
+async function inspectCapRateChart(section) {
+  const chart = section.locator('[data-chart-role="multi-line"][data-chart-empty="false"]');
+  await waitVisible(chart, 'Cap Rate chart');
+  if (await chart.count() !== 1) {
+    throw new Error(`cap_rate chart must expose exactly one populated multi-line chart, received ${await chart.count()}`);
+  }
+  const legendLabels = (await chart.getByRole('button').allTextContents()).map(normalizedText).filter(Boolean);
+  const lineCount = await chart.locator('svg polyline').count();
+  const check = {
+    legend_labels: legendLabels,
+    line_count: lineCount,
+    ok: sameLabels(legendLabels, CAP_RATE_WIDE_HEADERS) && lineCount === CAP_RATE_WIDE_HEADERS.length,
+  };
+  if (!check.ok) {
+    throw new Error(`cap_rate chart must render six method-by-region series and legends: ${JSON.stringify(check)}`);
+  }
+  return check;
 }
 
 async function signInThroughBrowser(page, email, password) {
@@ -353,19 +419,19 @@ async function openSupplyPopup(page, sectionTestId, expectedDataset, functionAct
   };
 }
 
-async function openTriggeredPopup(page, expectedDataset, trigger, functionActions, detailData = {}, contractId = '') {
-  const responsePromise = waitForDetailResponse(page, expectedDataset);
+async function openTriggeredPopup(page, expectedDataset, trigger, functionActions, detailData = {}, contractId = '', expectRequest = true) {
+  const responsePromise = expectRequest ? waitForDetailResponse(page, expectedDataset) : null;
   await trigger.click();
   const dialog = page.locator('[role="dialog"]').last();
   await waitVisible(dialog, `${expectedDataset} dialog`);
-  const response = await responsePromise;
-  if (!response) {
+  const response = responsePromise ? await responsePromise : null;
+  if (expectRequest && !response) {
     throw new Error(`${expectedDataset}: detail response was not observed; actions=${JSON.stringify(functionActions.slice(-10))}`);
   }
   const check = await inspectDialog(page, dialog, expectedDataset, await detailDataWithFallback(response, detailData), contractId);
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden', timeout: 10000 });
-  return check;
+  return { ...check, request_observed: Boolean(response) };
 }
 
 async function openCumulativeSupplyChartPopup(page, detailData, functionActions) {
@@ -444,14 +510,7 @@ async function main() {
     const cappedPage = await invokeDetail(supabaseUrl, anonKey, auth.access_token, dataset, { page_size: 9999 });
     assertDetailResponse(dataset, cappedPage, 500);
     if (dataset === 'cap_rate') {
-      const methods = new Set(cappedPage.rows.map((row) => row.method).filter(Boolean));
-      if (Number(cappedPage.total) !== 148 || !['베이지안', '일반', '가중평균'].every((method) => methods.has(method))) {
-        throw new Error(`cap_rate: expected 148 rows across all three methods, received total=${cappedPage.total}, methods=${[...methods].join(',')}`);
-      }
-      const rateColumns = cappedPage.columns.filter((column) => /cap_rate$/u.test(column.key));
-      if (rateColumns.length !== 2 || !rateColumns.every((column) => column.unit === '%')) {
-        throw new Error('cap_rate: both public rate columns must declare percentage units');
-      }
+      assertCapRateNetworkContract(cappedPage);
     }
     detailDataByDataset.set(dataset, firstPage);
     apiChecks.push({ dataset, total: firstPage.total, default_rows: firstPage.rows.length, capped_rows: cappedPage.rows.length });
@@ -555,6 +614,7 @@ async function main() {
       ),
     ];
     const capRateSection = page.locator('section').filter({ hasText: 'Cap Rate 추이' }).last();
+    const capRateChartCheck = await inspectCapRateChart(capRateSection);
     transactionChecks.push(await openTriggeredPopup(
       page,
       'cap_rate',
@@ -562,6 +622,7 @@ async function main() {
       functionActions,
       detailDataByDataset.get('cap_rate'),
       'cap-rate-button',
+      false,
     ));
     if (!transactionChecks.every((check) => check.ok)) throw new Error(`Transaction popup contract failed: ${JSON.stringify(transactionChecks)}`);
 
@@ -591,6 +652,7 @@ async function main() {
       cumulative_supply_chart_check: cumulativeChartCheck,
       lease_checks: leaseChecks,
       transaction_checks: transactionChecks,
+      cap_rate_chart_check: capRateChartCheck,
       inventory_checks: inventoryChecks,
     }, null, 2));
     process.stdout.write(`${JSON.stringify({ ok: true, output: path.relative(ROOT, outputPath).replace(/\\/gu, '/') })}\n`);

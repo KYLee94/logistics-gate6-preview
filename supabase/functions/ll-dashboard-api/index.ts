@@ -6557,6 +6557,7 @@ function sectorMarketSourceDetailValue(row: Record<string, unknown>, rawKey: str
 function parseSectorMarketCapRateDetailRows(rows: Record<string, unknown>[], columns: Record<string, unknown>[]) {
   const columnKeyByIndex = marketColumnKeyByIndex(columns);
   const sortedRows = rows.slice().sort((left, right) => Number(left.row_number || 0) - Number(right.row_number || 0));
+  const firstDataRowNumber = Number(sortedRows[0]?.row_number || 1);
   const cell = (row: Record<string, unknown>, columnIndex: number) => {
     const values = row.row_values && typeof row.row_values === 'object'
       ? row.row_values as Record<string, unknown>
@@ -6568,24 +6569,26 @@ function parseSectorMarketCapRateDetailRows(rows: Record<string, unknown>[], col
     const source = safeText(value).replace(/,/gu, '').replace(/%/gu, '').trim();
     if (!source) return null;
     const parsed = Number(source);
-    if (!Number.isFinite(parsed)) return null;
-    return Math.abs(parsed) > 1 ? parsed / 100 : parsed;
+    // The workbook stores Cap Rate as a ratio. Do not convert or round it here.
+    return Number.isFinite(parsed) && parsed >= 0 && parsed < 1 ? parsed : null;
   };
   const sections = [
-    { method: '베이지안', titleColumn: 2, yearColumn: 2, periodColumn: 3, capitalColumn: 4, nationalColumn: 5, titlePattern: /cap\.?\s*rate.*베이지안/iu, fallbackTitleRowNumber: 4, fallbackStartYear: 2005 },
-    { method: '일반', titleColumn: 2, yearColumn: 2, periodColumn: 3, capitalColumn: 4, nationalColumn: 5, titlePattern: /cap\.?\s*rate.*일반/iu, fallbackTitleRowNumber: 94 },
-    { method: '가중평균', titleColumn: 7, yearColumn: 7, periodColumn: 8, capitalColumn: 9, nationalColumn: 10, titlePattern: /cap\.?\s*rate.*가중/iu, fallbackTitleRowNumber: 94 },
+    { methodKey: 'bayesian', method: '베이지안', periodType: 'quarter', periodLabel: '분기', titleColumn: 2, yearColumn: 2, periodColumn: 3, capitalColumn: 4, nationalColumn: 5, titlePattern: /cap\.?\s*rate.*베이지안/iu, fallbackTitleRowNumber: 4, fallbackStartRowNumber: firstDataRowNumber, fallbackStartYear: 2005 },
+    { methodKey: 'general', method: '일반', periodType: 'half_year', periodLabel: '반기', titleColumn: 2, yearColumn: 2, periodColumn: 3, capitalColumn: 4, nationalColumn: 5, titlePattern: /cap\.?\s*rate.*일반/iu, fallbackStartRowNumber: Number.MAX_SAFE_INTEGER },
+    { methodKey: 'weighted_average', method: '가중평균', periodType: 'half_year', periodLabel: '반기', titleColumn: 7, yearColumn: 7, periodColumn: 8, capitalColumn: 9, nationalColumn: 10, titlePattern: /cap\.?\s*rate.*가중/iu, fallbackStartRowNumber: Number.MAX_SAFE_INTEGER },
   ] as const;
   const parsed: Record<string, unknown>[] = [];
 
   sections.forEach((section) => {
     const titleRow = sortedRows.find((row) => section.titlePattern.test(safeText(cell(row, section.titleColumn))));
-    const titleRowNumber = Number(titleRow?.row_number || section.fallbackTitleRowNumber);
+    const startRowNumber = titleRow
+      ? Number(titleRow.row_number || 0) + 2
+      : section.fallbackStartRowNumber;
     let currentYear = 'fallbackStartYear' in section ? section.fallbackStartYear : 0;
     let started = false;
     for (const row of sortedRows) {
       const rowNumber = Number(row.row_number || 0);
-      if (rowNumber <= titleRowNumber + 1) continue;
+      if (rowNumber < startRowNumber) continue;
       const yearCell = cell(row, section.yearColumn);
       const periodCell = cell(row, section.periodColumn);
       const capitalCell = cell(row, section.capitalColumn);
@@ -6606,11 +6609,19 @@ function parseSectorMarketCapRateDetailRows(rows: Record<string, unknown>[], col
       const nationalCapRate = numericRate(nationalCell);
       if (!currentYear || !periodNumber || (capitalAreaCapRate === null && nationalCapRate === null)) continue;
       started = true;
-      const reportPeriod = section.method === '베이지안' ? `${periodNumber}분기` : `${periodNumber}반기`;
+      // The general/weighted sections are half-year series except the source's
+      // explicit 2026 `1Q` observation, which must remain a quarter and merge
+      // only with the Bayesian 2026 Q1 row.
+      const sourcePeriodText = safeText(periodCell).toUpperCase();
+      const periodType = /Q/u.test(sourcePeriodText) ? 'quarter' : section.periodType;
+      const periodLabel = periodType === 'quarter' ? '분기' : '반기';
+      const reportPeriod = `${periodType === 'quarter' ? 'Q' : 'H'}${periodNumber}`;
       parsed.push({
-        row_key: `cap-rate-${section.method}-${currentYear}-${reportPeriod}`,
+        row_key: `cap-rate-${section.methodKey}-${currentYear}-${reportPeriod}`,
+        method_key: section.methodKey,
         method: section.method,
         report_year: currentYear,
+        report_period_type: periodLabel,
         report_period: reportPeriod,
         capital_area_cap_rate: capitalAreaCapRate,
         national_cap_rate: nationalCapRate,
@@ -6618,6 +6629,51 @@ function parseSectorMarketCapRateDetailRows(rows: Record<string, unknown>[], col
     }
   });
   return parsed;
+}
+
+function sectorMarketCapRateWideRows(longRows: Record<string, unknown>[]) {
+  const rowsByPeriod = new Map<string, Record<string, unknown>>();
+  const metricPrefixByMethod: Record<string, string> = {
+    bayesian: 'bayesian',
+    weighted_average: 'weighted_average',
+    general: 'general',
+  };
+  const emptyMetrics = {
+    bayesian_capital_area_cap_rate: null,
+    bayesian_national_cap_rate: null,
+    weighted_average_capital_area_cap_rate: null,
+    weighted_average_national_cap_rate: null,
+    general_capital_area_cap_rate: null,
+    general_national_cap_rate: null,
+  };
+
+  longRows.forEach((row) => {
+    const reportYear = Number(row.report_year || 0);
+    const periodType = safeText(row.report_period_type);
+    const reportPeriod = safeText(row.report_period);
+    const metricPrefix = metricPrefixByMethod[safeText(row.method_key)];
+    if (!reportYear || !periodType || !reportPeriod || !metricPrefix) return;
+    // Quarter and half-year series remain separate even where their labels overlap.
+    const rowKey = `${reportYear}-${periodType}-${reportPeriod}`;
+    const current = rowsByPeriod.get(rowKey) || {
+      row_key: `cap-rate-${rowKey}`,
+      report_year: reportYear,
+      report_period_type: periodType,
+      report_period: reportPeriod,
+      ...emptyMetrics,
+    };
+    current[`${metricPrefix}_capital_area_cap_rate`] = row.capital_area_cap_rate ?? null;
+    current[`${metricPrefix}_national_cap_rate`] = row.national_cap_rate ?? null;
+    rowsByPeriod.set(rowKey, current);
+  });
+
+  const periodRank = (row: Record<string, unknown>) => safeText(row.report_period_type) === '분기' ? 0 : 1;
+  const periodNumber = (row: Record<string, unknown>) => Number(safeText(row.report_period).match(/\d+/u)?.[0] || 0);
+  return [...rowsByPeriod.values()].sort((left, right) => (
+    Number(left.report_year || 0) - Number(right.report_year || 0)
+    || periodRank(left) - periodRank(right)
+    || periodNumber(left) - periodNumber(right)
+  ));
 }
 
 function sectorMarketSourceDetailHasData(row: Record<string, unknown>, schema: Array<{ rawKey: string }>, minimumValues = 2) {
@@ -6745,6 +6801,9 @@ async function callSectorMarketSourceDetailList(
       rawResult.rows.filter((row) => safeText(row.sheet_name) === sheetName),
       workbookSchemaColumnsForSheet(activeSource, sheetName),
     );
+    // The preserved source can omit the first Bayesian observation. Keep the
+    // normalized 84-row Bayesian series as its authoritative fallback, while
+    // reading the general and weighted-average sections from preserved rows.
     const { data: normalizedBayesianData, error: normalizedBayesianError } = await ctx.serviceClient
       .from('ll_sector_market_cap_rate_series')
       .select('report_year,report_quarter,capital_area_cap_rate,national_cap_rate')
@@ -6759,32 +6818,47 @@ async function callSectorMarketSourceDetailList(
         const reportYear = Number(row.report_year || 0);
         const periodNumber = Number(safeText(row.report_quarter).match(/[1-4]/u)?.[0] || 0);
         if (!reportYear || !periodNumber) return [];
-        const reportPeriod = `${periodNumber}분기`;
         return [{
-          row_key: `cap-rate-베이지안-${reportYear}-${reportPeriod}`,
+          row_key: `cap-rate-bayesian-${reportYear}-Q${periodNumber}`,
+          method_key: 'bayesian',
           method: '베이지안',
           report_year: reportYear,
-          report_period: reportPeriod,
+          report_period_type: '분기',
+          report_period: `Q${periodNumber}`,
           capital_area_cap_rate: row.capital_area_cap_rate ?? null,
           national_cap_rate: row.national_cap_rate ?? null,
         }];
       });
-    const parsed = [
+    const sourceLongRows = [
       ...normalizedBayesianRows,
       ...parsedSourceRows.filter((row) => safeText(row.method) !== '베이지안'),
     ];
+    const wideRows = sectorMarketCapRateWideRows(sourceLongRows);
     const columns = [
-      { key: 'method', label: 'Cap Rate 종류', group: '산정방식', columnIndex: 1 },
-      { key: 'report_year', label: '연도', group: '기간', unit: '년', columnIndex: 2 },
+      { key: 'report_year', label: '연도', group: '기간', unit: '년', columnIndex: 1 },
+      { key: 'report_period_type', label: '시점 구분', group: '기간', columnIndex: 2 },
       { key: 'report_period', label: '시점', group: '기간', columnIndex: 3 },
-      { key: 'capital_area_cap_rate', label: '수도권 Cap Rate', group: 'Cap Rate', unit: '%', columnIndex: 4 },
-      { key: 'national_cap_rate', label: '전국 Cap Rate', group: 'Cap Rate', unit: '%', columnIndex: 5 },
+      { key: 'bayesian_capital_area_cap_rate', label: '베이지안 수도권 Cap Rate', group: '베이지안', unit: '%', columnIndex: 4 },
+      { key: 'bayesian_national_cap_rate', label: '베이지안 전국 Cap Rate', group: '베이지안', unit: '%', columnIndex: 5 },
+      { key: 'weighted_average_capital_area_cap_rate', label: '가중평균 수도권 Cap Rate', group: '가중평균', unit: '%', columnIndex: 6 },
+      { key: 'weighted_average_national_cap_rate', label: '가중평균 전국 Cap Rate', group: '가중평균', unit: '%', columnIndex: 7 },
+      { key: 'general_capital_area_cap_rate', label: '일반 수도권 Cap Rate', group: '일반', unit: '%', columnIndex: 8 },
+      { key: 'general_national_cap_rate', label: '일반 전국 Cap Rate', group: '일반', unit: '%', columnIndex: 9 },
     ];
-    const filtered = parsed.filter((values) => sectorMarketSourceDetailMatches(values, filtersWithSearch, Object.values(values)));
+    const filtered = wideRows.filter((values) => sectorMarketSourceDetailMatches(values, filtersWithSearch, Object.values(values)));
     const hasRequestedSort = safeText(firstDefined(requestedSort.key, requestedSort.field, requestedSort.field_key)) !== '';
     const sorted = hasRequestedSort
       ? sectorMarketSourceDetailSort(filtered, requestedSort, new Set(columns.map((column) => column.key)), 'report_year')
       : filtered;
+    const sourceMethodCounts = Object.fromEntries(
+      ['bayesian', 'weighted_average', 'general'].map((methodKey) => [
+        methodKey,
+        sourceLongRows.filter((row) => safeText(row.method_key) === methodKey).length,
+      ]),
+    );
+    const sourceValueCount = sourceLongRows.reduce((count, row) => count
+      + (row.capital_area_cap_rate === null || row.capital_area_cap_rate === undefined ? 0 : 1)
+      + (row.national_cap_rate === null || row.national_cap_rate === undefined ? 0 : 1), 0);
     return jsonResponse({ ok: true, data: {
       dataset,
       columns: sectorMarketSourceDetailPublicColumns(columns, filtered),
@@ -6792,6 +6866,11 @@ async function callSectorMarketSourceDetailList(
       total: sorted.length,
       page,
       page_size: pageSize,
+      source_row_count: sourceLongRows.length,
+      source_long_row_count: sourceLongRows.length,
+      source_value_count: sourceValueCount,
+      source_method_counts: sourceMethodCounts,
+      wide_row_count: wideRows.length,
       source: { source_version: activeSource?.source_version, file_name: activeSource?.file_name, report_period: activeSource?.report_period, as_of_date: activeSource?.as_of_date },
     } }, 200, ctx.origin);
   }

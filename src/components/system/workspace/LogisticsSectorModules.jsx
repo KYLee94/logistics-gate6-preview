@@ -1158,6 +1158,48 @@ function formatRate(value) {
   return `${formatNumber(normalized, 2)}%`;
 }
 
+const CAP_RATE_WIDE_SERIES = [
+  { key: 'bayesian_capital', sourceKey: 'bayesian_capital_area_cap_rate', label: '베이지안-수도권' },
+  { key: 'bayesian_national', sourceKey: 'bayesian_national_cap_rate', label: '베이지안-전국' },
+  { key: 'weighted_capital', sourceKey: 'weighted_average_capital_area_cap_rate', label: '가중평균-수도권' },
+  { key: 'weighted_national', sourceKey: 'weighted_average_national_cap_rate', label: '가중평균-전국' },
+  { key: 'general_capital', sourceKey: 'general_capital_area_cap_rate', label: '일반-수도권' },
+  { key: 'general_national', sourceKey: 'general_national_cap_rate', label: '일반-전국' },
+];
+
+function capRatePeriodLabel(row) {
+  const year = text(row?.report_year, '');
+  const sourcePeriod = text(row?.report_period || row?.report_quarter, '').toUpperCase();
+  const sourcePeriodType = text(row?.report_period_type, '');
+  const periodNumber = sourcePeriod.match(/[1-4]/u)?.[0] || '';
+  const period = /^[QH][1-4]$/u.test(sourcePeriod)
+    ? sourcePeriod
+    : (periodNumber ? `${/분기|quarter/iu.test(sourcePeriodType) ? 'Q' : 'H'}${periodNumber}` : sourcePeriod);
+  return year && period ? `${year} ${period}` : text(row?.period_label || row?.label, year);
+}
+
+function capRateWideRowsFromDetail(rows) {
+  const grouped = new Map();
+  safeArray(rows).forEach((row, index) => {
+    const label = capRatePeriodLabel(row);
+    if (!label) return;
+    const normalized = { label };
+    CAP_RATE_WIDE_SERIES.forEach(({ key, sourceKey }) => {
+      const value = row?.[sourceKey] ?? row?.[key];
+      normalized[key] = value === null || value === undefined || value === '' ? null : normalizeRateRatio(value);
+    });
+    if (!CAP_RATE_WIDE_SERIES.some(({ key }) => normalized[key] !== null)) return;
+    const same2026Q1 = /^2026\s+Q1$/u.test(label);
+    const key = same2026Q1 ? label : `${label}:${index}`;
+    const current = grouped.get(key) || { label };
+    CAP_RATE_WIDE_SERIES.forEach(({ key: seriesKey }) => {
+      if (normalized[seriesKey] !== null) current[seriesKey] = normalized[seriesKey];
+    });
+    grouped.set(key, current);
+  });
+  return [...grouped.values()].sort((left, right) => periodSortValue(left.label) - periodSortValue(right.label));
+}
+
 function normalizeRateRatio(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 0;
@@ -5826,6 +5868,9 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const marketDetailRequestRef = useRef(0);
   const marketDetailCacheRef = useRef(new Map());
   const marketDetailCacheSourceRef = useRef('');
+  const capRateWideDetailCacheRef = useRef(new Map());
+  const capRateWideDetailRequestRef = useRef(null);
+  const [capRateWideDetailState, setCapRateWideDetailState] = useState({ sourceKey: '', rows: [] });
   const [leaseCenterMapOpen, setLeaseCenterMapOpen] = useState(false);
   const [txnWindow, setTxnWindow] = useState('3y');
   const [txnRegion, setTxnRegion] = useState('전체');
@@ -6611,22 +6656,60 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   });
   const capRateWideRows = [...capRateWideMap.values()]
     .sort((a, b) => periodSortValue(a.label) - periodSortValue(b.label));
+  useEffect(() => {
+    if (currentTab !== 'transactions' || !marketDetailCacheSourceIdentity) return undefined;
+    const sourceKey = `cap-rate-wide:${marketDetailCacheSourceIdentity}`;
+    if (capRateWideDetailCacheRef.current.has(sourceKey)) {
+      setCapRateWideDetailState({ sourceKey, rows: capRateWideDetailCacheRef.current.get(sourceKey) });
+      return undefined;
+    }
+    if (capRateWideDetailRequestRef.current?.sourceKey === sourceKey && !capRateWideDetailRequestRef.current.controller.signal.aborted) return undefined;
+
+    const controller = new AbortController();
+    capRateWideDetailRequestRef.current = { sourceKey, controller };
+    let disposed = false;
+    void (async () => {
+      try {
+        const response = await invokeEdgeDataWithTimeout('sector-market/detail/list', {
+          dataset: 'cap_rate',
+          page: 1,
+          page_size: 500,
+        }, undefined, { signal: controller.signal });
+        const rows = capRateWideRowsFromDetail(response?.rows || response?.items);
+        if (disposed || controller.signal.aborted || capRateWideDetailRequestRef.current?.controller !== controller) return;
+        capRateWideDetailCacheRef.current.set(sourceKey, rows);
+        if (rows.length) setCapRateWideDetailState({ sourceKey, rows });
+      } catch {
+        // Keep the already rendered transactions response when a background detail read fails.
+      }
+    })();
+    return () => {
+      disposed = true;
+      controller.abort();
+      if (capRateWideDetailRequestRef.current?.controller === controller) capRateWideDetailRequestRef.current = null;
+    };
+  }, [currentTab, marketDetailCacheSourceIdentity]);
+  const capRateWideRowsForDisplay = capRateWideDetailState.sourceKey === `cap-rate-wide:${marketDetailCacheSourceIdentity}`
+    && capRateWideDetailState.rows.length
+    ? capRateWideDetailState.rows
+    : capRateWideRows;
   const capRateWideColumns = [
-    { key: 'label', label: '시점', width: 140 },
+    { key: 'label', label: '시점', width: 140, sortValue: (row) => periodSortValue(row.label) },
     { key: 'bayesian_capital', label: '베이지안-수도권', align: 'right', width: 140, render: (row) => row.bayesian_capital == null ? '-' : formatRate(row.bayesian_capital), sortValue: (row) => number(row.bayesian_capital) },
     { key: 'bayesian_national', label: '베이지안-전국', align: 'right', width: 140, render: (row) => row.bayesian_national == null ? '-' : formatRate(row.bayesian_national), sortValue: (row) => number(row.bayesian_national) },
-    { key: 'general_capital', label: '일반-수도권', align: 'right', width: 130, render: (row) => row.general_capital == null ? '-' : formatRate(row.general_capital), sortValue: (row) => number(row.general_capital) },
-    { key: 'general_national', label: '일반-전국', align: 'right', width: 130, render: (row) => row.general_national == null ? '-' : formatRate(row.general_national), sortValue: (row) => number(row.general_national) },
     { key: 'weighted_capital', label: '가중평균-수도권', align: 'right', width: 150, render: (row) => row.weighted_capital == null ? '-' : formatRate(row.weighted_capital), sortValue: (row) => number(row.weighted_capital) },
     { key: 'weighted_national', label: '가중평균-전국', align: 'right', width: 150, render: (row) => row.weighted_national == null ? '-' : formatRate(row.weighted_national), sortValue: (row) => number(row.weighted_national) },
+    { key: 'general_capital', label: '일반-수도권', align: 'right', width: 130, render: (row) => row.general_capital == null ? '-' : formatRate(row.general_capital), sortValue: (row) => number(row.general_capital) },
+    { key: 'general_national', label: '일반-전국', align: 'right', width: 130, render: (row) => row.general_national == null ? '-' : formatRate(row.general_national), sortValue: (row) => number(row.general_national) },
   ];
-  const capRateChartRows = capRateTableRows
-    .map((row) => ({
-      ...row,
-      value: firstText(row.bayesian, row.general, row.weighted),
-      metric_label: '베이지안 기준, 팝업에서 일반/가중평균 함께 확인',
-    }))
-    .filter((row) => Number.isFinite(Number(row.value)));
+  const capRateChartRows = capRateWideRowsForDisplay.flatMap((row) => [
+    { label: row.label, series: '베이지안-수도권', value: row.bayesian_capital, metric_label: 'Cap Rate' },
+    { label: row.label, series: '베이지안-전국', value: row.bayesian_national, metric_label: 'Cap Rate' },
+    { label: row.label, series: '가중평균-수도권', value: row.weighted_capital, metric_label: 'Cap Rate' },
+    { label: row.label, series: '가중평균-전국', value: row.weighted_national, metric_label: 'Cap Rate' },
+    { label: row.label, series: '일반-수도권', value: row.general_capital, metric_label: 'Cap Rate' },
+    { label: row.label, series: '일반-전국', value: row.general_national, metric_label: 'Cap Rate' },
+  ].filter((item) => item.label && Number.isFinite(Number(item.value))));
   const supplyRowsForPeriod = (periodLabel, seriesType) => {
     const targetSort = periodSortValue(periodLabel);
     const baseRows = seriesType === 'cumulative_supply'
@@ -7242,12 +7325,13 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
                     type: 'cap-rate-explorer',
                     title: 'Cap Rate 추이 상세',
                     dataset: 'cap_rate',
-                    rows: capRateWideRows,
+                    rows: capRateWideRowsForDisplay,
                     columns: capRateWideColumns,
+                    detailEnabled: false,
                     minWidth: 1040,
                     pageSize: 200,
                     columnGroups: ['기간', '권역', 'Cap Rate', '산정방식'],
-                    defaultSort: { key: 'report_year', direction: 'asc' },
+                    defaultSort: { key: 'label', direction: 'asc' },
                   })}
                   className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5"
                 >
@@ -7269,12 +7353,13 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
                 type: 'cap-rate-explorer',
                 title: 'Cap Rate 추이 전체 상세',
                 dataset: 'cap_rate',
-                rows: capRateWideRows,
+                rows: capRateWideRowsForDisplay,
                 columns: capRateWideColumns,
+                detailEnabled: false,
                 minWidth: 1040,
                 pageSize: 200,
                 columnGroups: ['기간', '권역', 'Cap Rate', '산정방식'],
-                defaultSort: { key: 'report_year', direction: 'asc' },
+                defaultSort: { key: 'label', direction: 'asc' },
               })}
             />
           </section>

@@ -32,6 +32,15 @@ const FORBIDDEN_PUBLIC_FIELDS = [
   'natural_key',
 ];
 
+const CAP_RATE_WIDE_HEADERS = [
+  '베이지안-수도권',
+  '베이지안-전국',
+  '가중평균-수도권',
+  '가중평균-전국',
+  '일반-수도권',
+  '일반-전국',
+];
+
 function read(filePath) {
   return fs.readFileSync(filePath, 'utf8');
 }
@@ -294,11 +303,14 @@ test('transaction statistics workbook rows are reachable from the transactions t
   assert.match(ui, /dataset:\s*'transaction_statistics'/u);
 });
 
-test('Cap Rate detail reads every workbook method and publishes percentage units', () => {
+test('Cap Rate detail keeps all source values but exposes one 115-row wide period table without a type row', () => {
   const edge = read(EDGE_PATH);
   const sourceConfig = sourceWindow(edge, 'const SECTOR_MARKET_SOURCE_DETAIL_DATASETS', 2400);
   const parser = functionBlock(edge, 'parseSectorMarketCapRateDetailRows');
+  const wideRows = functionBlock(edge, 'sectorMarketCapRateWideRows');
   const sourceDetail = functionBlock(edge, 'callSectorMarketSourceDetailList');
+  const ui = read(MARKET_UI_PATH);
+  const wideColumns = sourceWindow(ui, 'const capRateWideColumns', 2600);
 
   assert.match(sourceConfig, /cap_rate:\s*\{[\s\S]*?mode:\s*'cap_rate'/u);
   for (const method of ['베이지안', '일반', '가중평균']) {
@@ -313,6 +325,18 @@ test('Cap Rate detail reads every workbook method and publishes percentage units
   assert.match(sourceDetail, /normalizedBayesianRows/u);
   assert.match(sourceDetail, /parsedSourceRows\.filter\(\(row\) => safeText\(row\.method\) !== '베이지안'\)/u);
   assert.match(sourceDetail, /unit:\s*'%'/u);
+  assert.match(sourceDetail, /source_row_count:\s*sourceLongRows\.length/u);
+  assert.match(sourceDetail, /source_value_count:\s*sourceValueCount/u);
+  assert.match(wideRows, /const rowKey = `\$\{reportYear\}-\$\{periodType\}-\$\{reportPeriod\}`/u,
+    'the wide table must merge same-period method values instead of emitting a Cap Rate type row');
+  assert.match(wideRows, /weighted_average_capital_area_cap_rate/u);
+  assert.match(wideRows, /general_national_cap_rate/u);
+  assert.doesNotMatch(wideColumns, /Cap Rate 종류/u, 'the popup must not reintroduce a Cap Rate type column');
+  const wideHeaderLabels = [...wideColumns.matchAll(/label:\s*'((?:베이지안|가중평균|일반)-(?:수도권|전국))'/gu)].map((match) => match[1]);
+  assert.equal(wideHeaderLabels.length, CAP_RATE_WIDE_HEADERS.length,
+    'the local wide-row fallback must retain all six method-by-region columns');
+  assert.match(ui, /rows=\{capRateChartRows\}/u,
+    'the Cap Rate chart must remain connected to the same market-data view; live QA verifies the six rendered series and legend');
 });
 
 test('Supply Pipeline and transaction case popups pin only asset name and address first', () => {
