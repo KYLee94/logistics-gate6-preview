@@ -6572,16 +6572,15 @@ function parseSectorMarketCapRateDetailRows(rows: Record<string, unknown>[], col
     return Math.abs(parsed) > 1 ? parsed / 100 : parsed;
   };
   const sections = [
-    { method: '베이지안', titleColumn: 2, yearColumn: 2, periodColumn: 3, capitalColumn: 4, nationalColumn: 5, titlePattern: /cap\.?\s*rate.*베이지안/iu },
-    { method: '일반', titleColumn: 2, yearColumn: 2, periodColumn: 3, capitalColumn: 4, nationalColumn: 5, titlePattern: /cap\.?\s*rate.*일반/iu },
-    { method: '가중평균', titleColumn: 7, yearColumn: 7, periodColumn: 8, capitalColumn: 9, nationalColumn: 10, titlePattern: /cap\.?\s*rate.*가중/iu },
+    { method: '베이지안', titleColumn: 2, yearColumn: 2, periodColumn: 3, capitalColumn: 4, nationalColumn: 5, titlePattern: /cap\.?\s*rate.*베이지안/iu, fallbackTitleRowNumber: 4 },
+    { method: '일반', titleColumn: 2, yearColumn: 2, periodColumn: 3, capitalColumn: 4, nationalColumn: 5, titlePattern: /cap\.?\s*rate.*일반/iu, fallbackTitleRowNumber: 94 },
+    { method: '가중평균', titleColumn: 7, yearColumn: 7, periodColumn: 8, capitalColumn: 9, nationalColumn: 10, titlePattern: /cap\.?\s*rate.*가중/iu, fallbackTitleRowNumber: 94 },
   ] as const;
   const parsed: Record<string, unknown>[] = [];
 
   sections.forEach((section) => {
     const titleRow = sortedRows.find((row) => section.titlePattern.test(safeText(cell(row, section.titleColumn))));
-    if (!titleRow) return;
-    const titleRowNumber = Number(titleRow.row_number || 0);
+    const titleRowNumber = Number(titleRow?.row_number || section.fallbackTitleRowNumber);
     let currentYear = 0;
     let started = false;
     for (const row of sortedRows) {
