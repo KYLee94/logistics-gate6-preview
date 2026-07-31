@@ -7,13 +7,28 @@ const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
 const DETAIL_DATASETS = ['lease_current', 'lease_history', 'lease_statistics', 'supply_new', 'supply_pipeline', 'supply_cumulative', 'transaction_cases', 'transaction_statistics', 'cap_rate'];
 const CAP_RATE_WIDE_HEADERS = [
-  '베이지안-수도권',
-  '베이지안-전국',
-  '가중평균-수도권',
-  '가중평균-전국',
   '일반-수도권',
   '일반-전국',
+  '가중평균-수도권',
+  '가중평균-전국',
+  '베이지안-수도권',
+  '베이지안-전국',
 ];
+const CAP_RATE_CHART_METHOD_ORDER = ['일반', '가중평균', '베이지안'];
+const CAP_RATE_CHART_SERIES_BY_METHOD = {
+  일반: ['일반-수도권', '일반-전국'],
+  가중평균: ['가중평균-수도권', '가중평균-전국'],
+  베이지안: ['베이지안-수도권', '베이지안-전국'],
+};
+const CAP_RATE_CHART_COLORS = {
+  '일반-수도권': '#34A853',
+  '일반-전국': '#A3E635',
+  '가중평균-수도권': '#2563EB',
+  '가중평균-전국': '#7DD3FC',
+  '베이지안-수도권': '#DC2626',
+  '베이지안-전국': '#F472B6',
+};
+const CAP_RATE_CHART_SERIES_ORDER = CAP_RATE_CHART_METHOD_ORDER.flatMap((method) => CAP_RATE_CHART_SERIES_BY_METHOD[method]);
 const CAP_RATE_SOURCE_ROW_COUNT = 148;
 const CAP_RATE_SOURCE_VALUE_COUNT = 296;
 const CAP_RATE_WIDE_PERIOD_ROW_COUNT = 115;
@@ -70,6 +85,10 @@ function envValue(...keys) {
 function optionValue(name, fallback = '') {
   const index = process.argv.indexOf(`--${name}`);
   return index >= 0 ? (process.argv[index + 1] || fallback) : fallback;
+}
+
+function hasFlag(name) {
+  return process.argv.includes(`--${name}`);
 }
 
 function timestamp() {
@@ -176,12 +195,12 @@ function assertCapRateNetworkContract(data) {
   const rateColumns = (Array.isArray(data.columns) ? data.columns : [])
     .filter((column) => /(?:bayesian|weighted_average|general)_(?:capital_area|national)_cap_rate$/u.test(column.key));
   const expectedKeys = [
-    'bayesian_capital_area_cap_rate',
-    'bayesian_national_cap_rate',
-    'weighted_average_capital_area_cap_rate',
-    'weighted_average_national_cap_rate',
     'general_capital_area_cap_rate',
     'general_national_cap_rate',
+    'weighted_average_capital_area_cap_rate',
+    'weighted_average_national_cap_rate',
+    'bayesian_capital_area_cap_rate',
+    'bayesian_national_cap_rate',
   ];
   if (!sameLabels(rateColumns.map((column) => column.key), expectedKeys) || !rateColumns.every((column) => column.unit === '%')) {
     throw new Error(`cap_rate: network response must expose six ordered percent columns, received ${JSON.stringify(rateColumns)}`);
@@ -256,7 +275,7 @@ async function inspectDialog(page, dialog, dataset, detailData = {}, contractId 
     const headerPositions = headers.map((header) => getComputedStyle(header).position);
     const addressColumnIndex = headerLabels.findIndex((label) => /(?:소재지|주소|대지\s*위치|위치)/u.test(label));
     const capRateColumnIndexes = headerLabels
-      .map((label, index) => (/^(?:베이지안|가중평균|일반)-(?:수도권|전국)$/u.test(label) ? index : -1))
+      .map((label, index) => (/^(?:베이지안|가중평균|일반)-(?:수도권|전국)(?:\s*[↕▲▼])?$/u.test(label) ? index : -1))
       .filter((index) => index >= 0);
     const capRateCells = bodyRows.flatMap((row) => capRateColumnIndexes.map((index) => (
       row.querySelectorAll('td')[index]?.textContent || ''
@@ -276,7 +295,7 @@ async function inspectDialog(page, dialog, dataset, detailData = {}, contractId 
       identity_columns_first: /(?:자산명|물류센터명|센터명)/u.test(headerLabels[0] || '') && /(?:소재지|주소)/u.test(headerLabels[1] || ''),
       exactly_two_sticky_columns: headerPositions[0] === 'sticky' && headerPositions[1] === 'sticky' && headerPositions.slice(2).every((position) => position !== 'sticky'),
       cap_rate_type_column_count: headerLabels.filter((label) => /Cap Rate 종류/u.test(label)).length,
-      cap_rate_wide_headers: capRateColumnIndexes.map((index) => headerLabels[index]),
+      cap_rate_wide_headers: capRateColumnIndexes.map((index) => headerLabels[index].replace(/\s*[↕▲▼]$/u, '')),
       cap_rate_value_count: capRateCells.length,
       invalid_cap_rate_value_count: capRateCells.filter((value) => !/^-?\d+(?:,\d{3})*\.\d{2}%$/u.test(value)).length,
       header_overlap_count: headerOverlapCount,
@@ -342,7 +361,21 @@ async function inspectDialog(page, dialog, dataset, detailData = {}, contractId 
   };
 }
 
-async function inspectCapRateChart(section) {
+function expectedCapRateSeries(selectedMethods) {
+  return CAP_RATE_CHART_METHOD_ORDER
+    .filter((method) => selectedMethods.includes(method))
+    .flatMap((method) => CAP_RATE_CHART_SERIES_BY_METHOD[method]);
+}
+
+function hexToRgb(hex) {
+  const value = String(hex || '').replace('#', '');
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+  return `rgb(${red}, ${green}, ${blue})`;
+}
+
+async function inspectCapRateChart(page, section, selectedMethods) {
   const chart = section.locator('[data-chart-role="multi-line"][data-chart-empty="false"]');
   await waitVisible(chart, 'Cap Rate chart');
   if (await chart.count() !== 1) {
@@ -350,15 +383,66 @@ async function inspectCapRateChart(section) {
   }
   const legendLabels = (await chart.getByRole('button').allTextContents()).map(normalizedText).filter(Boolean);
   const lineCount = await chart.locator('svg polyline').count();
+  const expectedSeries = expectedCapRateSeries(selectedMethods);
+  const selector = section.locator('[data-testid="market-transactions-cap-rate-method-selector"]');
+  await waitVisible(selector, 'Cap Rate method selector');
+  const controls = selector.locator('[data-cap-rate-method]');
+  const controlState = await controls.evaluateAll((nodes) => nodes.map((node) => ({
+    method: node.getAttribute('data-cap-rate-method') || (node.textContent || '').trim(),
+    pressed: node.getAttribute('aria-pressed'),
+  })));
+  const selected = controlState.filter((item) => item.pressed === 'true').map((item) => item.method);
+  const colorChecks = [];
+  for (const series of expectedSeries) {
+    const legend = chart.getByRole('button', { name: series });
+    const swatch = legend.locator('span').first();
+    colorChecks.push({
+      series,
+      actual: await swatch.evaluate((node) => getComputedStyle(node).backgroundColor),
+      expected: hexToRgb(CAP_RATE_CHART_COLORS[series]),
+    });
+  }
   const check = {
     legend_labels: legendLabels,
     line_count: lineCount,
-    ok: sameLabels(legendLabels, CAP_RATE_WIDE_HEADERS) && lineCount === CAP_RATE_WIDE_HEADERS.length,
+    method_order: controlState.map((item) => item.method),
+    selected_methods: selected,
+    expected_series: expectedSeries,
+    colors: colorChecks,
+    ok: sameLabels(controlState.map((item) => item.method), CAP_RATE_CHART_METHOD_ORDER)
+      && sameLabels(selected, selectedMethods)
+      && sameLabels(legendLabels, expectedSeries)
+      && lineCount === expectedSeries.length
+      && colorChecks.every((item) => item.actual === item.expected),
   };
   if (!check.ok) {
-    throw new Error(`cap_rate chart must render six method-by-region series and legends: ${JSON.stringify(check)}`);
+    throw new Error(`cap_rate chart selection, series order, or color contract failed: ${JSON.stringify(check)}`);
   }
   return check;
+}
+
+async function selectCapRateMethod(page, section, method, selectedMethods) {
+  const selector = section.locator('[data-testid="market-transactions-cap-rate-method-selector"]');
+  const control = selector.locator(`[data-cap-rate-method="${method}"]`);
+  await waitVisible(control, `Cap Rate ${method} selector`);
+  await control.click();
+  const expectedSeries = expectedCapRateSeries(selectedMethods);
+  await page.waitForFunction(({ testId, expected }) => {
+    const sectionNode = document.querySelector(`[data-testid="${testId}"]`);
+    const chart = sectionNode?.querySelector('[data-chart-role="multi-line"][data-chart-empty="false"]');
+    if (!chart) return false;
+    const legends = [...chart.querySelectorAll('button')].map((node) => (node.textContent || '').replace(/\s+/g, ' ').trim());
+    return legends.length === expected.length && legends.every((label, index) => label === expected[index]);
+  }, { testId: 'market-transactions-cap-rate', expected: expectedSeries }, { timeout: 10000 });
+}
+
+async function runCapRateSelectionChecks(page, section) {
+  const initial = await inspectCapRateChart(page, section, ['일반']);
+  await selectCapRateMethod(page, section, '가중평균', ['일반', '가중평균']);
+  const withWeightedAverage = await inspectCapRateChart(page, section, ['일반', '가중평균']);
+  await selectCapRateMethod(page, section, '베이지안', ['일반', '가중평균', '베이지안']);
+  const withBayesian = await inspectCapRateChart(page, section, ['일반', '가중평균', '베이지안']);
+  return { initial, with_weighted_average: withWeightedAverage, with_bayesian: withBayesian };
 }
 
 async function signInThroughBrowser(page, email, password) {
@@ -486,12 +570,35 @@ async function openInventoryPopup(page, entry, functionActions, detailDataByData
   return { ...check, id: entry.id, route: entry.route, request_observed: Boolean(response) };
 }
 
+async function runCapRateOnlyBrowserCheck(page, baseUrl, email, password, functionActions, detailData) {
+  await page.goto(joinUrl(baseUrl, 'market-data/transactions'), { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await signInThroughBrowser(page, email, password);
+  await page.goto(joinUrl(baseUrl, 'market-data/transactions'), { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await waitVisible(page.locator('[data-testid="market-data-dashboard"]'), 'transactions dashboard after real login');
+
+  const capRateSection = page.locator('[data-testid="market-transactions-cap-rate"]');
+  await waitVisible(capRateSection, 'Cap Rate section');
+  const chart = await runCapRateSelectionChecks(page, capRateSection);
+  const popup = await openTriggeredPopup(
+    page,
+    'cap_rate',
+    capRateSection.getByRole('button', { name: '값 테이블 보기' }),
+    functionActions,
+    detailData,
+    'cap-rate-button',
+    false,
+  );
+  if (!popup.ok) throw new Error(`Cap Rate popup contract failed: ${JSON.stringify(popup)}`);
+  return { chart, popup };
+}
+
 async function main() {
   const baseUrl = optionValue('base-url', DEFAULT_BASE_URL);
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   const email = optionValue('email', envValue('LOGISTICS_SUPABASE_EMAIL', 'LOGISTICS_SUPABASE_AUTH_EMAIL'));
   const password = optionValue('password', envValue('LOGISTICS_SUPABASE_PASSWORD', 'LOGISTICS_SUPABASE_AUTH_PASSWORD'));
+  const capRateOnly = hasFlag('cap-rate-only');
   if (!supabaseUrl || !anonKey || !email || !password) throw new Error('A real QA login and Supabase URL/key are required. Access-token or localStorage session injection is intentionally unsupported.');
 
   const authResponse = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/auth/v1/token?grant_type=password`, {
@@ -504,7 +611,7 @@ async function main() {
 
   const apiChecks = [];
   const detailDataByDataset = new Map();
-  for (const dataset of DETAIL_DATASETS) {
+  for (const dataset of (capRateOnly ? ['cap_rate'] : DETAIL_DATASETS)) {
     const firstPage = await invokeDetail(supabaseUrl, anonKey, auth.access_token, dataset);
     assertDetailResponse(dataset, firstPage, 100);
     const cappedPage = await invokeDetail(supabaseUrl, anonKey, auth.access_token, dataset, { page_size: 9999 });
@@ -541,6 +648,34 @@ async function main() {
   });
 
   try {
+    if (capRateOnly) {
+      const capRateCheck = await runCapRateOnlyBrowserCheck(
+        page,
+        baseUrl,
+        email,
+        password,
+        functionActions,
+        detailDataByDataset.get('cap_rate'),
+      );
+      if (functionActions.some((action) => /(?:ingest|upload|create|update|delete|approve|submit)/iu.test(action))) {
+        throw new Error(`QA issued a non-read-only Edge action: ${functionActions.join(', ')}`);
+      }
+      fs.mkdirSync(OUT_DIR, { recursive: true });
+      const outputPath = path.join(OUT_DIR, `market-detail-browser-contract-cap-rate-${timestamp()}.json`);
+      fs.writeFileSync(outputPath, JSON.stringify({
+        ok: true,
+        cap_rate_only: true,
+        generated_at: new Date().toISOString(),
+        base_url: baseUrl,
+        login: 'real-browser-password-login',
+        api_checks: apiChecks,
+        function_actions: functionActions,
+        cap_rate: capRateCheck,
+      }, null, 2));
+      process.stdout.write(`${JSON.stringify({ ok: true, cap_rate_only: true, output: path.relative(ROOT, outputPath).replace(/\\/gu, '/') })}\n`);
+      return;
+    }
+
     await page.goto(joinUrl(baseUrl, 'market-data/supply-pipeline'), { waitUntil: 'domcontentloaded', timeout: 60000 });
     await signInThroughBrowser(page, email, password);
     await page.goto(joinUrl(baseUrl, 'market-data/supply-pipeline'), { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -614,7 +749,7 @@ async function main() {
       ),
     ];
     const capRateSection = page.locator('section').filter({ hasText: 'Cap Rate 추이' }).last();
-    const capRateChartCheck = await inspectCapRateChart(capRateSection);
+    const capRateChartCheck = await runCapRateSelectionChecks(page, capRateSection);
     transactionChecks.push(await openTriggeredPopup(
       page,
       'cap_rate',

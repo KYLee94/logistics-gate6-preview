@@ -33,13 +33,28 @@ const FORBIDDEN_PUBLIC_FIELDS = [
 ];
 
 const CAP_RATE_WIDE_HEADERS = [
-  '베이지안-수도권',
-  '베이지안-전국',
-  '가중평균-수도권',
-  '가중평균-전국',
   '일반-수도권',
   '일반-전국',
+  '가중평균-수도권',
+  '가중평균-전국',
+  '베이지안-수도권',
+  '베이지안-전국',
 ];
+
+const CAP_RATE_CHART_METHOD_ORDER = ['일반', '가중평균', '베이지안'];
+const CAP_RATE_CHART_SERIES_BY_METHOD = {
+  일반: ['일반-수도권', '일반-전국'],
+  가중평균: ['가중평균-수도권', '가중평균-전국'],
+  베이지안: ['베이지안-수도권', '베이지안-전국'],
+};
+const CAP_RATE_CHART_COLORS = {
+  '일반-수도권': '#34A853',
+  '일반-전국': '#A3E635',
+  '가중평균-수도권': '#2563EB',
+  '가중평균-전국': '#7DD3FC',
+  '베이지안-수도권': '#DC2626',
+  '베이지안-전국': '#F472B6',
+};
 
 function read(filePath) {
   return fs.readFileSync(filePath, 'utf8');
@@ -333,10 +348,50 @@ test('Cap Rate detail keeps all source values but exposes one 115-row wide perio
   assert.match(wideRows, /general_national_cap_rate/u);
   assert.doesNotMatch(wideColumns, /Cap Rate 종류/u, 'the popup must not reintroduce a Cap Rate type column');
   const wideHeaderLabels = [...wideColumns.matchAll(/label:\s*'((?:베이지안|가중평균|일반)-(?:수도권|전국))'/gu)].map((match) => match[1]);
-  assert.equal(wideHeaderLabels.length, CAP_RATE_WIDE_HEADERS.length,
-    'the local wide-row fallback must retain all six method-by-region columns');
+  assert.deepEqual(wideHeaderLabels, CAP_RATE_WIDE_HEADERS,
+    'the popup fallback must retain the requested general, weighted average, Bayesian column order');
+  const edgeColumnLabels = [...sourceDetail.matchAll(/label:\s*'((?:베이지안|가중평균|일반)\s+(?:수도권|전국)\s+Cap Rate)'/gu)].map((match) => match[1]);
+  assert.deepEqual(edgeColumnLabels, [
+    '일반 수도권 Cap Rate',
+    '일반 전국 Cap Rate',
+    '가중평균 수도권 Cap Rate',
+    '가중평균 전국 Cap Rate',
+    '베이지안 수도권 Cap Rate',
+    '베이지안 전국 Cap Rate',
+  ], 'the Edge detail API must expose the same ordered six columns as the popup');
   assert.match(ui, /rows=\{capRateChartRows\}/u,
     'the Cap Rate chart must remain connected to the same market-data view; live QA verifies the six rendered series and legend');
+});
+
+test('Cap Rate chart uses ordered multi-select methods, initially renders only 일반, and keeps method-region colors fixed', () => {
+  const ui = read(MARKET_UI_PATH);
+  const methodSelector = sourceWindow(ui, 'data-testid="market-transactions-cap-rate-method-selector"', 5000);
+  const chartSection = sourceWindow(ui, 'data-testid="market-transactions-cap-rate"', 9000);
+
+  assert.match(methodSelector, /data-cap-rate-method/u,
+    'each Cap Rate method control needs a stable selector for browser QA');
+  assert.match(methodSelector, /aria-pressed=/u,
+    'method controls must expose their selected state to assistive technology and browser QA');
+  assert.match(methodSelector, /useState\(\['일반'\]\)/u,
+    'the default chart selection must be 일반 only');
+
+  const methodPositions = CAP_RATE_CHART_METHOD_ORDER.map((method) => methodSelector.indexOf(`'${method}'`));
+  assert.ok(methodPositions.every((position) => position >= 0), 'all three Cap Rate methods must be selectable');
+  assert.deepEqual([...methodPositions].sort((left, right) => left - right), methodPositions,
+    'method controls must be ordered 일반, 가중평균, 베이지안');
+
+  for (const [method, series] of Object.entries(CAP_RATE_CHART_SERIES_BY_METHOD)) {
+    assert.match(chartSection, new RegExp(method, 'u'), `${method} must remain available to the chart`);
+    for (const item of series) {
+      assert.match(chartSection, new RegExp(item, 'u'), `${item} must be a distinct chart series`);
+    }
+  }
+  for (const [series, color] of Object.entries(CAP_RATE_CHART_COLORS)) {
+    assert.match(chartSection, new RegExp(`${series}[\\s\\S]{0,180}${color}`, 'u'),
+      `${series} must keep the requested fixed color regardless of selection state`);
+  }
+  assert.match(chartSection, /seriesOrder=\{CAP_RATE_CHART_SERIES_ORDER\}/u,
+    'legend order must not depend on source row order');
 });
 
 test('Supply Pipeline and transaction case popups pin only asset name and address first', () => {

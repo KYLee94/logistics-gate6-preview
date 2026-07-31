@@ -1159,13 +1159,34 @@ function formatRate(value) {
 }
 
 const CAP_RATE_WIDE_SERIES = [
-  { key: 'bayesian_capital', sourceKey: 'bayesian_capital_area_cap_rate', label: '베이지안-수도권' },
-  { key: 'bayesian_national', sourceKey: 'bayesian_national_cap_rate', label: '베이지안-전국' },
-  { key: 'weighted_capital', sourceKey: 'weighted_average_capital_area_cap_rate', label: '가중평균-수도권' },
-  { key: 'weighted_national', sourceKey: 'weighted_average_national_cap_rate', label: '가중평균-전국' },
   { key: 'general_capital', sourceKey: 'general_capital_area_cap_rate', label: '일반-수도권' },
   { key: 'general_national', sourceKey: 'general_national_cap_rate', label: '일반-전국' },
+  { key: 'weighted_capital', sourceKey: 'weighted_average_capital_area_cap_rate', label: '가중평균-수도권' },
+  { key: 'weighted_national', sourceKey: 'weighted_average_national_cap_rate', label: '가중평균-전국' },
+  { key: 'bayesian_capital', sourceKey: 'bayesian_capital_area_cap_rate', label: '베이지안-수도권' },
+  { key: 'bayesian_national', sourceKey: 'bayesian_national_cap_rate', label: '베이지안-전국' },
 ];
+
+const CAP_RATE_CHART_SERIES_ORDER = [
+  '일반-수도권',
+  '일반-전국',
+  '가중평균-수도권',
+  '가중평균-전국',
+  '베이지안-수도권',
+  '베이지안-전국',
+];
+const CAP_RATE_CHART_COLORS = {
+  '일반-수도권': '#34A853',
+  '일반-전국': '#A3E635',
+  '가중평균-수도권': '#2563EB',
+  '가중평균-전국': '#7DD3FC',
+  '베이지안-수도권': '#DC2626',
+  '베이지안-전국': '#F472B6',
+};
+
+function capRateChartColor(series, index) {
+  return CAP_RATE_CHART_COLORS[text(series)] || chartSeriesColor(series, index);
+}
 
 function capRatePeriodLabel(row) {
   const year = text(row?.report_year, '');
@@ -4362,6 +4383,8 @@ function MultiLineChart({
   formatter = formatNumber,
   valueLabel = '값',
   onPointClick = null,
+  colorFor = chartSeriesColor,
+  seriesOrder = null,
   yMin = 0,
   yMax = null,
   yStep = null,
@@ -4373,7 +4396,12 @@ function MultiLineChart({
   const [focusedSeries, setFocusedSeries] = useState('');
   const sourceRows = safeArray(rows).filter((row) => text(row.label, '') && text(row.series, '') && Number.isFinite(Number(row.value)));
   const labels = [...new Set(sourceRows.map((row) => text(row.label)))].sort((a, b) => periodSortValue(a) - periodSortValue(b) || a.localeCompare(b, 'ko'));
-  const series = [...new Set(sourceRows.map((row) => text(row.series)))];
+  const discoveredSeries = [...new Set(sourceRows.map((row) => text(row.series)))];
+  const requestedSeries = safeArray(seriesOrder).map((item) => text(item)).filter(Boolean);
+  const series = requestedSeries.length
+    ? [...requestedSeries.filter((item) => discoveredSeries.includes(item)), ...discoveredSeries.filter((item) => !requestedSeries.includes(item))]
+    : discoveredSeries;
+  const effectiveFocusedSeries = series.includes(focusedSeries) ? focusedSeries : '';
   const axisMin = Number.isFinite(Number(yMin)) ? Number(yMin) : 0;
   const rawMax = Math.max(...sourceRows.map((row) => number(row.value)), 1);
   const axisMax = Number.isFinite(Number(yMax)) && Number(yMax) > axisMin ? Number(yMax) : rawMax;
@@ -4422,10 +4450,10 @@ function MultiLineChart({
                 const row = sourceRows.find((candidate) => text(candidate.label) === label && text(candidate.series) === item);
                 return row ? [xFor(index), yFor(row.value), row] : null;
               }).filter(Boolean);
-              const active = !focusedSeries || focusedSeries === item;
+              const active = !effectiveFocusedSeries || effectiveFocusedSeries === item;
               return (
                 <g key={item}>
-                  {points.length > 1 ? <polyline points={points.map(([x, y]) => `${x},${y}`).join(' ')} fill="none" stroke={active ? chartSeriesColor(item, seriesIndex) : '#5A5A5E'} strokeWidth="2.5" opacity={active ? 0.95 : 0.38} /> : null}
+                  {points.length > 1 ? <polyline points={points.map(([x, y]) => `${x},${y}`).join(' ')} fill="none" stroke={active ? colorFor(item, seriesIndex) : '#5A5A5E'} strokeWidth="2.5" opacity={active ? 0.95 : 0.38} /> : null}
                   {points.map(([x, y, row]) => (
                     <circle
                       key={`${item}-${row.label}`}
@@ -4433,7 +4461,7 @@ function MultiLineChart({
                       cx={x}
                       cy={y}
                       r="4.5"
-                      fill={active ? chartSeriesColor(item, seriesIndex) : '#5A5A5E'}
+                      fill={active ? colorFor(item, seriesIndex) : '#5A5A5E'}
                       opacity={active ? 1 : 0.45}
                       className={onPointClick ? 'cursor-pointer' : ''}
                       onClick={() => onPointClick?.(row)}
@@ -4454,7 +4482,7 @@ function MultiLineChart({
           </svg>
           <div className={`flex flex-wrap gap-3 text-[11px] text-[#A1A1AA] ${legendAlign === 'center' ? 'justify-center' : ''}`}>
             {series.map((item, index) => {
-              const active = !focusedSeries || focusedSeries === item;
+              const active = !effectiveFocusedSeries || effectiveFocusedSeries === item;
               return (
                 <button
                   key={item}
@@ -4462,7 +4490,7 @@ function MultiLineChart({
                   onClick={() => setFocusedSeries((current) => current === item ? '' : item)}
                   className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 transition ${active ? 'border-[#3A3A3C] text-white' : 'border-transparent text-[#86868B] opacity-70'} hover:border-[#5A5A5E] hover:text-white`}
                 >
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: active ? chartSeriesColor(item, index) : '#5A5A5E' }} />
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: active ? colorFor(item, index) : '#5A5A5E' }} />
                   {item}
                 </button>
               );
@@ -5871,6 +5899,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const capRateWideDetailCacheRef = useRef(new Map());
   const capRateWideDetailRequestRef = useRef(null);
   const [capRateWideDetailState, setCapRateWideDetailState] = useState({ sourceKey: '', rows: [] });
+  const [selectedCapRateMethods, setSelectedCapRateMethods] = useState(['일반']);
   const [leaseCenterMapOpen, setLeaseCenterMapOpen] = useState(false);
   const [txnWindow, setTxnWindow] = useState('3y');
   const [txnRegion, setTxnRegion] = useState('전체');
@@ -6642,12 +6671,12 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     const scope = /수도권/u.test(text(row.series)) ? 'capital' : 'national';
     const current = capRateWideMap.get(label) || {
       label,
-      bayesian_capital: null,
-      bayesian_national: null,
       general_capital: null,
       general_national: null,
       weighted_capital: null,
       weighted_national: null,
+      bayesian_capital: null,
+      bayesian_national: null,
     };
     current[`bayesian_${scope}`] = row.bayesian;
     current[`general_${scope}`] = row.general;
@@ -6695,21 +6724,27 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     : capRateWideRows;
   const capRateWideColumns = [
     { key: 'label', label: '시점', width: 140, sortValue: (row) => periodSortValue(row.label) },
-    { key: 'bayesian_capital', label: '베이지안-수도권', align: 'right', width: 140, render: (row) => row.bayesian_capital == null ? '-' : formatRate(row.bayesian_capital), sortValue: (row) => number(row.bayesian_capital) },
-    { key: 'bayesian_national', label: '베이지안-전국', align: 'right', width: 140, render: (row) => row.bayesian_national == null ? '-' : formatRate(row.bayesian_national), sortValue: (row) => number(row.bayesian_national) },
-    { key: 'weighted_capital', label: '가중평균-수도권', align: 'right', width: 150, render: (row) => row.weighted_capital == null ? '-' : formatRate(row.weighted_capital), sortValue: (row) => number(row.weighted_capital) },
-    { key: 'weighted_national', label: '가중평균-전국', align: 'right', width: 150, render: (row) => row.weighted_national == null ? '-' : formatRate(row.weighted_national), sortValue: (row) => number(row.weighted_national) },
     { key: 'general_capital', label: '일반-수도권', align: 'right', width: 130, render: (row) => row.general_capital == null ? '-' : formatRate(row.general_capital), sortValue: (row) => number(row.general_capital) },
     { key: 'general_national', label: '일반-전국', align: 'right', width: 130, render: (row) => row.general_national == null ? '-' : formatRate(row.general_national), sortValue: (row) => number(row.general_national) },
+    { key: 'weighted_capital', label: '가중평균-수도권', align: 'right', width: 150, render: (row) => row.weighted_capital == null ? '-' : formatRate(row.weighted_capital), sortValue: (row) => number(row.weighted_capital) },
+    { key: 'weighted_national', label: '가중평균-전국', align: 'right', width: 150, render: (row) => row.weighted_national == null ? '-' : formatRate(row.weighted_national), sortValue: (row) => number(row.weighted_national) },
+    { key: 'bayesian_capital', label: '베이지안-수도권', align: 'right', width: 140, render: (row) => row.bayesian_capital == null ? '-' : formatRate(row.bayesian_capital), sortValue: (row) => number(row.bayesian_capital) },
+    { key: 'bayesian_national', label: '베이지안-전국', align: 'right', width: 140, render: (row) => row.bayesian_national == null ? '-' : formatRate(row.bayesian_national), sortValue: (row) => number(row.bayesian_national) },
   ];
-  const capRateChartRows = capRateWideRowsForDisplay.flatMap((row) => [
-    { label: row.label, series: '베이지안-수도권', value: row.bayesian_capital, metric_label: 'Cap Rate' },
-    { label: row.label, series: '베이지안-전국', value: row.bayesian_national, metric_label: 'Cap Rate' },
-    { label: row.label, series: '가중평균-수도권', value: row.weighted_capital, metric_label: 'Cap Rate' },
-    { label: row.label, series: '가중평균-전국', value: row.weighted_national, metric_label: 'Cap Rate' },
-    { label: row.label, series: '일반-수도권', value: row.general_capital, metric_label: 'Cap Rate' },
-    { label: row.label, series: '일반-전국', value: row.general_national, metric_label: 'Cap Rate' },
+  const allCapRateChartRows = capRateWideRowsForDisplay.flatMap((row) => [
+    { label: row.label, method: '일반', series: '일반-수도권', value: row.general_capital, metric_label: 'Cap Rate' },
+    { label: row.label, method: '일반', series: '일반-전국', value: row.general_national, metric_label: 'Cap Rate' },
+    { label: row.label, method: '가중평균', series: '가중평균-수도권', value: row.weighted_capital, metric_label: 'Cap Rate' },
+    { label: row.label, method: '가중평균', series: '가중평균-전국', value: row.weighted_national, metric_label: 'Cap Rate' },
+    { label: row.label, method: '베이지안', series: '베이지안-수도권', value: row.bayesian_capital, metric_label: 'Cap Rate' },
+    { label: row.label, method: '베이지안', series: '베이지안-전국', value: row.bayesian_national, metric_label: 'Cap Rate' },
   ].filter((item) => item.label && Number.isFinite(Number(item.value))));
+  const capRateChartRows = allCapRateChartRows.filter((row) => selectedCapRateMethods.includes(row.method));
+  const toggleCapRateMethod = (method) => {
+    setSelectedCapRateMethods((current) => current.includes(method)
+      ? current.filter((item) => item !== method)
+      : [...current, method]);
+  };
   const supplyRowsForPeriod = (periodLabel, seriesType) => {
     const targetSort = periodSortValue(periodLabel);
     const baseRows = seriesType === 'cumulative_supply'
@@ -7339,10 +7374,43 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
                 </button>
               )}
             />
+            <div className="mb-3 flex flex-wrap items-center gap-2" role="group" aria-label="Cap Rate 산정방식 선택" data-testid="market-transactions-cap-rate-method-selector">
+              {/* 초기값은 useState(['일반'])로 관리합니다. */}
+              <span className="mr-1 text-[12px] font-medium text-[#A1A1AA]">산정방식</span>
+              {['일반', '가중평균', '베이지안'].map((method) => {
+                const selected = selectedCapRateMethods.includes(method);
+                const markerColor = method === '일반'
+                  ? CAP_RATE_CHART_COLORS['일반-수도권']
+                  : (method === '가중평균' ? CAP_RATE_CHART_COLORS['가중평균-수도권'] : CAP_RATE_CHART_COLORS['베이지안-수도권']);
+                return (
+                  <button
+                    key={method}
+                    type="button"
+                    aria-pressed={selected}
+                    data-cap-rate-method={method}
+                    data-cap-rate-method-selected={selected ? 'true' : 'false'}
+                    onClick={() => toggleCapRateMethod(method)}
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-[7px] border px-2.5 text-[12px] font-medium transition ${selected ? 'border-[#5A5A5E] bg-white/5 text-white' : 'border-[#333333] text-[#86868B] hover:border-[#5A5A5E] hover:text-white'}`}
+                  >
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: markerColor }} />
+                    {method}
+                  </button>
+                );
+              })}
+            </div>
             <MultiLineChart
               rows={capRateChartRows}
               formatter={formatRate}
               valueLabel="Cap Rate"
+              colorFor={(series, index) => ({
+                '일반-수도권': '#34A853',
+                '일반-전국': '#A3E635',
+                '가중평균-수도권': '#2563EB',
+                '가중평균-전국': '#7DD3FC',
+                '베이지안-수도권': '#DC2626',
+                '베이지안-전국': '#F472B6',
+              })[series] || capRateChartColor(series, index)}
+              seriesOrder={CAP_RATE_CHART_SERIES_ORDER}
               yMin={0}
               yMax={0.1}
               yStep={0.02}

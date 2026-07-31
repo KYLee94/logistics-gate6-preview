@@ -6838,12 +6838,12 @@ async function callSectorMarketSourceDetailList(
       { key: 'report_year', label: '연도', group: '기간', unit: '년', columnIndex: 1 },
       { key: 'report_period_type', label: '시점 구분', group: '기간', columnIndex: 2 },
       { key: 'report_period', label: '시점', group: '기간', columnIndex: 3 },
-      { key: 'bayesian_capital_area_cap_rate', label: '베이지안 수도권 Cap Rate', group: '베이지안', unit: '%', columnIndex: 4 },
-      { key: 'bayesian_national_cap_rate', label: '베이지안 전국 Cap Rate', group: '베이지안', unit: '%', columnIndex: 5 },
+      { key: 'general_capital_area_cap_rate', label: '일반 수도권 Cap Rate', group: '일반', unit: '%', columnIndex: 4 },
+      { key: 'general_national_cap_rate', label: '일반 전국 Cap Rate', group: '일반', unit: '%', columnIndex: 5 },
       { key: 'weighted_average_capital_area_cap_rate', label: '가중평균 수도권 Cap Rate', group: '가중평균', unit: '%', columnIndex: 6 },
       { key: 'weighted_average_national_cap_rate', label: '가중평균 전국 Cap Rate', group: '가중평균', unit: '%', columnIndex: 7 },
-      { key: 'general_capital_area_cap_rate', label: '일반 수도권 Cap Rate', group: '일반', unit: '%', columnIndex: 8 },
-      { key: 'general_national_cap_rate', label: '일반 전국 Cap Rate', group: '일반', unit: '%', columnIndex: 9 },
+      { key: 'bayesian_capital_area_cap_rate', label: '베이지안 수도권 Cap Rate', group: '베이지안', unit: '%', columnIndex: 8 },
+      { key: 'bayesian_national_cap_rate', label: '베이지안 전국 Cap Rate', group: '베이지안', unit: '%', columnIndex: 9 },
     ];
     const filtered = wideRows.filter((values) => sectorMarketSourceDetailMatches(values, filtersWithSearch, Object.values(values)));
     const hasRequestedSort = safeText(firstDefined(requestedSort.key, requestedSort.field, requestedSort.field_key)) !== '';
