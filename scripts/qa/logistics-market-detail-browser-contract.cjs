@@ -30,7 +30,7 @@ const POPUP_INVENTORY = [
   { id: 'transaction-size-unit-price', route: 'market-data/transactions', container: 'market-transactions-size-unit-price', trigger: '[data-bar-list-row="true"][data-bar-list-clickable="true"]', dataset: 'transaction_cases', expectRequest: true },
   { id: 'transaction-size-market', route: 'market-data/transactions', container: 'market-transactions-size-market', trigger: '[data-bar-list-row="true"][data-bar-list-clickable="true"]', dataset: 'transaction_cases', expectRequest: true },
   { id: 'cap-rate-button', route: 'market-data/transactions', container: 'market-transactions-cap-rate', trigger: '[data-testid="market-transactions-cap-rate-button"]', dataset: 'cap_rate', expectRequest: true },
-  { id: 'cap-rate-point', route: 'market-data/transactions', container: 'market-transactions-cap-rate', trigger: '[data-multi-line-point="true"]', dataset: 'cap_rate', expectRequest: true },
+  { id: 'cap-rate-point', route: 'market-data/transactions', container: 'market-transactions-cap-rate', trigger: '[data-multi-line-point="true"]', triggerFromEnd: true, dataset: 'cap_rate', expectRequest: true },
 ];
 const FORBIDDEN_FIELDS = new Set(['id', 'payload', 'source_row_id', 'source_file_id', 'source_row_number', 'pnu', 'legal_dong_code', 'row_hash', 'natural_key']);
 
@@ -367,7 +367,8 @@ async function openInventoryPopup(page, entry, functionActions, detailDataByData
   await waitVisible(page.locator('[data-testid="market-data-dashboard"]'), `${entry.id} dashboard`);
   const container = page.locator(`[data-testid="${entry.container}"]`);
   await waitVisible(container, `${entry.id} container`);
-  const trigger = container.locator(entry.trigger).first();
+  const triggers = container.locator(entry.trigger);
+  const trigger = entry.triggerFromEnd ? triggers.last() : triggers.first();
   await waitVisible(trigger, `${entry.id} trigger`);
   const responsePromise = entry.expectRequest ? waitForDetailResponse(page, entry.dataset) : null;
   await trigger.click();
