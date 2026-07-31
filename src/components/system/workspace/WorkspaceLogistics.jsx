@@ -14499,7 +14499,7 @@ function PdfReportBuilder() {
       `}</style>
       <div className="pdf-report-page space-y-5">
         <SectionHeader
-          title="PDF Report"
+          title="PDF 보고서"
           right={<button type="button" onClick={printPdfReport} className="pdf-report-controls h-9 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5]">PDF 저장</button>}
         />
         {dashboardDataset.blocked ? (

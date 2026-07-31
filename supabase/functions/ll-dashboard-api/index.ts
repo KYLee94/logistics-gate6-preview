@@ -239,7 +239,7 @@ const SECTOR_MARKET_DETAIL_DATASETS: Record<string, SectorMarketDetailDataset> =
     columns: [
       { key: 'period', label: '기간', group: '기본 정보', dbKey: 'report_period' },
       { key: 'center_name', label: '물류센터명', group: '기본 정보' },
-      { key: 'legal_address', label: '소재지', group: '기본 정보' },
+      { key: 'legal_address', label: '소재지', group: '기본 정보', sourcePatterns: [/^(?:소재지|주소|법정동주소|도로명주소)(?:\s*\(.*\))?$/iu, /(?:소재지|주소)/iu] },
       { key: 'region', label: '권역', group: '기본 정보' },
       { key: 'temperature_type', label: '용도', group: '기본 정보' },
       { key: 'size_bucket', label: '규모', group: '기본 정보' },
@@ -277,13 +277,10 @@ const SECTOR_MARKET_DETAIL_DATASETS: Record<string, SectorMarketDetailDataset> =
     sortColumns: { warehouse_name: 'warehouse_name', expected_year: 'expected_year', completion_date: 'completion_date', gross_area_py: 'gross_area_py' },
     columns: [
       { key: 'warehouse_name', label: '물류센터명', group: '기본 정보' },
-      { key: 'legal_address', label: '소재지', group: '기본 정보' },
-      { key: 'region_group', label: '광역 권역', group: '기본 정보' },
       { key: 'region', label: '권역', group: '기본 정보' },
+      { key: 'region_group', label: '세부 권역', group: '기본 정보' },
+      { key: 'legal_address', label: '소재지', group: '기본 정보', sourcePatterns: [/^(?:소재지|주소|법정동주소|도로명주소)(?:\s*\(.*\))?$/iu, /(?:소재지|주소)/iu] },
       { key: 'construction_type', label: '건축 구분', group: '건축·용도' },
-      { key: 'main_use', label: '주용도', group: '건축·용도' },
-      { key: 'temperature_type', label: '용도', group: '건축·용도' },
-      { key: 'structure', label: '구조', group: '건축·용도', sourcePatterns: [/^구조$/iu, /structure/iu] },
       { key: 'site_area_sqm', label: '대지면적', group: '면적·건물', unit: '㎡' },
       { key: 'site_area_py', label: '대지면적', group: '면적·건물', unit: '평' },
       { key: 'building_area_sqm', label: '건축면적', group: '면적·건물', unit: '㎡' },
@@ -293,10 +290,13 @@ const SECTOR_MARKET_DETAIL_DATASETS: Record<string, SectorMarketDetailDataset> =
       { key: 'floor_area_ratio', label: '용적률', group: '면적·건물', unit: '%', sourcePatterns: [/용적률/iu] },
       { key: 'above_ground_floors', label: '지상층', group: '면적·건물', sourcePatterns: [/지상.*층/iu] },
       { key: 'below_ground_floors', label: '지하층', group: '면적·건물', sourcePatterns: [/지하.*층/iu] },
+      { key: 'main_use', label: '주용도', group: '건축·용도' },
+      { key: 'structure', label: '구조', group: '건축·용도', sourcePatterns: [/^구조$/iu, /structure/iu] },
       { key: 'permit_date', label: '건축허가일', group: '일정' },
       { key: 'start_date', label: '실제 착공일', group: '일정' },
       { key: 'completion_date', label: '사용승인일', group: '일정' },
       { key: 'owner_name', label: '소유주·시행주체', group: '사업 주체' },
+      { key: 'temperature_type', label: '용도', group: '건축·용도' },
       { key: 'construction_company', label: '시공사', group: '사업 주체' },
       { key: 'note', label: '비고', group: '기타', sourcePatterns: [/^비고$/iu, /note/iu] },
     ],
@@ -314,23 +314,23 @@ const SECTOR_MARKET_DETAIL_DATASETS: Record<string, SectorMarketDetailDataset> =
       { key: 'expected_quarter', label: '준공 예정 분기', group: '일정' },
       { key: 'initial_expected_year', label: '초기 예정 연도', group: '일정', unit: '년' },
       { key: 'initial_expected_quarter', label: '초기 예정 분기', group: '일정' },
-      { key: 'progress_status', label: '진행 상황', group: '일정' },
-      { key: 'schedule_confidence', label: '일정 확정 여부', group: '일정' },
+      { key: 'warehouse_name', label: '물류센터명', group: '기본 정보' },
+      { key: 'legal_address', label: '소재지', group: '기본 정보', sourcePatterns: [/^(?:소재지|주소|법정동주소|도로명주소)(?:\s*\(.*\))?$/iu, /(?:소재지|주소)/iu] },
+      { key: 'region', label: '권역', group: '기본 정보' },
+      { key: 'site_area_py', label: '대지면적', group: '면적·건물', unit: '평' },
+      { key: 'building_area_py', label: '건축면적', group: '면적·건물', unit: '평' },
+      { key: 'gross_area_py', label: '연면적', group: '면적·건물', unit: '평' },
+      { key: 'main_use', label: '주용도', group: '기본 정보' },
+      { key: 'temperature_type', label: '용도', group: '기본 정보' },
       { key: 'permit_number', label: '건축 인허가번호', group: '건축·인허가', sourcePatterns: [/인허가.*번호/iu, /건축.*번호/iu] },
       { key: 'permit_date', label: '건축허가일', group: '건축·인허가' },
       { key: 'start_date', label: '실제 착공일', group: '건축·인허가' },
       { key: 'construction_delay_date', label: '착공연기일', group: '건축·인허가', sourcePatterns: [/착공.*연기/iu] },
-      { key: 'warehouse_name', label: '물류센터명', group: '기본 정보' },
-      { key: 'legal_address', label: '소재지', group: '기본 정보' },
-      { key: 'region', label: '권역', group: '기본 정보' },
-      { key: 'main_use', label: '주용도', group: '기본 정보' },
-      { key: 'temperature_type', label: '용도', group: '기본 정보' },
-      { key: 'site_area_py', label: '대지면적', group: '면적·건물', unit: '평' },
-      { key: 'building_area_py', label: '건축면적', group: '면적·건물', unit: '평' },
-      { key: 'gross_area_py', label: '연면적', group: '면적·건물', unit: '평' },
+      { key: 'construction_company', label: '시공사', group: '사업 주체' },
       { key: 'owner_name', label: '소유주·시행주체', group: '사업 주체' },
       { key: 'owner_type', label: '소유주 유형', group: '사업 주체' },
-      { key: 'construction_company', label: '시공사', group: '사업 주체' },
+      { key: 'progress_status', label: '진행 상황', group: '일정' },
+      { key: 'schedule_confidence', label: '일정 확정 여부', group: '일정' },
       { key: 'note', label: '비고', group: '기타', sourcePatterns: [/^비고$/iu, /note/iu] },
     ],
   },
@@ -6415,13 +6415,50 @@ function sectorMarketRawFieldValue(rawValues: Record<string, unknown>, patterns:
   return undefined;
 }
 
-function sectorMarketDetailValue(row: Record<string, unknown>, rawValues: Record<string, unknown>, column: SectorMarketDetailColumn) {
-  const direct = row[column.dbKey || column.key];
-  return firstPresent(direct, sectorMarketRawFieldValue(rawValues, column.sourcePatterns), null);
+function sectorMarketRawAddress(rawValues: Record<string, unknown>) {
+  const direct = sectorMarketRawFieldValue(rawValues, [
+    /^(?:소재지|주소|법정동주소|도로명주소|기타주소)(?:\s*\(.*\))?$/iu,
+  ]);
+  if (safeText(direct)) return direct;
+  const province = sectorMarketRawFieldValue(rawValues, [/^(?:도|시\/도|법정시\/도|법정도)$/iu]);
+  const city = sectorMarketRawFieldValue(rawValues, [/^(?:시\/군|시군)$/iu]);
+  const district = sectorMarketRawFieldValue(rawValues, [/^(?:구\/읍\/면|구읍면)$/iu]);
+  const dong = sectorMarketRawFieldValue(rawValues, [/^(?:동\/리|동리)$/iu]);
+  const mainLot = safeText(sectorMarketRawFieldValue(rawValues, [/^본번$/iu]));
+  const subLot = safeText(sectorMarketRawFieldValue(rawValues, [/^부번$/iu]));
+  const lot = mainLot ? (subLot && subLot !== '0' ? `${mainLot}-${subLot}` : mainLot) : '';
+  const address = [province, city, district, dong, lot].map((part) => safeText(part)).filter(Boolean).join(' ');
+  return address || undefined;
 }
 
-function sectorMarketDetailPublicColumns(config: SectorMarketDetailDataset) {
-  return config.columns.map(({ key, label, group, unit }) => stripUndefined({ key, label, group, unit }));
+function sectorMarketDetailValue(row: Record<string, unknown>, rawValues: Record<string, unknown>, column: SectorMarketDetailColumn) {
+  const direct = row[column.dbKey || column.key];
+  const rawAddress = column.key === 'legal_address' ? sectorMarketRawAddress(rawValues) : undefined;
+  return firstPresent(direct, rawAddress, sectorMarketRawFieldValue(rawValues, column.sourcePatterns), null);
+}
+
+function sectorMarketDetailValuePresent(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return safeText(value) !== '';
+  if (Array.isArray(value)) return value.some((item) => sectorMarketDetailValuePresent(item));
+  return true;
+}
+
+function sectorMarketDetailPublicColumns(config: SectorMarketDetailDataset, rows: Array<Record<string, unknown>> = []) {
+  return config.columns
+    .map(({ key, label, group, unit }, sourceOrder) => ({
+      key,
+      label,
+      group,
+      unit,
+      sourceOrder,
+      hasValue: rows.some((row) => sectorMarketDetailValuePresent(row[key])),
+    }))
+    .sort((left, right) => {
+      if (left.hasValue === right.hasValue) return left.sourceOrder - right.sourceOrder;
+      return left.hasValue ? -1 : 1;
+    })
+    .map(({ key, label, group, unit }) => stripUndefined({ key, label, group, unit }));
 }
 
 function sectorMarketSourceDetailFieldSchema(source: Record<string, unknown>, sheetName: string) {
@@ -6455,9 +6492,15 @@ function sectorMarketSourceDetailFieldSchemaFromHeaderRow(
     .slice()
     .sort((left, right) => Number(left.column_index || 0) - Number(right.column_index || 0))
     .map((column) => {
-      const rawKey = safeText(column.normalized_header);
-      const rawLabel = headerValues[rawKey];
-      const columnIndex = Number(column.column_index || sectorMarketSourceColumnIndex(rawKey));
+      const configuredRawKey = safeText(column.normalized_header);
+      const columnIndex = Number(column.column_index || sectorMarketSourceColumnIndex(configuredRawKey));
+      const fallbackRawKey = `col_${columnIndex}`;
+      const rawKey = Object.hasOwn(headerValues, configuredRawKey)
+        ? configuredRawKey
+        : Object.hasOwn(headerValues, fallbackRawKey)
+          ? fallbackRawKey
+          : configuredRawKey;
+      const rawLabel = firstPresent(headerValues[rawKey], headerValues[fallbackRawKey], column.header_label);
       const label = safeText(rawLabel).replace(/\s+/gu, ' ').trim();
       return {
         key: `field_${columnIndex}`,
@@ -6468,6 +6511,23 @@ function sectorMarketSourceDetailFieldSchemaFromHeaderRow(
       };
     })
     .filter((column) => column.label && column.columnIndex > 0 && !internalHeader.test(`${column.rawKey} ${column.label}`));
+}
+
+function sectorMarketSourceDetailPublicColumns(
+  schema: Array<{ key: string; label: string; group: string; columnIndex?: number }>,
+  rows: Array<Record<string, unknown>>,
+) {
+  return schema
+    .map((field, sourceOrder) => ({
+      ...field,
+      sourceOrder,
+      hasValue: rows.some((row) => sectorMarketDetailValuePresent(row[field.key])),
+    }))
+    .sort((left, right) => {
+      if (left.hasValue === right.hasValue) return left.sourceOrder - right.sourceOrder;
+      return left.hasValue ? -1 : 1;
+    })
+    .map(({ key, label, group }) => ({ key, label, group }));
 }
 
 function sectorMarketSupplyCumulativeHeaderScore(row: Record<string, unknown>) {
@@ -6584,12 +6644,18 @@ async function callSectorMarketSourceDetailList(
       ['segment', '\uAD6C\uBD84', 'segment_label'], ['metric', '\uC9C0\uD45C', 'metric_label'], ['region', '\uAD8C\uC5ED', 'region'],
       ['size_bucket', '\uADDC\uBAA8', 'size_bucket'], ['value', '\uAC12', 'value'],
     ] as const;
+    const columns = fields.map(([key, label], index) => ({
+      key,
+      label,
+      group: '\uC784\uB300\uC2DC\uC7A5 \uD1B5\uACC4',
+      columnIndex: index + 1,
+    }));
     const mapped = parsed.map((row) => Object.fromEntries(fields.map(([key, , sourceKey]) => [key, row[sourceKey] ?? null])));
     const filtered = mapped.filter((values) => sectorMarketSourceDetailMatches(values, filtersWithSearch, Object.values(values)));
     const sorted = sectorMarketSourceDetailSort(filtered, requestedSort, new Set(fields.map(([key]) => key)), 'period');
     return jsonResponse({ ok: true, data: {
       dataset,
-      columns: fields.map(([key, label]) => ({ key, label, group: '\uC784\uB300\uC2DC\uC7A5 \uD1B5\uACC4' })),
+      columns: sectorMarketSourceDetailPublicColumns(columns, filtered),
       rows: sorted.slice((page - 1) * pageSize, page * pageSize).map((values, index) => ({ row_key: `${dataset}-${page}-${index + 1}`, ...values })),
       total: sorted.length,
       page,
@@ -6630,7 +6696,7 @@ async function callSectorMarketSourceDetailList(
   const sorted = sectorMarketSourceDetailSort(filtered, requestedSort, new Set(schema.map((field) => field.key)), schema[0]?.key || '');
   return jsonResponse({ ok: true, data: {
     dataset,
-    columns: schema.map(({ key, label, group }) => ({ key, label, group })),
+    columns: sectorMarketSourceDetailPublicColumns(schema, filtered),
     rows: sorted.slice((page - 1) * pageSize, page * pageSize).map((values, index) => ({ row_key: `${dataset}-${page}-${index + 1}`, ...values })),
     total: sorted.length,
     page,
@@ -6727,7 +6793,7 @@ async function callSectorMarketDetailList(ctx: Context, payload: Record<string, 
     ok: true,
     data: scrubSectorMarketInternalResponseKeys({
       dataset,
-      columns: sectorMarketDetailPublicColumns(config),
+      columns: sectorMarketDetailPublicColumns(config, rows),
       rows,
       total: result.count || 0,
       page,

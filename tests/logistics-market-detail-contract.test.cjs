@@ -51,6 +51,17 @@ function sourceWindow(sourceText, marker, length = 1800) {
   return sourceText.slice(index, index + length);
 }
 
+function datasetColumnKeys(sourceText, dataset, nextDataset) {
+  const start = sourceText.indexOf(`${dataset}: {`);
+  const end = sourceText.indexOf(`${nextDataset}: {`, start + 1);
+  assert.notEqual(start, -1, `${dataset} must exist`);
+  assert.notEqual(end, -1, `${nextDataset} must exist`);
+  const block = sourceText.slice(start, end);
+  const columnsStart = block.indexOf('columns: [');
+  assert.notEqual(columnsStart, -1, `${dataset} columns must exist`);
+  return [...block.slice(columnsStart).matchAll(/\{\s*key:\s*'([^']+)'/gu)].map((match) => match[1]);
+}
+
 test('market detail API allowlists exactly nine public data sets', () => {
   const edge = read(EDGE_PATH);
   const handler = functionBlock(edge, 'callSectorMarketDetailList');
@@ -135,6 +146,89 @@ test('consolidated tables skip source-only columns and cumulative headers keep w
   assert.match(cumulativeHeader, /column\.column_index/u);
   assert.match(cumulativeReader, /sectorMarketSupplyCumulativeHeaderScore/u);
   assert.match(cumulativeReader, /Number\(row\.row_number\s*\|\|\s*0\)\s*>\s*headerRowNumber/u);
+});
+
+test('all nine detail datasets keep source order, postpone empty columns, and recover supply addresses from preserved rows', () => {
+  const edge = read(EDGE_PATH);
+  const detailConfig = sourceWindow(edge, 'const SECTOR_MARKET_DETAIL_DATASETS', 18000);
+  const normalized = functionBlock(edge, 'callSectorMarketDetailList');
+  const sourceDetail = functionBlock(edge, 'callSectorMarketSourceDetailList');
+  const publicColumns = functionBlock(edge, 'sectorMarketDetailPublicColumns');
+  const cumulativeHeader = functionBlock(edge, 'sectorMarketSourceDetailFieldSchemaFromHeaderRow');
+  const rawAddress = functionBlock(edge, 'sectorMarketRawAddress');
+  const detailValue = functionBlock(edge, 'sectorMarketDetailValue');
+
+  assert.match(detailConfig, /supply_new:\s*\{[\s\S]*?key:\s*'legal_address'[\s\S]*?sourcePatterns:/u,
+    'new supply locations must recover a non-empty preserved source address');
+  assert.match(detailConfig, /(?:소재지|주소)/u, 'address recovery must recognise original workbook address headers');
+  assert.match(rawAddress, /province/u);
+  assert.match(rawAddress, /city/u);
+  assert.match(rawAddress, /district/u);
+  assert.match(rawAddress, /dong/u);
+  assert.match(rawAddress, /mainLot/u);
+  assert.match(detailValue, /column\.key === 'legal_address' \? sectorMarketRawAddress\(rawValues\)/u);
+  assert.match(publicColumns, /rows:\s*Array<Record<string, unknown>>/u);
+  assert.match(publicColumns, /hasValue/u);
+  assert.match(publicColumns, /left\.hasValue === right\.hasValue/u);
+  assert.match(normalized, /sectorMarketDetailPublicColumns\(config,\s*rows\)/u);
+  assert.match(sourceDetail, /sectorMarketSourceDetailPublicColumns\(schema,\s*(?:filtered|sorted|mapped)\)/u);
+  assert.match(cumulativeHeader, /headerValues\[fallbackRawKey\]/u,
+    'cumulative headers must fall back to positional raw keys when normalized keys differ');
+  assert.match(cumulativeHeader, /column\.header_label/u,
+    'cumulative headers must retain the workbook label when a merged header cell is blank');
+});
+
+test('normalized supply popup columns follow the original workbook business order', () => {
+  const edge = read(EDGE_PATH);
+  assert.deepEqual(datasetColumnKeys(edge, 'supply_new', 'supply_pipeline'), [
+    'warehouse_name',
+    'region',
+    'region_group',
+    'legal_address',
+    'construction_type',
+    'site_area_sqm',
+    'site_area_py',
+    'building_area_sqm',
+    'gross_area_sqm',
+    'gross_area_py',
+    'building_coverage_ratio',
+    'floor_area_ratio',
+    'above_ground_floors',
+    'below_ground_floors',
+    'main_use',
+    'structure',
+    'permit_date',
+    'start_date',
+    'completion_date',
+    'owner_name',
+    'temperature_type',
+    'construction_company',
+    'note',
+  ]);
+  assert.deepEqual(datasetColumnKeys(edge, 'supply_pipeline', 'transaction_cases'), [
+    'expected_year',
+    'expected_quarter',
+    'initial_expected_year',
+    'initial_expected_quarter',
+    'warehouse_name',
+    'legal_address',
+    'region',
+    'site_area_py',
+    'building_area_py',
+    'gross_area_py',
+    'main_use',
+    'temperature_type',
+    'permit_number',
+    'permit_date',
+    'start_date',
+    'construction_delay_date',
+    'construction_company',
+    'owner_name',
+    'owner_type',
+    'progress_status',
+    'schedule_confidence',
+    'note',
+  ]);
 });
 
 test('detail API returns business columns with groups and a single canonical pagination total', () => {
