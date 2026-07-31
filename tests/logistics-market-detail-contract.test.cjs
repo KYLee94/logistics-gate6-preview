@@ -309,6 +309,9 @@ test('Cap Rate detail reads every workbook method and publishes percentage units
   assert.match(parser, /capital_area_cap_rate/u);
   assert.match(parser, /national_cap_rate/u);
   assert.match(sourceDetail, /config\.mode === 'cap_rate'/u);
+  assert.match(sourceDetail, /\.from\('ll_sector_market_cap_rate_series'\)/u);
+  assert.match(sourceDetail, /normalizedBayesianRows/u);
+  assert.match(sourceDetail, /parsedSourceRows\.filter\(\(row\) => safeText\(row\.method\) !== '베이지안'\)/u);
   assert.match(sourceDetail, /unit:\s*'%'/u);
 });
 

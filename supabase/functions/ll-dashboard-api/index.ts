@@ -6741,10 +6741,38 @@ async function callSectorMarketSourceDetailList(
 
   if (config.mode === 'cap_rate') {
     const sheetName = sheetNames[0];
-    const parsed = parseSectorMarketCapRateDetailRows(
+    const parsedSourceRows = parseSectorMarketCapRateDetailRows(
       rawResult.rows.filter((row) => safeText(row.sheet_name) === sheetName),
       workbookSchemaColumnsForSheet(activeSource, sheetName),
     );
+    const { data: normalizedBayesianData, error: normalizedBayesianError } = await ctx.serviceClient
+      .from('ll_sector_market_cap_rate_series')
+      .select('report_year,report_quarter,capital_area_cap_rate,national_cap_rate')
+      .eq('source_file_id', sourceFileId)
+      .order('report_year', { ascending: true })
+      .order('report_quarter', { ascending: true });
+    if (normalizedBayesianError) {
+      return fail(500, 'Failed to read normalized Bayesian Cap Rate rows', ctx.origin, { error: normalizedBayesianError.message });
+    }
+    const normalizedBayesianRows = ((normalizedBayesianData || []) as Record<string, unknown>[])
+      .flatMap((row): Record<string, unknown>[] => {
+        const reportYear = Number(row.report_year || 0);
+        const periodNumber = Number(safeText(row.report_quarter).match(/[1-4]/u)?.[0] || 0);
+        if (!reportYear || !periodNumber) return [];
+        const reportPeriod = `${periodNumber}분기`;
+        return [{
+          row_key: `cap-rate-베이지안-${reportYear}-${reportPeriod}`,
+          method: '베이지안',
+          report_year: reportYear,
+          report_period: reportPeriod,
+          capital_area_cap_rate: row.capital_area_cap_rate ?? null,
+          national_cap_rate: row.national_cap_rate ?? null,
+        }];
+      });
+    const parsed = [
+      ...normalizedBayesianRows,
+      ...parsedSourceRows.filter((row) => safeText(row.method) !== '베이지안'),
+    ];
     const columns = [
       { key: 'method', label: 'Cap Rate 종류', group: '산정방식', columnIndex: 1 },
       { key: 'report_year', label: '연도', group: '기간', unit: '년', columnIndex: 2 },
