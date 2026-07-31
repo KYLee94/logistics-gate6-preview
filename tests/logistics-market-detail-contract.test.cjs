@@ -79,6 +79,20 @@ test('detail reads default to 100 rows and cap every data set at 500 rows', () =
   }
 });
 
+test('normalized detail data sets stay on the active workbook and can enrich public fields', () => {
+  const edge = read(EDGE_PATH);
+  const detailConfig = sourceWindow(edge, 'const SECTOR_MARKET_DETAIL_DATASETS', 18000);
+  const reader = functionBlock(edge, 'readSectorMarketDetailPage');
+
+  for (const dataset of ['lease_history', 'supply_new', 'supply_pipeline', 'transaction_cases', 'cap_rate']) {
+    const datasetWindow = sourceWindow(detailConfig, `${dataset}: {`, 6200);
+    assert.match(datasetWindow, /sourceRowColumn:\s*'source_row_id'/u, `${dataset} must retain the preserved-row join key`);
+    assert.match(datasetWindow, /sourceFileColumn:\s*'source_file_id'/u, `${dataset} must be filtered to the active workbook`);
+  }
+  assert.match(reader, /query\.eq\(config\.sourceFileColumn,\s*activeSourceId\)/u);
+  assert.match(reader, /Never remove the active-source filter/u);
+});
+
 test('detail list routes are read-only and cannot add duplicate market or source rows', () => {
   const edge = read(EDGE_PATH);
   const normalized = functionBlock(edge, 'callSectorMarketDetailList');
@@ -152,4 +166,25 @@ test('all Supply Pipeline table, map, and chart detail paths use the shared full
   assert.match(ui, /onSelect=\{\(row\) => openSupplyAssetModal\(row, 'supply_new'\)\}/u);
   assert.match(ui, /onRowClick=\{\(row\) => openSupplyAssetModal\(row, 'supply_pipeline'\)\}/u);
   assert.match(ui, /onRowClick=\{\(row\) => openSupplyAssetModal\(row, 'supply_cumulative'\)\}/u);
+});
+
+test('all market detail popup columns use bounded semantic widths without header overlap', () => {
+  const ui = read(MARKET_UI_PATH);
+  const popupColumns = functionBlock(ui, 'marketDetailPopupColumns');
+
+  assert.match(popupColumns, /isAddress/u);
+  assert.match(popupColumns, /isNarrative/u);
+  assert.match(popupColumns, /isName/u);
+  assert.match(popupColumns, /isDate/u);
+  assert.match(popupColumns, /isMetric/u);
+  assert.match(popupColumns, /Math\.min\(420,\s*Math\.max\(sourceWidth,\s*preferredWidth\)\)/u);
+  assert.match(ui, /const popupColumns = marketDetailPopupColumns/u);
+  assert.match(ui, /const popupMinWidth = Math\.max/u);
+});
+
+test('transaction statistics workbook rows are reachable from the transactions tab', () => {
+  const ui = read(MARKET_UI_PATH);
+
+  assert.match(ui, /title:\s*'매매통계 전체 상세'/u);
+  assert.match(ui, /dataset:\s*'transaction_statistics'/u);
 });

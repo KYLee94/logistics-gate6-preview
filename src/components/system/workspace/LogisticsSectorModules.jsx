@@ -717,13 +717,50 @@ function normalizeMarketDetailColumns(columns, fallbackColumns = []) {
       return {
         key,
         label: unit && !label.includes(`(${unit})`) ? `${label}(${unit})` : label,
-        width: Number(column.width) || 150,
+        width: Number(column.width) || undefined,
         align: column.align === 'right' || column.numeric ? 'right' : undefined,
         wrap: Boolean(column.wrap),
         noTruncate: Boolean(column.wrap),
       };
     });
   return normalized.length ? normalized : fallbackColumns;
+}
+
+function marketDetailPopupColumns(columns) {
+  return safeArray(columns).map((column) => {
+    const key = text(column?.key || column?.field || column?.name, '').toLowerCase();
+    const label = text(column?.label || column?.title || key, '');
+    const sourceWidth = Number(column?.width) || 0;
+    const isAddress = /address|location|site/.test(key);
+    const isNarrative = /remarks?|notes?|memo|description|comment|detail|summary|condition|spec|content/.test(key);
+    const isName = /(?:^|_)(?:name|owner|developer|constructor|buyer|seller|tenant|company|counterparty|party)(?:_|$)/.test(key);
+    const isDate = /date|period|year|month|quarter|time/.test(key);
+    const isMetric = column?.align === 'right'
+      || /amount|price|rent|fee|cost|deposit|area|rate|ratio|cap|value|count|floor|coverage|far|krw|sqm|m2|py|manwon|size/.test(key);
+    const isShortCategory = /region|type|status|use|structure|segment|method|temperature/.test(key);
+    const labelWidth = Math.max(140, Math.min(220, Array.from(label).length * 14 + 56));
+    const preferredWidth = isAddress
+      ? 360
+      : isNarrative
+        ? 300
+        : isName
+          ? 224
+          : isDate
+            ? 132
+            : isMetric
+              ? 136
+              : isShortCategory
+                ? 144
+                : labelWidth;
+    const wrap = Boolean(column?.wrap || column?.noTruncate || isAddress || isNarrative);
+    return {
+      ...column,
+      width: Math.min(420, Math.max(sourceWidth, preferredWidth)),
+      wrap,
+      noTruncate: wrap,
+      popupTooltip: !wrap,
+    };
+  });
 }
 
 function marketDetailValue(row, ...keys) {
@@ -2094,7 +2131,7 @@ function SortableTable({
                     type="button"
                     disabled={column.sortable === false}
                     onClick={() => nextSort(column)}
-                    className={`inline-flex w-full items-center gap-1 ${column.align === 'right' ? 'justify-end' : 'justify-start'} ${column.sortable === false ? 'cursor-default text-[#86868B]' : 'hover:text-white'}`}
+                    className={`inline-flex min-w-0 w-full items-center gap-1 overflow-hidden ${column.align === 'right' ? 'justify-end' : 'justify-start'} ${column.sortable === false ? 'cursor-default text-[#86868B]' : 'hover:text-white'}`}
                     title={column.sortable === false ? undefined : `${column.label} 기준 정렬`}
                   >
                     {column.label}
@@ -2117,11 +2154,15 @@ function SortableTable({
                 const lastSticky = sticky && index === stickyCount - 1;
                 const value = column.render ? column.render(row) : row[column.key];
                 const wrapCell = column.noTruncate || column.wrap;
+                const cellTitle = column.popupTooltip && (typeof value === 'string' || typeof value === 'number')
+                  ? String(value)
+                  : undefined;
                 return (
                   <td
                     key={column.key}
                     style={{ ...cellWidthStyle(column), left: sticky ? stickyLeft(index) : undefined }}
-                    className={`${wrapCell ? 'whitespace-normal break-keep' : 'truncate'} px-3 py-2 align-top ${column.align === 'right' ? 'text-right' : ''} ${sticky ? `sticky z-10 bg-[#171717] ${lastSticky ? 'shadow-[10px_0_12px_-12px_rgba(0,0,0,0.95)]' : ''}` : 'bg-[#171717]'}`}
+                    className={`${wrapCell ? 'whitespace-normal break-words' : 'truncate'} min-w-0 overflow-hidden px-3 py-2 align-top ${column.align === 'right' ? 'text-right' : ''} ${sticky ? `sticky z-10 bg-[#171717] ${lastSticky ? 'shadow-[10px_0_12px_-12px_rgba(0,0,0,0.95)]' : ''}` : 'bg-[#171717]'}`}
+                    title={cellTitle}
                   >
                     {value ?? '-'}
                   </td>
@@ -6917,7 +6958,11 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     ? marketDetailState
     : null;
   const popupRows = Array.isArray(activeMarketDetail?.rows) ? activeMarketDetail.rows : fallbackPopupRows;
-  const popupColumns = activeMarketDetail?.columns || modal?.columns || transactionColumns;
+  const popupColumns = marketDetailPopupColumns(activeMarketDetail?.columns || modal?.columns || transactionColumns);
+  const popupMinWidth = Math.max(
+    Number(modal?.minWidth) || 1180,
+    popupColumns.reduce((sum, column) => sum + (Number(column.width) || 0), 0),
+  );
   const popupPagination = activeMarketDetail?.pagination;
   return (
     <div
@@ -7005,7 +7050,28 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       {currentTab === 'transactions' ? (
         <div className="space-y-5">
           <section className={`${CARD} p-5`}>
-            <ModuleHeader eyebrow="TRANSACTIONS" title="거래 사례 비교" subtitle="기간, 권역, 상/저온, 실물/선매입 조건을 적용한 거래 자산과 핵심 지표입니다." />
+            <ModuleHeader
+              eyebrow="TRANSACTIONS"
+              title="거래 사례 비교"
+              subtitle="기간, 권역, 상/저온, 실물/선매입 조건을 적용한 거래 자산과 핵심 지표입니다."
+              right={(
+                <button
+                  type="button"
+                  onClick={() => openMarketDetailModal({
+                    type: 'transaction-statistics-explorer',
+                    title: '매매통계 전체 상세',
+                    dataset: 'transaction_statistics',
+                    rows: [],
+                    columns: transactionDetailColumns,
+                    minWidth: 1760,
+                    columnGroups: ['매매통계'],
+                  })}
+                  className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5"
+                >
+                  매매통계 전체 보기
+                </button>
+              )}
+            />
             <FilterPanel columns="md:grid-cols-2 xl:grid-cols-4" className="mb-5">
               <FilterBlock><FilterPills label="기간" value={txnWindow} onChange={setTxnWindow} options={[{ value: '1y', label: '최근 1년' }, { value: '3y', label: '최근 3년' }, { value: '5y', label: '최근 5년' }]} /></FilterBlock>
               <FilterBlock><RegionFilterGroups label="권역" value={txnRegion} onChange={setTxnRegion} options={regions} /></FilterBlock>
@@ -7602,7 +7668,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
           </div>
         ) : null}
         <SortableTable
-          minWidth={modal?.minWidth || 1180}
+          minWidth={popupMinWidth}
           maxHeight={modal?.maxHeight || 620}
           stickyCount={2}
           defaultSort={modal?.defaultSort}

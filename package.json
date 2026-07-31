@@ -39,6 +39,7 @@
     "qa:news:restore-20260617": "node scripts/qa/logistics-news-restore-readback.cjs",
     "qa:market-data:readback": "node scripts/qa/logistics-market-data-readback-smoke.cjs",
     "qa:market-data:parity": "node scripts/qa/logistics-market-data-parity-audit.cjs",
+    "test:market-data:parity-contract": "node --test tests/logistics-market-data-parity-contract.test.cjs",
     "qa:market-data:browser": "node scripts/qa/logistics-market-data-browser-smoke.cjs",
     "qa:market-data:egress-contract": "node --test tests/logistics-market-data-egress-contract.test.cjs",
     "qa:market-data:view-payload": "node scripts/qa/logistics-market-data-view-payload-audit.cjs",

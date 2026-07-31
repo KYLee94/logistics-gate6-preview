@@ -103,6 +103,72 @@ async function waitVisible(locator, label) {
   }
 }
 
+async function inspectDialog(page, dialog, dataset) {
+  await page.waitForFunction(() => {
+    const modal = [...document.querySelectorAll('[role="dialog"]')].at(-1);
+    const rows = [...(modal?.querySelectorAll('[data-sortable-table="true"] tbody tr') || [])];
+    return rows.some((row) => row.querySelectorAll('td').length > 1);
+  }, undefined, { timeout: 30000 });
+  const box = await dialog.boundingBox();
+  const viewport = page.viewportSize();
+  const table = dialog.locator('[data-sortable-table="true"]').last();
+  const tableRows = await table.locator('tbody tr').count();
+  const dialogText = await dialog.innerText();
+  const layout = await table.evaluate((tableNode) => {
+    const scroller = tableNode.parentElement;
+    const headers = [...tableNode.querySelectorAll('thead th')];
+    const headerRects = headers.map((header) => {
+      const rect = header.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, width: rect.width };
+    });
+    const headerOverlapCount = headerRects.slice(0, -1).filter((rect, index) => rect.right > headerRects[index + 1].left + 1).length;
+    const unreadableCellCount = [...tableNode.querySelectorAll('tbody td')].filter((cell) => {
+      const style = getComputedStyle(cell);
+      const clipped = cell.scrollWidth > cell.clientWidth + 1 && style.whiteSpace !== 'normal';
+      return clipped && !cell.getAttribute('title');
+    }).length;
+    if (scroller) scroller.scrollLeft = scroller.scrollWidth;
+    const scrollerRect = scroller?.getBoundingClientRect();
+    const lastHeaderRect = headers.at(-1)?.getBoundingClientRect();
+    return {
+      column_count: headers.length,
+      header_overlap_count: headerOverlapCount,
+      zero_width_header_count: headerRects.filter((rect) => rect.width < 40).length,
+      unreadable_cell_count: unreadableCellCount,
+      horizontal_scroll: Boolean(scroller && scroller.scrollWidth > scroller.clientWidth + 1),
+      last_column_visible_at_scroll_end: Boolean(
+        scrollerRect
+        && lastHeaderRect
+        && lastHeaderRect.right <= scrollerRect.right + 1
+        && lastHeaderRect.left >= scrollerRect.left - 1
+      ),
+      scroll_width: scroller?.scrollWidth || 0,
+      client_width: scroller?.clientWidth || 0,
+    };
+  });
+  const fullScreen = Boolean(box && viewport && box.width >= viewport.width * 0.9 && box.height >= viewport.height * 0.9);
+  const internalText = /\b(?:payload|source_row_id|source_file_id|source_row_number|pnu|natural_key|row_hash)\b/iu.test(dialogText);
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  const screenshotPath = path.join(OUT_DIR, `market-detail-browser-contract-${timestamp()}-${dataset}.png`);
+  await dialog.screenshot({ path: screenshotPath });
+  return {
+    dataset,
+    fullscreen: fullScreen,
+    table_rows: tableRows,
+    internal_text: internalText,
+    ...layout,
+    screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
+    ok: fullScreen
+      && tableRows > 0
+      && !internalText
+      && layout.column_count > 0
+      && layout.header_overlap_count === 0
+      && layout.zero_width_header_count === 0
+      && layout.unreadable_cell_count === 0
+      && layout.last_column_visible_at_scroll_end,
+  };
+}
+
 async function signInThroughBrowser(page, email, password) {
   const emailInput = page.locator('input[type="email"]').first();
   if (await emailInput.isVisible().catch(() => false)) {
@@ -156,26 +222,32 @@ async function openSupplyPopup(page, sectionTestId, expectedDataset, functionAct
     const requestState = await dialog.locator('[data-testid="market-detail-request-state"]').innerText().catch(() => 'request state not rendered');
     throw new Error(`${expectedDataset}: detail response was not observed; row=${JSON.stringify(rowText)}; state=${JSON.stringify(requestState)}; actions=${JSON.stringify(functionActions.slice(-10))}`);
   }
-  const box = await dialog.boundingBox();
-  const viewport = page.viewportSize();
-  const tableRows = await dialog.locator('[data-sortable-table="true"] tbody tr').count();
-  const dialogText = await dialog.innerText();
-  const fullScreen = Boolean(box && viewport && box.width >= viewport.width * 0.9 && box.height >= viewport.height * 0.9);
-  const internalText = /\b(?:payload|source_row_id|source_file_id|source_row_number|pnu|natural_key|row_hash)\b/iu.test(dialogText);
-  fs.mkdirSync(OUT_DIR, { recursive: true });
-  const screenshotPath = path.join(OUT_DIR, `market-detail-browser-contract-${timestamp()}-${expectedDataset}.png`);
-  await dialog.screenshot({ path: screenshotPath });
+  const check = await inspectDialog(page, dialog, expectedDataset);
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden', timeout: 10000 });
   return {
-    dataset: expectedDataset,
+    ...check,
     section_test_id: sectionTestId,
-    fullscreen: fullScreen,
-    table_rows: tableRows,
-    internal_text: internalText,
-    screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
-    ok: fullScreen && tableRows > 0 && !internalText,
   };
+}
+
+async function openTriggeredPopup(page, expectedDataset, trigger, functionActions) {
+  const responsePromise = page.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/ll-dashboard-api')) return false;
+    const body = response.request().postDataJSON?.() || {};
+    return body.action === 'sector-market/detail/list' && body.payload?.dataset === expectedDataset;
+  }, { timeout: 20000 }).catch(() => null);
+  await trigger.click();
+  const dialog = page.locator('[role="dialog"]').last();
+  await waitVisible(dialog, `${expectedDataset} dialog`);
+  const response = await responsePromise;
+  if (!response) {
+    throw new Error(`${expectedDataset}: detail response was not observed; actions=${JSON.stringify(functionActions.slice(-10))}`);
+  }
+  const check = await inspectDialog(page, dialog, expectedDataset);
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden', timeout: 10000 });
+  return check;
 }
 
 async function main() {
@@ -231,6 +303,54 @@ async function main() {
       supplyChecks.push(await openSupplyPopup(page, testId, dataset, functionActions));
     }
     if (!supplyChecks.every((check) => check.ok)) throw new Error(`Supply popup contract failed: ${JSON.stringify(supplyChecks)}`);
+
+    await page.goto(joinUrl(baseUrl, 'market-data/lease-market'), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await waitVisible(page.locator('[data-testid="market-data-dashboard"]'), 'lease market dashboard');
+    const leaseSection = page.locator('section').filter({ hasText: '최신 임대시장 통계' }).first();
+    await waitVisible(leaseSection, 'latest lease market section');
+    const leaseChecks = [
+      await openTriggeredPopup(
+        page,
+        'lease_statistics',
+        leaseSection.locator('[data-scoped-bar-row="true"]').first(),
+        functionActions,
+      ),
+      await openTriggeredPopup(
+        page,
+        'lease_history',
+        leaseSection.getByRole('button', { name: '전체 기록 보기' }),
+        functionActions,
+      ),
+    ];
+    if (!leaseChecks.every((check) => check.ok)) throw new Error(`Lease popup contract failed: ${JSON.stringify(leaseChecks)}`);
+
+    await page.goto(joinUrl(baseUrl, 'market-data/transactions'), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await waitVisible(page.locator('[data-testid="market-data-dashboard"]'), 'transactions dashboard');
+    const transactionSection = page.locator('section').filter({ hasText: '거래 사례 비교' }).first();
+    await waitVisible(transactionSection, 'transaction comparison section');
+    const transactionChecks = [
+      await openTriggeredPopup(
+        page,
+        'transaction_cases',
+        transactionSection.locator('[data-sortable-table="true"] tbody tr').first(),
+        functionActions,
+      ),
+      await openTriggeredPopup(
+        page,
+        'transaction_statistics',
+        transactionSection.getByRole('button', { name: '매매통계 전체 보기' }),
+        functionActions,
+      ),
+    ];
+    const capRateSection = page.locator('section').filter({ hasText: 'Cap Rate 추이' }).last();
+    transactionChecks.push(await openTriggeredPopup(
+      page,
+      'cap_rate',
+      capRateSection.getByRole('button', { name: '전체 테이블 보기' }),
+      functionActions,
+    ));
+    if (!transactionChecks.every((check) => check.ok)) throw new Error(`Transaction popup contract failed: ${JSON.stringify(transactionChecks)}`);
+
     if (functionActions.some((action) => /(?:ingest|upload|create|update|delete|approve|submit)/iu.test(action))) {
       throw new Error(`QA issued a non-read-only Edge action: ${functionActions.join(', ')}`);
     }
@@ -246,6 +366,8 @@ async function main() {
       initial_detail_calls: initialDetailCalls,
       function_actions: functionActions,
       supply_checks: supplyChecks,
+      lease_checks: leaseChecks,
+      transaction_checks: transactionChecks,
     }, null, 2));
     process.stdout.write(`${JSON.stringify({ ok: true, output: path.relative(ROOT, outputPath).replace(/\\/gu, '/') })}\n`);
   } finally {

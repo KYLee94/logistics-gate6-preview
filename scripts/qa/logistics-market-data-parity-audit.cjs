@@ -2,11 +2,16 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 const { hasFlag, marketReadPayload } = require('./logistics-market-data-egress-contract.cjs');
+const { parseSourceWorkbook } = require('../ingest/logistics-source-workbook-ingest.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
-const WORKBOOK_PATH = path.join(ROOT, 'qa-artifacts', 'logistics-gate6', 'source-workbook-ingest', 'storage-upload', 'source-workbook.xlsx');
+const LEGACY_WORKBOOK_PATH = path.join(ROOT, 'qa-artifacts', 'logistics-gate6', 'source-workbook-ingest', 'storage-upload', 'source-workbook.xlsx');
 const EXTRACTED_WORKBOOK_PATH = path.join(ROOT, 'qa-artifacts', 'logistics-gate6', 'source-workbook-ingest', 'source-workbook-ingest-sector_market-2026Q1.extracted.json');
+const DEFAULT_WORKBOOK_PATH = path.join(
+  'C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard',
+  '물류 시장 데이터_20261Q.xlsx',
+);
 
 const CAPITAL_PERIODS = ['2022 2H', '2023 1H', '2023 2H', '2024 1Q', '2024 2Q', '2024 3Q', '2024 4Q', '2025 1Q', '2025 2Q', '2025 3Q', '2025 4Q', '2026 1Q'];
 const LOCAL_PERIODS = ['2024 1Q', '2025 1Q', '2025 2Q', '2025 3Q', '2025 4Q', '2026 1Q'];
@@ -42,6 +47,23 @@ function envValue(...keys) {
     if (fileEnv[key]) return fileEnv[key];
   }
   return '';
+}
+
+function argValue(name, fallback = '') {
+  const index = process.argv.indexOf(`--${name}`);
+  return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
+}
+
+function resolveWorkbookPath() {
+  const explicit = argValue('workbook', envValue('LOGISTICS_MARKET_WORKBOOK'));
+  const candidates = [explicit, DEFAULT_WORKBOOK_PATH, LEGACY_WORKBOOK_PATH]
+    .filter(Boolean)
+    .map((candidate) => path.resolve(candidate));
+  const workbookPath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!workbookPath) {
+    throw new Error(`Workbook not found. Checked: ${candidates.join(', ')}`);
+  }
+  return workbookPath;
 }
 
 function timestampForFile() {
@@ -310,10 +332,17 @@ function compareHashRows(excelRows, apiRows) {
 
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  if (!fs.existsSync(WORKBOOK_PATH)) throw new Error(`Workbook not found: ${WORKBOOK_PATH}`);
-  if (!fs.existsSync(EXTRACTED_WORKBOOK_PATH)) throw new Error(`Extracted workbook artifact not found: ${EXTRACTED_WORKBOOK_PATH}`);
-  const wb = XLSX.readFile(WORKBOOK_PATH, { cellDates: false });
-  const extractedWorkbook = JSON.parse(fs.readFileSync(EXTRACTED_WORKBOOK_PATH, 'utf8'));
+  const workbookPath = resolveWorkbookPath();
+  const wb = XLSX.readFile(workbookPath, { cellDates: false });
+  const parsedWorkbook = parseSourceWorkbook(workbookPath, {
+    domain: 'sector_market',
+    reportPeriod: '2026Q1',
+    asOfDate: '2026-03-31',
+    version: '2026Q1',
+  });
+  const extractedWorkbook = fs.existsSync(EXTRACTED_WORKBOOK_PATH)
+    ? JSON.parse(fs.readFileSync(EXTRACTED_WORKBOOK_PATH, 'utf8'))
+    : parsedWorkbook;
   const excelLeaseRows = parseLeaseWorkbook(wb);
   const excelSupplyRows = parseSupplyWorkbook(wb);
   const excelCapRateRows = parseCapRateWorkbook(wb);
@@ -375,7 +404,8 @@ async function main() {
       transactions: marketReadPayload('transactions', { full }).limit,
       raw_row_hashes: full ? 12000 : null,
     },
-    workbook: WORKBOOK_PATH,
+    workbook: workbookPath,
+    workbook_source_hash: parsedWorkbook.sourceHash,
     sentinel: {
       key: SENTINEL_KEY,
       expected: SENTINEL_EXPECTED,

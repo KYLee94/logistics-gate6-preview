@@ -186,7 +186,12 @@ async function main() {
     status_ready: summary.status === 'ready',
     data_validated: data.data_validated === true,
     validation_status_ready: data.validation_status === 'ready',
-    active_source_only: Boolean(summary.source?.active_version && summary.source?.source_file_id),
+    active_source_only: Boolean(
+      summary.source?.active_version
+      && summary.source?.source_domain === 'sector_market'
+      && summary.source?.source_version
+      && summary.source?.file_name,
+    ),
     source_sheet_count: sourceAudit.sheet_count === 9,
     source_row_count: sourceAudit.source_row_count === 11738,
     source_sheet_readback_all_pass: Array.isArray(sourceAudit.sheet_readback) && sourceAudit.sheet_readback.length === 9 && sourceAudit.sheet_readback.every((row) => row.ok !== false && row.expected_rows === row.actual_rows),
