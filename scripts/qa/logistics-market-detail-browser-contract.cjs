@@ -384,7 +384,7 @@ async function inspectCapRateChart(page, section, selectedMethods) {
   const legendLabels = (await chart.getByRole('button').allTextContents()).map(normalizedText).filter(Boolean);
   const lineCount = await chart.locator('svg polyline').count();
   const expectedSeries = expectedCapRateSeries(selectedMethods);
-  const selector = section.locator('[data-testid="market-transactions-cap-rate-method-selector"]');
+  const selector = page.locator('[data-testid="market-transactions-cap-rate-method-selector"]:visible').last();
   await waitVisible(selector, 'Cap Rate method selector');
   const controls = selector.locator('[data-cap-rate-method]');
   const controlState = await controls.evaluateAll((nodes) => nodes.map((node) => ({
@@ -422,7 +422,7 @@ async function inspectCapRateChart(page, section, selectedMethods) {
 }
 
 async function selectCapRateMethod(page, section, method, selectedMethods) {
-  const selector = section.locator('[data-testid="market-transactions-cap-rate-method-selector"]');
+  const selector = page.locator('[data-testid="market-transactions-cap-rate-method-selector"]:visible').last();
   const control = selector.locator(`[data-cap-rate-method="${method}"]`);
   await waitVisible(control, `Cap Rate ${method} selector`);
   await control.click();
