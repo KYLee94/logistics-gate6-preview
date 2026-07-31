@@ -1176,10 +1176,10 @@ const CAP_RATE_CHART_SERIES_ORDER = [
   '베이지안-전국',
 ];
 const CAP_RATE_CHART_COLORS = {
-  '일반-수도권': '#34A853',
-  '일반-전국': '#A3E635',
-  '가중평균-수도권': '#2563EB',
-  '가중평균-전국': '#7DD3FC',
+  '일반-수도권': '#15803D',
+  '일반-전국': '#BBF7D0',
+  '가중평균-수도권': '#1D4ED8',
+  '가중평균-전국': '#BAE6FD',
   '베이지안-수도권': '#DC2626',
   '베이지안-전국': '#F472B6',
 };
@@ -7403,10 +7403,10 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               formatter={formatRate}
               valueLabel="Cap Rate"
               colorFor={(series, index) => ({
-                '일반-수도권': '#34A853',
-                '일반-전국': '#A3E635',
-                '가중평균-수도권': '#2563EB',
-                '가중평균-전국': '#7DD3FC',
+                '일반-수도권': '#15803D',
+                '일반-전국': '#BBF7D0',
+                '가중평균-수도권': '#1D4ED8',
+                '가중평균-전국': '#BAE6FD',
                 '베이지안-수도권': '#DC2626',
                 '베이지안-전국': '#F472B6',
               })[series] || capRateChartColor(series, index)}

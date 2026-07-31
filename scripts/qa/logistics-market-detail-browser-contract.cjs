@@ -21,10 +21,10 @@ const CAP_RATE_CHART_SERIES_BY_METHOD = {
   베이지안: ['베이지안-수도권', '베이지안-전국'],
 };
 const CAP_RATE_CHART_COLORS = {
-  '일반-수도권': '#34A853',
-  '일반-전국': '#A3E635',
-  '가중평균-수도권': '#2563EB',
-  '가중평균-전국': '#7DD3FC',
+  '일반-수도권': '#15803D',
+  '일반-전국': '#BBF7D0',
+  '가중평균-수도권': '#1D4ED8',
+  '가중평균-전국': '#BAE6FD',
   '베이지안-수도권': '#DC2626',
   '베이지안-전국': '#F472B6',
 };
@@ -384,6 +384,8 @@ async function inspectCapRateChart(page, section, selectedMethods) {
   const legendLabels = (await chart.getByRole('button').allTextContents()).map(normalizedText).filter(Boolean);
   const lineCount = await chart.locator('svg polyline').count();
   const expectedSeries = expectedCapRateSeries(selectedMethods);
+  const lineColors = await chart.locator('svg polyline').evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).stroke));
+  const expectedLineColors = expectedSeries.map((series) => hexToRgb(CAP_RATE_CHART_COLORS[series]));
   const selector = page.locator('[data-testid="market-transactions-cap-rate-method-selector"]:visible').last();
   await waitVisible(selector, 'Cap Rate method selector');
   const controls = selector.locator('[data-cap-rate-method]');
@@ -409,11 +411,14 @@ async function inspectCapRateChart(page, section, selectedMethods) {
     selected_methods: selected,
     expected_series: expectedSeries,
     colors: colorChecks,
+    line_colors: lineColors,
+    expected_line_colors: expectedLineColors,
     ok: sameLabels(controlState.map((item) => item.method), CAP_RATE_CHART_METHOD_ORDER)
       && sameLabels(selected, selectedMethods)
       && sameLabels(legendLabels, expectedSeries)
       && lineCount === expectedSeries.length
-      && colorChecks.every((item) => item.actual === item.expected),
+      && colorChecks.every((item) => item.actual === item.expected)
+      && sameLabels(lineColors, expectedLineColors),
   };
   if (!check.ok) {
     throw new Error(`cap_rate chart selection, series order, or color contract failed: ${JSON.stringify(check)}`);
