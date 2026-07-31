@@ -6334,15 +6334,20 @@ async function readActiveSectorMarketSource(ctx: Context, includeSchema = false)
 async function readSectorMarketRawValues(ctx: Context, sourceRowIds: string[]) {
   const ids = [...new Set(sourceRowIds.filter(Boolean))].slice(0, 500);
   if (!ids.length) return new Map<string, Record<string, unknown>>();
-  const { data, error } = await ctx.serviceClient
-    .from('ll_source_rows')
-    .select('source_row_id,row_values')
-    .in('source_row_id', ids);
-  if (error) {
-    if (isMissingRelationError(error) || isMissingColumnError(error)) return new Map<string, Record<string, unknown>>();
-    throw new Error(`Failed to read preserved market source rows: ${error.message}`);
+  const rows: Record<string, unknown>[] = [];
+  for (let offset = 0; offset < ids.length; offset += 50) {
+    const batch = ids.slice(offset, offset + 50);
+    const { data, error } = await ctx.serviceClient
+      .from('ll_source_rows')
+      .select('source_row_id,row_values')
+      .in('source_row_id', batch);
+    if (error) {
+      if (isMissingRelationError(error) || isMissingColumnError(error)) return new Map<string, Record<string, unknown>>();
+      throw new Error(`Failed to read preserved market source rows: ${error.message}`);
+    }
+    rows.push(...((data || []) as Record<string, unknown>[]));
   }
-  return new Map(((data || []) as Record<string, unknown>[]).map((row) => [
+  return new Map(rows.map((row) => [
     safeText(row.source_row_id),
     row.row_values && typeof row.row_values === 'object' ? row.row_values as Record<string, unknown> : {},
   ]));
@@ -6699,7 +6704,17 @@ async function callSectorMarketDetailList(ctx: Context, payload: Record<string, 
     return fail(500, 'Failed to read market detail rows', ctx.origin, { error: result.error.message });
   }
   const sourceRows = (result.data || []) as Record<string, unknown>[];
-  const rawBySourceRowId = await readSectorMarketRawValues(ctx, sourceRows.map((row) => safeText(row[config.sourceRowColumn || ''])));
+  let rawBySourceRowId = new Map<string, Record<string, unknown>>();
+  if (config.sourceRowColumn && config.columns.some((column) => column.sourcePatterns?.length)) {
+    try {
+      rawBySourceRowId = await readSectorMarketRawValues(
+        ctx,
+        sourceRows.map((row) => safeText(row[config.sourceRowColumn || ''])),
+      );
+    } catch (error) {
+      return fail(500, 'Failed to read preserved market detail values', ctx.origin, { error: (error as Error).message });
+    }
+  }
   const rows = sourceRows.map((row, index) => {
     const rawValues = rawBySourceRowId.get(safeText(row[config.sourceRowColumn || ''])) || {};
     return {

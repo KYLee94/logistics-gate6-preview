@@ -74,10 +74,18 @@ async function invokeDetail(supabaseUrl, anonKey, token, dataset, payload = {}) 
     headers: { apikey: anonKey, authorization: `Bearer ${token}`, 'content-type': 'application/json', origin: 'https://kylee94.github.io' },
     body: JSON.stringify({ action: 'sector-market/detail/list', payload: { dataset, ...payload } }),
   });
-  const body = await response.json().catch(() => ({}));
+  const rawBody = await response.text();
+  const body = (() => {
+    try {
+      return rawBody ? JSON.parse(rawBody) : {};
+    } catch {
+      return {};
+    }
+  })();
   if (!response.ok || body?.ok === false) {
     const details = body?.detail ? ` ${JSON.stringify(body.detail)}` : '';
-    throw new Error(`${dataset} failed (${response.status}): ${body.message || body.error || 'unknown error'}${details}`);
+    const fallback = rawBody && !body.message && !body.error ? rawBody.slice(0, 800) : 'unknown error';
+    throw new Error(`${dataset} failed (${response.status}): ${body.message || body.error || fallback}${details}`);
   }
   return body.data || {};
 }
@@ -114,15 +122,14 @@ async function inspectDialog(page, dialog, dataset) {
   const table = dialog.locator('[data-sortable-table="true"]').last();
   const tableRows = await table.locator('tbody tr').count();
   const dialogText = await dialog.innerText();
-  const layout = await table.evaluate((tableNode) => {
-    const scroller = tableNode.parentElement;
-    const headers = [...tableNode.querySelectorAll('thead th')];
+  const layout = await table.evaluate((scroller) => {
+    const headers = [...scroller.querySelectorAll('thead th')];
     const headerRects = headers.map((header) => {
       const rect = header.getBoundingClientRect();
       return { left: rect.left, right: rect.right, width: rect.width };
     });
     const headerOverlapCount = headerRects.slice(0, -1).filter((rect, index) => rect.right > headerRects[index + 1].left + 1).length;
-    const unreadableCellCount = [...tableNode.querySelectorAll('tbody td')].filter((cell) => {
+    const unreadableCellCount = [...scroller.querySelectorAll('tbody td')].filter((cell) => {
       const style = getComputedStyle(cell);
       const clipped = cell.scrollWidth > cell.clientWidth + 1 && style.whiteSpace !== 'normal';
       return clipped && !cell.getAttribute('title');
@@ -328,11 +335,13 @@ async function main() {
     await waitVisible(page.locator('[data-testid="market-data-dashboard"]'), 'transactions dashboard');
     const transactionSection = page.locator('section').filter({ hasText: '거래 사례 비교' }).first();
     await waitVisible(transactionSection, 'transaction comparison section');
+    const transactionDataRow = transactionSection.locator('[data-sortable-table="true"] tbody tr:has(td + td)').first();
+    await waitVisible(transactionDataRow, 'transaction comparison data row');
     const transactionChecks = [
       await openTriggeredPopup(
         page,
         'transaction_cases',
-        transactionSection.locator('[data-sortable-table="true"] tbody tr').first(),
+        transactionDataRow,
         functionActions,
       ),
       await openTriggeredPopup(
@@ -346,7 +355,7 @@ async function main() {
     transactionChecks.push(await openTriggeredPopup(
       page,
       'cap_rate',
-      capRateSection.getByRole('button', { name: '전체 테이블 보기' }),
+      capRateSection.getByRole('button', { name: '값 테이블 보기' }),
       functionActions,
     ));
     if (!transactionChecks.every((check) => check.ok)) throw new Error(`Transaction popup contract failed: ${JSON.stringify(transactionChecks)}`);

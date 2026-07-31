@@ -91,6 +91,9 @@ test('normalized detail data sets stay on the active workbook and can enrich pub
   }
   assert.match(reader, /query\.eq\(config\.sourceFileColumn,\s*activeSourceId\)/u);
   assert.match(reader, /Never remove the active-source filter/u);
+  const rawReader = functionBlock(edge, 'readSectorMarketRawValues');
+  assert.match(rawReader, /offset \+= 50/u);
+  assert.match(rawReader, /ids\.slice\(offset,\s*offset \+ 50\)/u);
 });
 
 test('detail list routes are read-only and cannot add duplicate market or source rows', () => {
