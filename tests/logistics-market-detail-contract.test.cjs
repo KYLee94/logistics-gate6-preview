@@ -305,6 +305,7 @@ test('Cap Rate detail reads every workbook method and publishes percentage units
     assert.match(parser, new RegExp(method, 'u'), `${method} Cap Rate must be parsed from the workbook`);
   }
   assert.match(parser, /fallbackTitleRowNumber:\s*4/u, 'Bayesian rows must remain reachable when the preserved source omits its title row');
+  assert.match(parser, /fallbackStartYear:\s*2005/u, 'Bayesian merged-year rows must retain the workbook start year');
   assert.match(parser, /capital_area_cap_rate/u);
   assert.match(parser, /national_cap_rate/u);
   assert.match(sourceDetail, /config\.mode === 'cap_rate'/u);
