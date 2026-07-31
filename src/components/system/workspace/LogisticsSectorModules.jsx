@@ -717,6 +717,7 @@ function normalizeMarketDetailColumns(columns, fallbackColumns = []) {
       return {
         key,
         label: unit && !label.includes(`(${unit})`) ? `${label}(${unit})` : label,
+        unit: unit || undefined,
         width: Number(column.width) || undefined,
         align: column.align === 'right' || column.numeric ? 'right' : undefined,
         wrap: Boolean(column.wrap),

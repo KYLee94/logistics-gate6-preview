@@ -331,9 +331,11 @@ test('Supply Pipeline and transaction case popups pin only asset name and addres
 
 test('Market popup percentage columns use the shared two-decimal formatter', () => {
   const ui = read(MARKET_UI_PATH);
+  const normalizeColumns = functionBlock(ui, 'normalizeMarketDetailColumns');
   const popupColumns = functionBlock(ui, 'marketDetailPopupColumns');
   const rateFormatter = functionBlock(ui, 'formatRate');
 
+  assert.match(normalizeColumns, /unit:\s*unit\s*\|\|\s*undefined/u);
   assert.match(popupColumns, /column\?\.unit\s*===\s*'%'/u);
   assert.match(popupColumns, /formatRate/u);
   assert.match(rateFormatter, /formatNumber\(normalized,\s*2\)/u);
