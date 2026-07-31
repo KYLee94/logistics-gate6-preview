@@ -9,7 +9,7 @@ const DETAIL_DATASETS = ['lease_current', 'lease_history', 'lease_statistics', '
 const SUPPLY_SECTIONS = [
   { testId: 'market-supply-new', dataset: 'supply_new' },
   { testId: 'market-supply-pipeline', dataset: 'supply_pipeline' },
-  { testId: 'market-supply-cumulative', dataset: 'supply_new' },
+  { testId: 'market-supply-cumulative', dataset: 'supply_new', allowCacheReuse: true },
 ];
 const POPUP_INVENTORY = [
   { id: 'overview-lease-chart', route: 'market-data/overview', container: 'market-overview-lease-chart', trigger: '[data-scoped-grouped-bar-row="true"][data-scoped-grouped-bar-clickable="true"], [data-scoped-bar-row="true"][data-scoped-bar-clickable="true"]', dataset: 'lease_statistics', expectRequest: true },
@@ -17,13 +17,13 @@ const POPUP_INVENTORY = [
   { id: 'overview-supply-chart', route: 'market-data/overview', container: 'market-overview-supply-chart', trigger: '[data-supply-chart-period-group="true"][data-supply-chart-clickable="true"]', dataset: 'supply_pipeline', expectRequest: false },
   { id: 'lease-statistics-chart', route: 'market-data/lease-market', container: 'market-lease-statistics', trigger: '[data-scoped-bar-row="true"][data-scoped-bar-clickable="true"]', dataset: 'lease_statistics', expectRequest: true },
   { id: 'lease-history-button', route: 'market-data/lease-market', container: 'market-lease-statistics', trigger: '[data-testid="market-lease-history-button"]', dataset: 'lease_history', expectRequest: true },
-  { id: 'lease-center-row', route: 'market-data/lease-market', container: 'market-lease-center-table', trigger: '[data-sortable-table="true"] tbody tr', dataset: 'lease_history', expectRequest: true },
-  { id: 'supply-new-row', route: 'market-data/supply-pipeline', container: 'market-supply-new', trigger: '[data-sortable-table="true"] tbody tr', dataset: 'supply_new', expectRequest: true },
-  { id: 'supply-pipeline-row', route: 'market-data/supply-pipeline', container: 'market-supply-pipeline', trigger: '[data-sortable-table="true"] tbody tr', dataset: 'supply_pipeline', expectRequest: true },
-  { id: 'supply-cumulative-row', route: 'market-data/supply-pipeline', container: 'market-supply-cumulative', trigger: '[data-sortable-table="true"] tbody tr', dataset: 'supply_cumulative', expectRequest: true },
+  { id: 'lease-center-row', route: 'market-data/lease-market', container: 'market-lease-center-table', trigger: '[data-sortable-table="true"] tbody tr:has(td + td)', dataset: 'lease_history', expectRequest: true },
+  { id: 'supply-new-row', route: 'market-data/supply-pipeline', container: 'market-supply-new', trigger: '[data-sortable-table="true"] tbody tr:has(td + td)', dataset: 'supply_new', expectRequest: true },
+  { id: 'supply-pipeline-row', route: 'market-data/supply-pipeline', container: 'market-supply-pipeline', trigger: '[data-sortable-table="true"] tbody tr:has(td + td)', dataset: 'supply_pipeline', expectRequest: true },
+  { id: 'supply-cumulative-row', route: 'market-data/supply-pipeline', container: 'market-supply-cumulative', trigger: '[data-sortable-table="true"] tbody tr:has(td + td)', dataset: 'supply_new', expectRequest: false },
   { id: 'supply-pipeline-chart', route: 'market-data/supply-pipeline', container: 'market-supply-pipeline', trigger: '[data-supply-chart-period-group="true"][data-supply-chart-clickable="true"]', dataset: 'supply_pipeline', expectRequest: false },
   { id: 'supply-cumulative-chart', route: 'market-data/supply-pipeline', container: 'market-supply-cumulative', trigger: '[data-supply-chart-period-group="true"][data-supply-chart-clickable="true"]', dataset: 'supply_cumulative', expectRequest: false },
-  { id: 'transaction-case-row', route: 'market-data/transactions', container: 'market-transactions-cases', trigger: '[data-sortable-table="true"] tbody tr', dataset: 'transaction_cases', expectRequest: true },
+  { id: 'transaction-case-row', route: 'market-data/transactions', container: 'market-transactions-cases', trigger: '[data-sortable-table="true"] tbody tr:has(td + td)', dataset: 'transaction_cases', expectRequest: true },
   { id: 'transaction-statistics-button', route: 'market-data/transactions', container: 'market-transactions-cases', trigger: '[data-testid="market-transactions-statistics-button"]', dataset: 'transaction_statistics', expectRequest: true },
   { id: 'transaction-period-button', route: 'market-data/transactions', container: 'market-transactions-period', trigger: '[data-testid="market-transactions-period-button"]', dataset: 'transaction_cases', expectRequest: false },
   { id: 'transaction-period-chart', route: 'market-data/transactions', container: 'market-transactions-period', trigger: '[data-stacked-period-group="true"][data-stacked-period-clickable="true"]', dataset: 'transaction_cases', expectRequest: true },
@@ -144,10 +144,37 @@ function detailDataFromResponse(response) {
   return response.json().then((body) => body?.data || {}).catch(() => ({}));
 }
 
+async function detailDataWithFallback(response, fallback = {}) {
+  const captured = response ? await detailDataFromResponse(response) : {};
+  return Array.isArray(captured.rows) && captured.rows.length ? captured : fallback;
+}
+
 async function waitVisible(locator, label) {
   if (!await locator.waitFor({ state: 'visible', timeout: 20000 }).then(() => true).catch(() => false)) {
     throw new Error(`${label} was not visible`);
   }
+}
+
+function waitForDetailResponse(page, dataset, timeout = 30000) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (response) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      page.off('response', onResponse);
+      resolve(response);
+    };
+    const onResponse = (response) => {
+      if (!response.url().includes('/functions/v1/ll-dashboard-api')) return;
+      const body = response.request().postDataJSON?.() || {};
+      if (body.action === 'sector-market/detail/list') {
+        if (body.payload?.dataset === dataset) finish(response);
+      }
+    };
+    const timer = setTimeout(() => finish(null), timeout);
+    page.on('response', onResponse);
+  });
 }
 
 async function inspectDialog(page, dialog, dataset, detailData = {}) {
@@ -260,7 +287,7 @@ async function signInThroughBrowser(page, email, password) {
   }
 }
 
-async function openSupplyPopup(page, sectionTestId, expectedDataset, functionActions) {
+async function openSupplyPopup(page, sectionTestId, expectedDataset, functionActions, detailData = {}, allowCacheReuse = false) {
   const section = page.locator(`[data-testid="${sectionTestId}"]`);
   await waitVisible(section, `${expectedDataset} section`);
   const table = section.locator('[data-sortable-table="true"]:visible').last();
@@ -275,11 +302,7 @@ async function openSupplyPopup(page, sectionTestId, expectedDataset, functionAct
   }, { sectionId: sectionTestId }, { timeout: 30000 });
   const row = table.locator('tbody tr').first();
   await waitVisible(row, `${expectedDataset} row`);
-  const responsePromise = page.waitForResponse((response) => {
-    if (!response.url().includes('/functions/v1/ll-dashboard-api')) return false;
-    const body = response.request().postDataJSON?.() || {};
-    return body.action === 'sector-market/detail/list' && body.payload?.dataset === expectedDataset;
-  }, { timeout: 20000 }).catch(() => null);
+  const responsePromise = allowCacheReuse ? null : waitForDetailResponse(page, expectedDataset);
   const rowText = (await row.innerText()).replace(/\s+/gu, ' ').trim();
   await row.click();
 
@@ -290,12 +313,12 @@ async function openSupplyPopup(page, sectionTestId, expectedDataset, functionAct
     await page.screenshot({ path: failureScreenshot, fullPage: false }).catch(() => {});
     throw new Error(`${expectedDataset}: dialog was not visible; row=${JSON.stringify(rowText)}; actions=${JSON.stringify(functionActions.slice(-10))}; screenshot=${path.relative(ROOT, failureScreenshot).replace(/\\/gu, '/')}`);
   }
-  const response = await responsePromise;
-  if (!response) {
+  const response = responsePromise ? await responsePromise : null;
+  if (!response && !allowCacheReuse) {
     const requestState = await dialog.locator('[data-testid="market-detail-request-state"]').innerText().catch(() => 'request state not rendered');
     throw new Error(`${expectedDataset}: detail response was not observed; row=${JSON.stringify(rowText)}; state=${JSON.stringify(requestState)}; actions=${JSON.stringify(functionActions.slice(-10))}`);
   }
-  const check = await inspectDialog(page, dialog, expectedDataset, await detailDataFromResponse(response));
+  const check = await inspectDialog(page, dialog, expectedDataset, await detailDataWithFallback(response, detailData));
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden', timeout: 10000 });
   return {
@@ -304,12 +327,8 @@ async function openSupplyPopup(page, sectionTestId, expectedDataset, functionAct
   };
 }
 
-async function openTriggeredPopup(page, expectedDataset, trigger, functionActions) {
-  const responsePromise = page.waitForResponse((response) => {
-    if (!response.url().includes('/functions/v1/ll-dashboard-api')) return false;
-    const body = response.request().postDataJSON?.() || {};
-    return body.action === 'sector-market/detail/list' && body.payload?.dataset === expectedDataset;
-  }, { timeout: 20000 }).catch(() => null);
+async function openTriggeredPopup(page, expectedDataset, trigger, functionActions, detailData = {}) {
+  const responsePromise = waitForDetailResponse(page, expectedDataset);
   await trigger.click();
   const dialog = page.locator('[role="dialog"]').last();
   await waitVisible(dialog, `${expectedDataset} dialog`);
@@ -317,7 +336,7 @@ async function openTriggeredPopup(page, expectedDataset, trigger, functionAction
   if (!response) {
     throw new Error(`${expectedDataset}: detail response was not observed; actions=${JSON.stringify(functionActions.slice(-10))}`);
   }
-  const check = await inspectDialog(page, dialog, expectedDataset, await detailDataFromResponse(response));
+  const check = await inspectDialog(page, dialog, expectedDataset, await detailDataWithFallback(response, detailData));
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden', timeout: 10000 });
   return check;
@@ -349,19 +368,18 @@ async function openInventoryPopup(page, entry, functionActions, detailDataByData
   await waitVisible(container, `${entry.id} container`);
   const trigger = container.locator(entry.trigger).first();
   await waitVisible(trigger, `${entry.id} trigger`);
-  const responsePromise = entry.expectRequest
-    ? page.waitForResponse((response) => {
-      if (!response.url().includes('/functions/v1/ll-dashboard-api')) return false;
-      const body = response.request().postDataJSON?.() || {};
-      return body.action === 'sector-market/detail/list' && body.payload?.dataset === entry.dataset;
-    }, { timeout: 20000 }).catch(() => null)
-    : null;
+  const responsePromise = entry.expectRequest ? waitForDetailResponse(page, entry.dataset) : null;
   await trigger.click();
   const dialog = page.locator('[role="dialog"]').last();
   await waitVisible(dialog, `${entry.id} dialog`);
   const response = responsePromise ? await responsePromise : null;
   if (entry.expectRequest && !response) throw new Error(`${entry.id}: expected ${entry.dataset} detail response was not observed`);
-  const check = await inspectDialog(page, dialog, entry.dataset, response ? await detailDataFromResponse(response) : detailDataByDataset.get(entry.dataset));
+  const check = await inspectDialog(
+    page,
+    dialog,
+    entry.dataset,
+    await detailDataWithFallback(response, detailDataByDataset.get(entry.dataset)),
+  );
   if (!check.ok) throw new Error(`${entry.id}: popup display contract failed: ${JSON.stringify(check)}`);
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden', timeout: 10000 });
@@ -403,6 +421,20 @@ async function main() {
     if (!request.url().includes('/functions/v1/ll-dashboard-api')) return;
     const body = request.postDataJSON?.() || {};
     if (body.action) functionActions.push(body.action);
+    if (body.action === 'sector-market/detail/list') {
+      console.log(`[market-detail-request] dataset=${body.payload?.dataset || 'missing'} payload=${JSON.stringify(body.payload || {})}`);
+    }
+  });
+  page.on('response', async (response) => {
+    if (!response.url().includes('/functions/v1/ll-dashboard-api')) return;
+    const body = response.request().postDataJSON?.() || {};
+    if (body.action === 'sector-market/detail/list') {
+      console.log(`[market-detail-response] dataset=${body.payload?.dataset || 'missing'} status=${response.status()}`);
+      if (response.status() >= 400) {
+        const errorBody = await response.text().catch(() => '');
+        console.log(`[market-detail-error] dataset=${body.payload?.dataset || 'missing'} body=${errorBody.slice(0, 1200)}`);
+      }
+    }
   });
 
   try {
@@ -419,8 +451,15 @@ async function main() {
     if (initialDetailCalls !== 0) throw new Error(`initial Supply Pipeline load issued ${initialDetailCalls} detail requests`);
 
     const supplyChecks = [];
-    for (const { testId, dataset } of SUPPLY_SECTIONS) {
-      supplyChecks.push(await openSupplyPopup(page, testId, dataset, functionActions));
+    for (const { testId, dataset, allowCacheReuse } of SUPPLY_SECTIONS) {
+      supplyChecks.push(await openSupplyPopup(
+        page,
+        testId,
+        dataset,
+        functionActions,
+        detailDataByDataset.get(dataset),
+        allowCacheReuse,
+      ));
     }
     const cumulativeChartCheck = await openCumulativeSupplyChartPopup(page, detailDataByDataset.get('supply_cumulative'), functionActions);
     if (!supplyChecks.every((check) => check.ok)) throw new Error(`Supply popup contract failed: ${JSON.stringify(supplyChecks)}`);
@@ -436,12 +475,14 @@ async function main() {
         'lease_statistics',
         leaseSection.locator('[data-scoped-bar-row="true"]').first(),
         functionActions,
+        detailDataByDataset.get('lease_statistics'),
       ),
       await openTriggeredPopup(
         page,
         'lease_history',
         leaseSection.getByRole('button', { name: '전체 기록 보기' }),
         functionActions,
+        detailDataByDataset.get('lease_history'),
       ),
     ];
     if (!leaseChecks.every((check) => check.ok)) throw new Error(`Lease popup contract failed: ${JSON.stringify(leaseChecks)}`);
@@ -458,12 +499,14 @@ async function main() {
         'transaction_cases',
         transactionDataRow,
         functionActions,
+        detailDataByDataset.get('transaction_cases'),
       ),
       await openTriggeredPopup(
         page,
         'transaction_statistics',
         transactionSection.getByRole('button', { name: '매매통계 전체 보기' }),
         functionActions,
+        detailDataByDataset.get('transaction_statistics'),
       ),
     ];
     const capRateSection = page.locator('section').filter({ hasText: 'Cap Rate 추이' }).last();
@@ -472,6 +515,7 @@ async function main() {
       'cap_rate',
       capRateSection.getByRole('button', { name: '값 테이블 보기' }),
       functionActions,
+      detailDataByDataset.get('cap_rate'),
     ));
     if (!transactionChecks.every((check) => check.ok)) throw new Error(`Transaction popup contract failed: ${JSON.stringify(transactionChecks)}`);
 

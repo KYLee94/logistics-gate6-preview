@@ -6267,7 +6267,7 @@ function sectorMarketDetailFilterValues(value: unknown) {
   return values
     .filter((item) => ['string', 'number', 'boolean'].includes(typeof item))
     .map((item) => typeof item === 'string' ? item.trim() : item)
-    .filter((item) => item !== '')
+    .filter((item) => item !== '' && (typeof item !== 'string' || !['전체', 'all'].includes(item.toLowerCase())))
     .slice(0, 20);
 }
 

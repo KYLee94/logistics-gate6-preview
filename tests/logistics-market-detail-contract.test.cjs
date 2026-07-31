@@ -90,6 +90,12 @@ test('detail reads default to 100 rows and cap every data set at 500 rows', () =
   }
 });
 
+test('detail filters treat the UI all-option as no filter instead of sending it to typed columns', () => {
+  const edge = read(EDGE_PATH);
+  const filterValues = functionBlock(edge, 'sectorMarketDetailFilterValues');
+  assert.match(filterValues, /\['전체', 'all'\]\.includes\(item\.toLowerCase\(\)\)/u);
+});
+
 test('normalized detail data sets stay on the active workbook and can enrich public fields', () => {
   const edge = read(EDGE_PATH);
   const detailConfig = sourceWindow(edge, 'const SECTOR_MARKET_DETAIL_DATASETS', 18000);
