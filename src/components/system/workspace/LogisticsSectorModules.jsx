@@ -745,10 +745,30 @@ function marketDetailPopupColumnOrder(columns, rows) {
   return enriched.sort((left, right) => Number(left.sparse) - Number(right.sparse) || left.index - right.index).map(({ column }) => column);
 }
 
+function marketDetailPinnedColumns(columns, pinnedColumnLabels = []) {
+  const sourceColumns = safeArray(columns);
+  if (!pinnedColumnLabels.length) return sourceColumns;
+  const used = new Set();
+  const labelMatches = (column, requestedLabel) => {
+    const label = text(column?.label || column?.title || column?.key || '', '');
+    if (requestedLabel === '자산명') return /자산명|물류센터명|센터명/u.test(label);
+    if (requestedLabel === '소재지') return /소재지|주소/u.test(label);
+    return label === requestedLabel;
+  };
+  const pinned = pinnedColumnLabels.flatMap((requestedLabel) => {
+    const index = sourceColumns.findIndex((column, columnIndex) => !used.has(columnIndex) && labelMatches(column, requestedLabel));
+    if (index < 0) return [];
+    used.add(index);
+    return [sourceColumns[index]];
+  });
+  return [...pinned, ...sourceColumns.filter((_, index) => !used.has(index))];
+}
+
 function marketDetailPopupColumns(columns, rows = []) {
   return marketDetailPopupColumnOrder(columns, rows).map((column) => {
     const key = text(column?.key || column?.field || column?.name, '').toLowerCase();
     const label = text(column?.label || column?.title || key, '');
+    const isPercent = column?.unit === '%';
     const sourceWidth = Number(column?.width) || 0;
     const isAddress = /address|location|site/.test(key) || /소재지|주소|대지\s*위치|위치/.test(label);
     const isNarrative = /remarks?|notes?|memo|description|comment|detail|summary|condition|spec|content/.test(key);
@@ -774,6 +794,12 @@ function marketDetailPopupColumns(columns, rows = []) {
     const wrap = Boolean(column?.wrap || column?.noTruncate || isAddress || isNarrative);
     return {
       ...column,
+      render: column?.render || (isPercent
+        ? (row) => formatRate(row?.[column?.key || column?.field || column?.name])
+        : undefined),
+      sortValue: column?.sortValue || (isPercent
+        ? (row) => number(row?.[column?.key || column?.field || column?.name])
+        : undefined),
       width: Math.min(420, Math.max(sourceWidth, preferredWidth)),
       wrap,
       noTruncate: wrap,
@@ -6800,9 +6826,9 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   ];
   const supplyDetailColumns = [
     { key: 'center_name', label: '자산명', width: 200, render: (row) => marketDetailValue(row, 'center_name', 'warehouse_name', 'asset_name') },
+    { key: 'legal_address', label: '소재지', width: 340, wrap: true, render: (row) => marketDetailValue(row, 'legal_address', 'address') },
     { key: 'region', label: '권역', width: 150, render: (row) => regionDisplay(marketDetailValue(row, 'region')) },
     { key: 'sub_region', label: '세부 권역', width: 150, render: (row) => marketDetailValue(row, 'sub_region', 'subregion') },
-    { key: 'legal_address', label: '소재지', width: 340, wrap: true, render: (row) => marketDetailValue(row, 'legal_address', 'address') },
     { key: 'temperature_type', label: '용도', width: 120, render: (row) => normalizeMarketTemperature(marketDetailValue(row, 'temperature_type', 'use_type')) },
     { key: 'main_use', label: '주용도', width: 160, render: (row) => marketDetailValue(row, 'main_use', 'building_use') },
     { key: 'structure', label: '구조', width: 150, render: (row) => marketDetailValue(row, 'structure', 'building_structure') },
@@ -6828,10 +6854,10 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     { key: 'remarks', label: '비고', width: 240, wrap: true, render: (row) => marketDetailValue(row, 'remarks', 'note') },
   ];
   const transactionDetailColumns = [
-    { key: 'transaction_period', label: '거래시점', width: 120, render: (row) => marketDetailValue(row, 'transaction_period', 'transaction_date') },
     { key: 'asset_name', label: '자산명', width: 200, render: (row) => marketDetailValue(row, 'asset_name', 'center_name') },
-    { key: 'region', label: '권역', width: 150, render: (row) => regionDisplay(marketDetailValue(row, 'region')) },
     { key: 'legal_address', label: '소재지', width: 340, wrap: true, render: (row) => marketDetailValue(row, 'legal_address', 'address') },
+    { key: 'transaction_period', label: '거래시점', width: 120, render: (row) => marketDetailValue(row, 'transaction_period', 'transaction_date') },
+    { key: 'region', label: '권역', width: 150, render: (row) => regionDisplay(marketDetailValue(row, 'region')) },
     { key: 'temperature_type', label: '용도', width: 120, render: (row) => transactionTemperatureFor(row) },
     { key: 'gross_area_py', label: '연면적(평)', align: 'right', render: (row) => marketDetailNumber(row, 'gross_area_py', 'area_py') },
     { key: 'gross_area_m2', label: '연면적(㎡)', align: 'right', render: (row) => marketDetailNumber(row, 'gross_area_m2', 'gross_area_sqm') },
@@ -6849,13 +6875,13 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     { key: 'stabilized_cap_rate', label: 'Stabilized Cap Rate(%)', align: 'right', render: (row) => formatRate(marketDetailValue(row, 'stabilized_cap_rate')) },
     { key: 'remarks', label: '비고', width: 240, wrap: true, render: (row) => marketDetailValue(row, 'remarks', 'note') },
   ];
-  const openMarketDetailModal = ({ type, title, dataset, rows, columns, filters = {}, columnGroups = [], minWidth = 1180, defaultSort, centerMapRow = null, detailEnabled = true, detailFallbackNotice = '' }) => {
+  const openMarketDetailModal = ({ type, title, dataset, rows, columns, filters = {}, columnGroups = [], minWidth = 1180, defaultSort, centerMapRow = null, detailEnabled = true, detailFallbackNotice = '', pinnedColumnLabels = [], pageSize = 100 }) => {
     const detailRequest = detailEnabled ? {
       key: `${dataset}:${stableDataManagementStringify({ filters, columnGroups })}`,
       dataset,
       filters,
       columnGroups,
-      pageSize: 100,
+      pageSize,
       fallbackColumns: columns,
     } : null;
     setModal({
@@ -6871,6 +6897,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       fullscreen: true,
       defaultSort,
       centerMapRow,
+      pinnedColumnLabels,
       detailRequest,
       detailFallbackNotice,
     });
@@ -6887,6 +6914,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       filters: { warehouse_name: warehouseName, search: warehouseName },
       columnGroups: ['기본정보', '면적·건물', '건축·인허가', '일정', '사업주체·시공사', '비고'],
       minWidth: 1680,
+      pinnedColumnLabels: dataset === 'supply_pipeline' ? ['자산명', '소재지'] : [],
       defaultSort: { key: 'completion_period', direction: 'asc' },
     });
   };
@@ -6902,6 +6930,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       filters: { warehouse_name: warehouseName, transaction_year: transactionYear, search: warehouseName },
       columnGroups: ['기본정보', '면적·건물', '거래조건', '매수·매도자', '임대차·금융', '수익률', '비고'],
       minWidth: 1760,
+      pinnedColumnLabels: ['자산명', '소재지'],
       defaultSort: { key: 'transaction_period', direction: 'desc' },
     });
   };
@@ -6982,7 +7011,11 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     ? marketDetailState
     : null;
   const popupRows = Array.isArray(activeMarketDetail?.rows) ? activeMarketDetail.rows : fallbackPopupRows;
-  const popupColumns = marketDetailPopupColumns(activeMarketDetail?.columns || modal?.columns || transactionColumns, popupRows);
+  const popupColumnSource = marketDetailPinnedColumns(
+    activeMarketDetail?.columns || modal?.columns || transactionColumns,
+    modal?.pinnedColumnLabels || [],
+  );
+  const popupColumns = marketDetailPopupColumns(popupColumnSource, popupRows);
   const popupMinWidth = Math.max(
     Number(modal?.minWidth) || 1180,
     popupColumns.reduce((sum, column) => sum + (Number(column.width) || 0), 0),
@@ -7211,8 +7244,9 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
                     rows: capRateWideRows,
                     columns: capRateWideColumns,
                     minWidth: 1040,
+                    pageSize: 200,
                     columnGroups: ['기간', '권역', 'Cap Rate', '산정방식'],
-                    defaultSort: { key: 'label', direction: 'asc' },
+                    defaultSort: { key: 'report_year', direction: 'asc' },
                   })}
                   className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5"
                 >
@@ -7237,8 +7271,9 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
                 rows: capRateWideRows,
                 columns: capRateWideColumns,
                 minWidth: 1040,
+                pageSize: 200,
                 columnGroups: ['기간', '권역', 'Cap Rate', '산정방식'],
-                defaultSort: { key: 'label', direction: 'asc' },
+                defaultSort: { key: 'report_year', direction: 'asc' },
               })}
             />
           </section>

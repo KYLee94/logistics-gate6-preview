@@ -177,7 +177,7 @@ function waitForDetailResponse(page, dataset, timeout = 30000) {
   });
 }
 
-async function inspectDialog(page, dialog, dataset, detailData = {}) {
+async function inspectDialog(page, dialog, dataset, detailData = {}, contractId = '') {
   await page.waitForFunction(() => {
     const modal = [...document.querySelectorAll('[role="dialog"]')].at(-1);
     const rows = [...(modal?.querySelectorAll('[data-sortable-table="true"] tbody tr') || [])];
@@ -205,7 +205,18 @@ async function inspectDialog(page, dialog, dataset, detailData = {}) {
     const scrollerRect = scroller?.getBoundingClientRect();
     const lastHeaderRect = headers.at(-1)?.getBoundingClientRect();
     const headerLabels = headers.map((header) => (header.textContent || '').replace(/\s+/gu, ' ').trim());
+    const headerPositions = headers.map((header) => getComputedStyle(header).position);
     const addressColumnIndex = headerLabels.findIndex((label) => /(?:소재지|주소|대지\s*위치|위치)/u.test(label));
+    const methodColumnIndex = headerLabels.findIndex((label) => /Cap Rate 종류/u.test(label));
+    const capRateColumnIndexes = headerLabels
+      .map((label, index) => (/Cap Rate/u.test(label) && !/종류/u.test(label) ? index : -1))
+      .filter((index) => index >= 0);
+    const capRateMethods = methodColumnIndex < 0 ? [] : [...new Set(bodyRows.map((row) => (
+      row.querySelectorAll('td')[methodColumnIndex]?.textContent || ''
+    ).replace(/\s+/gu, ' ').trim()).filter(Boolean))];
+    const capRateCells = bodyRows.flatMap((row) => capRateColumnIndexes.map((index) => (
+      row.querySelectorAll('td')[index]?.textContent || ''
+    ).replace(/\s+/gu, ' ').trim()).filter((value) => value && value !== '-'));
     const nonEmptyCellCount = bodyRows.reduce((count, row) => count + [...row.querySelectorAll('td')].filter((cell) => {
       const value = (cell.textContent || '').replace(/\s+/gu, ' ').trim();
       return value && value !== '-';
@@ -217,6 +228,12 @@ async function inspectDialog(page, dialog, dataset, detailData = {}) {
     return {
       column_count: headers.length,
       header_labels: headerLabels,
+      header_positions: headerPositions,
+      identity_columns_first: /(?:자산명|물류센터명|센터명)/u.test(headerLabels[0] || '') && /(?:소재지|주소)/u.test(headerLabels[1] || ''),
+      exactly_two_sticky_columns: headerPositions[0] === 'sticky' && headerPositions[1] === 'sticky' && headerPositions.slice(2).every((position) => position !== 'sticky'),
+      cap_rate_methods: capRateMethods,
+      cap_rate_value_count: capRateCells.length,
+      invalid_cap_rate_value_count: capRateCells.filter((value) => !/^-?\d+(?:,\d{3})*\.\d{2}%$/u.test(value)).length,
       header_overlap_count: headerOverlapCount,
       zero_width_header_count: headerRects.filter((rect) => rect.width < 40).length,
       unreadable_cell_count: unreadableCellCount,
@@ -243,11 +260,14 @@ async function inspectDialog(page, dialog, dataset, detailData = {}) {
   const apiNonEmptyAddressRowCount = apiAddressColumn
     ? apiRows.filter((row) => hasBusinessValue(row?.[apiAddressColumn.key])).length
     : 0;
+  const requiresIdentityPin = ['market-supply-pipeline', 'supply-pipeline-row', 'transaction-case-row'].includes(contractId);
+  const requiresCompleteCapRates = ['cap-rate-button', 'cap-rate-point'].includes(contractId);
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const screenshotPath = path.join(OUT_DIR, `market-detail-browser-contract-${timestamp()}-${dataset}.png`);
   await dialog.screenshot({ path: screenshotPath });
   return {
     dataset,
+    contract_id: contractId,
     fullscreen: fullScreen,
     table_rows: tableRows,
     api_non_empty_row_count: apiNonEmptyRowCount,
@@ -265,6 +285,12 @@ async function inspectDialog(page, dialog, dataset, detailData = {}) {
       && layout.header_overlap_count === 0
       && layout.zero_width_header_count === 0
       && layout.unreadable_cell_count === 0
+      && (!requiresIdentityPin || (layout.identity_columns_first && layout.exactly_two_sticky_columns))
+      && (!requiresCompleteCapRates || (
+        ['베이지안', '일반', '가중평균'].every((method) => layout.cap_rate_methods.includes(method))
+        && layout.cap_rate_value_count > 0
+        && layout.invalid_cap_rate_value_count === 0
+      ))
       && layout.last_column_visible_at_scroll_end,
   };
 }
@@ -318,7 +344,7 @@ async function openSupplyPopup(page, sectionTestId, expectedDataset, functionAct
     const requestState = await dialog.locator('[data-testid="market-detail-request-state"]').innerText().catch(() => 'request state not rendered');
     throw new Error(`${expectedDataset}: detail response was not observed; row=${JSON.stringify(rowText)}; state=${JSON.stringify(requestState)}; actions=${JSON.stringify(functionActions.slice(-10))}`);
   }
-  const check = await inspectDialog(page, dialog, expectedDataset, await detailDataWithFallback(response, detailData));
+  const check = await inspectDialog(page, dialog, expectedDataset, await detailDataWithFallback(response, detailData), sectionTestId);
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden', timeout: 10000 });
   return {
@@ -327,7 +353,7 @@ async function openSupplyPopup(page, sectionTestId, expectedDataset, functionAct
   };
 }
 
-async function openTriggeredPopup(page, expectedDataset, trigger, functionActions, detailData = {}) {
+async function openTriggeredPopup(page, expectedDataset, trigger, functionActions, detailData = {}, contractId = '') {
   const responsePromise = waitForDetailResponse(page, expectedDataset);
   await trigger.click();
   const dialog = page.locator('[role="dialog"]').last();
@@ -336,7 +362,7 @@ async function openTriggeredPopup(page, expectedDataset, trigger, functionAction
   if (!response) {
     throw new Error(`${expectedDataset}: detail response was not observed; actions=${JSON.stringify(functionActions.slice(-10))}`);
   }
-  const check = await inspectDialog(page, dialog, expectedDataset, await detailDataWithFallback(response, detailData));
+  const check = await inspectDialog(page, dialog, expectedDataset, await detailDataWithFallback(response, detailData), contractId);
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden', timeout: 10000 });
   return check;
@@ -383,6 +409,7 @@ async function openInventoryPopup(page, entry, functionActions, detailDataByData
       dialog,
       entry.dataset,
       await detailDataWithFallback(response, detailDataByDataset.get(entry.dataset)),
+      entry.id,
     );
   } catch (error) {
     throw new Error(`${entry.id}: ${error.message}`);
@@ -416,6 +443,16 @@ async function main() {
     assertDetailResponse(dataset, firstPage, 100);
     const cappedPage = await invokeDetail(supabaseUrl, anonKey, auth.access_token, dataset, { page_size: 9999 });
     assertDetailResponse(dataset, cappedPage, 500);
+    if (dataset === 'cap_rate') {
+      const methods = new Set(cappedPage.rows.map((row) => row.method).filter(Boolean));
+      if (Number(cappedPage.total) !== 148 || !['베이지안', '일반', '가중평균'].every((method) => methods.has(method))) {
+        throw new Error(`cap_rate: expected 148 rows across all three methods, received total=${cappedPage.total}, methods=${[...methods].join(',')}`);
+      }
+      const rateColumns = cappedPage.columns.filter((column) => /cap_rate$/u.test(column.key));
+      if (rateColumns.length !== 2 || !rateColumns.every((column) => column.unit === '%')) {
+        throw new Error('cap_rate: both public rate columns must declare percentage units');
+      }
+    }
     detailDataByDataset.set(dataset, firstPage);
     apiChecks.push({ dataset, total: firstPage.total, default_rows: firstPage.rows.length, capped_rows: cappedPage.rows.length });
   }
@@ -507,6 +544,7 @@ async function main() {
         transactionDataRow,
         functionActions,
         detailDataByDataset.get('transaction_cases'),
+        'transaction-case-row',
       ),
       await openTriggeredPopup(
         page,
@@ -523,6 +561,7 @@ async function main() {
       capRateSection.getByRole('button', { name: '값 테이블 보기' }),
       functionActions,
       detailDataByDataset.get('cap_rate'),
+      'cap-rate-button',
     ));
     if (!transactionChecks.every((check) => check.ok)) throw new Error(`Transaction popup contract failed: ${JSON.stringify(transactionChecks)}`);
 

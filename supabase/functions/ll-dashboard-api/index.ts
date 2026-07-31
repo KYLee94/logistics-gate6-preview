@@ -225,7 +225,7 @@ type SectorMarketDetailDataset = {
 
 type SectorMarketSourceDetailDataset = {
   sheetPattern: RegExp;
-  mode: 'lease_statistics' | 'supply_cumulative' | 'transaction_statistics';
+  mode: 'lease_statistics' | 'supply_cumulative' | 'transaction_statistics' | 'cap_rate';
 };
 
 const SECTOR_MARKET_DETAIL_DATASETS: Record<string, SectorMarketDetailDataset> = {
@@ -426,6 +426,10 @@ const SECTOR_MARKET_SOURCE_DETAIL_DATASETS: Record<string, SectorMarketSourceDet
   transaction_statistics: {
     sheetPattern: /\uB9E4\uB9E4\s*\uD1B5\uACC4/iu,
     mode: 'transaction_statistics',
+  },
+  cap_rate: {
+    sheetPattern: /\uB9E4\uB9E4\s*\uD1B5\uACC4/iu,
+    mode: 'cap_rate',
   },
 };
 const SECTOR_MARKET_SUPPLY_CUMULATIVE_SECTION = {
@@ -6519,7 +6523,7 @@ function sectorMarketSourceDetailFieldSchemaFromHeaderRow(
 }
 
 function sectorMarketSourceDetailPublicColumns(
-  schema: Array<{ key: string; label: string; group: string; columnIndex?: number }>,
+  schema: Array<{ key: string; label: string; group: string; unit?: string; columnIndex?: number }>,
   rows: Array<Record<string, unknown>>,
 ) {
   return schema
@@ -6532,7 +6536,7 @@ function sectorMarketSourceDetailPublicColumns(
       if (left.hasValue === right.hasValue) return left.sourceOrder - right.sourceOrder;
       return left.hasValue ? -1 : 1;
     })
-    .map(({ key, label, group }) => ({ key, label, group }));
+    .map(({ key, label, group, unit }) => stripUndefined({ key, label, group, unit }));
 }
 
 function sectorMarketSupplyCumulativeHeaderScore(row: Record<string, unknown>) {
@@ -6548,6 +6552,73 @@ function sectorMarketSourceDetailValue(row: Record<string, unknown>, rawKey: str
     ? row.row_values as Record<string, unknown>
     : {};
   return rawValues[rawKey] ?? null;
+}
+
+function parseSectorMarketCapRateDetailRows(rows: Record<string, unknown>[], columns: Record<string, unknown>[]) {
+  const columnKeyByIndex = marketColumnKeyByIndex(columns);
+  const sortedRows = rows.slice().sort((left, right) => Number(left.row_number || 0) - Number(right.row_number || 0));
+  const cell = (row: Record<string, unknown>, columnIndex: number) => {
+    const values = row.row_values && typeof row.row_values === 'object'
+      ? row.row_values as Record<string, unknown>
+      : {};
+    const configuredKey = columnKeyByIndex.get(columnIndex);
+    return firstDefined(values[`col_${columnIndex}`], configuredKey ? values[configuredKey] : undefined);
+  };
+  const numericRate = (value: unknown) => {
+    const source = safeText(value).replace(/,/gu, '').replace(/%/gu, '').trim();
+    if (!source) return null;
+    const parsed = Number(source);
+    if (!Number.isFinite(parsed)) return null;
+    return Math.abs(parsed) > 1 ? parsed / 100 : parsed;
+  };
+  const sections = [
+    { method: '베이지안', titleColumn: 2, yearColumn: 2, periodColumn: 3, capitalColumn: 4, nationalColumn: 5, titlePattern: /cap\.?\s*rate.*베이지안/iu },
+    { method: '일반', titleColumn: 2, yearColumn: 2, periodColumn: 3, capitalColumn: 4, nationalColumn: 5, titlePattern: /cap\.?\s*rate.*일반/iu },
+    { method: '가중평균', titleColumn: 7, yearColumn: 7, periodColumn: 8, capitalColumn: 9, nationalColumn: 10, titlePattern: /cap\.?\s*rate.*가중/iu },
+  ] as const;
+  const parsed: Record<string, unknown>[] = [];
+
+  sections.forEach((section) => {
+    const titleRow = sortedRows.find((row) => section.titlePattern.test(safeText(cell(row, section.titleColumn))));
+    if (!titleRow) return;
+    const titleRowNumber = Number(titleRow.row_number || 0);
+    let currentYear = 0;
+    let started = false;
+    for (const row of sortedRows) {
+      const rowNumber = Number(row.row_number || 0);
+      if (rowNumber <= titleRowNumber + 1) continue;
+      const yearCell = cell(row, section.yearColumn);
+      const periodCell = cell(row, section.periodColumn);
+      const capitalCell = cell(row, section.capitalColumn);
+      const nationalCell = cell(row, section.nationalColumn);
+      const marker = [yearCell, periodCell, capitalCell, nationalCell].map((value) => safeText(value)).join(' ');
+      if (/^※/u.test(safeText(yearCell)) || /^※/u.test(safeText(periodCell))) {
+        if (started) break;
+        continue;
+      }
+      if (sections.some((candidate) => candidate !== section && candidate.titlePattern.test(marker))) {
+        if (started) break;
+        continue;
+      }
+      const year = Number(safeText(yearCell).replace(/[^\d]/gu, ''));
+      if (Number.isInteger(year) && year >= 1900 && year <= 2100) currentYear = year;
+      const periodNumber = Number(safeText(periodCell).match(/[1-4]/u)?.[0] || 0);
+      const capitalAreaCapRate = numericRate(capitalCell);
+      const nationalCapRate = numericRate(nationalCell);
+      if (!currentYear || !periodNumber || (capitalAreaCapRate === null && nationalCapRate === null)) continue;
+      started = true;
+      const reportPeriod = section.method === '베이지안' ? `${periodNumber}분기` : `${periodNumber}반기`;
+      parsed.push({
+        row_key: `cap-rate-${section.method}-${currentYear}-${reportPeriod}`,
+        method: section.method,
+        report_year: currentYear,
+        report_period: reportPeriod,
+        capital_area_cap_rate: capitalAreaCapRate,
+        national_cap_rate: nationalCapRate,
+      });
+    }
+  });
+  return parsed;
 }
 
 function sectorMarketSourceDetailHasData(row: Record<string, unknown>, schema: Array<{ rawKey: string }>, minimumValues = 2) {
@@ -6662,6 +6733,35 @@ async function callSectorMarketSourceDetailList(
       dataset,
       columns: sectorMarketSourceDetailPublicColumns(columns, filtered),
       rows: sorted.slice((page - 1) * pageSize, page * pageSize).map((values, index) => ({ row_key: `${dataset}-${page}-${index + 1}`, ...values })),
+      total: sorted.length,
+      page,
+      page_size: pageSize,
+      source: { source_version: activeSource?.source_version, file_name: activeSource?.file_name, report_period: activeSource?.report_period, as_of_date: activeSource?.as_of_date },
+    } }, 200, ctx.origin);
+  }
+
+  if (config.mode === 'cap_rate') {
+    const sheetName = sheetNames[0];
+    const parsed = parseSectorMarketCapRateDetailRows(
+      rawResult.rows.filter((row) => safeText(row.sheet_name) === sheetName),
+      workbookSchemaColumnsForSheet(activeSource, sheetName),
+    );
+    const columns = [
+      { key: 'method', label: 'Cap Rate 종류', group: '산정방식', columnIndex: 1 },
+      { key: 'report_year', label: '연도', group: '기간', unit: '년', columnIndex: 2 },
+      { key: 'report_period', label: '시점', group: '기간', columnIndex: 3 },
+      { key: 'capital_area_cap_rate', label: '수도권 Cap Rate', group: 'Cap Rate', unit: '%', columnIndex: 4 },
+      { key: 'national_cap_rate', label: '전국 Cap Rate', group: 'Cap Rate', unit: '%', columnIndex: 5 },
+    ];
+    const filtered = parsed.filter((values) => sectorMarketSourceDetailMatches(values, filtersWithSearch, Object.values(values)));
+    const hasRequestedSort = safeText(firstDefined(requestedSort.key, requestedSort.field, requestedSort.field_key)) !== '';
+    const sorted = hasRequestedSort
+      ? sectorMarketSourceDetailSort(filtered, requestedSort, new Set(columns.map((column) => column.key)), 'report_year')
+      : filtered;
+    return jsonResponse({ ok: true, data: {
+      dataset,
+      columns: sectorMarketSourceDetailPublicColumns(columns, filtered),
+      rows: sorted.slice((page - 1) * pageSize, page * pageSize),
       total: sorted.length,
       page,
       page_size: pageSize,

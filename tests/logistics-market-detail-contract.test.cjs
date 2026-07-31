@@ -293,3 +293,43 @@ test('transaction statistics workbook rows are reachable from the transactions t
   assert.match(ui, /title:\s*'매매통계 전체 상세'/u);
   assert.match(ui, /dataset:\s*'transaction_statistics'/u);
 });
+
+test('Cap Rate detail reads every workbook method and publishes percentage units', () => {
+  const edge = read(EDGE_PATH);
+  const sourceConfig = sourceWindow(edge, 'const SECTOR_MARKET_SOURCE_DETAIL_DATASETS', 2400);
+  const parser = functionBlock(edge, 'parseSectorMarketCapRateDetailRows');
+  const sourceDetail = functionBlock(edge, 'callSectorMarketSourceDetailList');
+
+  assert.match(sourceConfig, /cap_rate:\s*\{[\s\S]*?mode:\s*'cap_rate'/u);
+  for (const method of ['베이지안', '일반', '가중평균']) {
+    assert.match(parser, new RegExp(method, 'u'), `${method} Cap Rate must be parsed from the workbook`);
+  }
+  assert.match(parser, /capital_area_cap_rate/u);
+  assert.match(parser, /national_cap_rate/u);
+  assert.match(sourceDetail, /config\.mode === 'cap_rate'/u);
+  assert.match(sourceDetail, /unit:\s*'%'/u);
+});
+
+test('Supply Pipeline and transaction case popups pin only asset name and address first', () => {
+  const ui = read(MARKET_UI_PATH);
+  const popupOrder = functionBlock(ui, 'marketDetailPinnedColumns');
+  const supplyModal = sourceWindow(ui, 'const openSupplyAssetModal', 1300);
+  const transactionModal = sourceWindow(ui, 'const openTransactionDetailModal', 1300);
+
+  assert.match(popupOrder, /pinnedColumnLabels/u);
+  assert.match(popupOrder, /자산명|물류센터명/u);
+  assert.match(popupOrder, /소재지|주소/u);
+  assert.match(supplyModal, /dataset === 'supply_pipeline'\s*\?\s*\['자산명',\s*'소재지'\]\s*:\s*\[\]/u);
+  assert.match(transactionModal, /pinnedColumnLabels:\s*\['자산명',\s*'소재지'\]/u);
+  assert.match(ui, /stickyCount=\{2\}/u);
+});
+
+test('Market popup percentage columns use the shared two-decimal formatter', () => {
+  const ui = read(MARKET_UI_PATH);
+  const popupColumns = functionBlock(ui, 'marketDetailPopupColumns');
+  const rateFormatter = functionBlock(ui, 'formatRate');
+
+  assert.match(popupColumns, /column\?\.unit\s*===\s*'%'/u);
+  assert.match(popupColumns, /formatRate/u);
+  assert.match(rateFormatter, /formatNumber\(normalized,\s*2\)/u);
+});
