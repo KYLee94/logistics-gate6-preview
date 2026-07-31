@@ -57,3 +57,10 @@ test('Cumulative supply chart popup renders the calculated area values instead o
   assert.match(source, /columns: chartValueRows\.length \? SUPPLY_AREA_VALUE_COLUMNS : supplyDetailColumns/u);
   assert.match(source, /detailEnabled: !chartValueRows\.length && !useFallbackRows && Boolean\(expectedYear\)/u);
 });
+
+test('Transaction period popup loads canonical detail rows when summary data omits raw cases', () => {
+  assert.match(
+    source,
+    /data-testid="market-transactions-period-button"[\s\S]*?dataset: 'transaction_cases',[\s\S]*?rows: transactionMarketAssetRows,[\s\S]*?detailEnabled: true,/u,
+  );
+});

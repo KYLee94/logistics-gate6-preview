@@ -7139,7 +7139,9 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
                     dataset: 'transaction_cases',
                     rows: transactionMarketAssetRows,
                     columns: transactionDetailColumns,
-                    detailEnabled: false,
+                    // The main transactions response can intentionally omit raw rows.
+                    // Keep the chart's in-memory rows as a fallback, then load the detail page.
+                    detailEnabled: true,
                     detailFallbackNotice: '여러 연도를 합산한 통계는 현재 상세 데이터의 서버 범위 필터가 지원되지 않아, 화면의 기간별 원본 사례를 그대로 표시합니다.',
                     columnGroups: ['기본정보', '면적·건물', '거래조건', '매수·매도자', '임대차·금융', '수익률', '비고'],
                     minWidth: 1760,

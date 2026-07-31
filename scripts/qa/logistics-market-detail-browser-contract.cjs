@@ -362,6 +362,7 @@ async function openCumulativeSupplyChartPopup(page, detailData, functionActions)
 }
 
 async function openInventoryPopup(page, entry, functionActions, detailDataByDataset, baseUrl) {
+  console.log(`[market-popup-inventory] start=${entry.id}`);
   await page.goto(joinUrl(baseUrl, entry.route), { waitUntil: 'domcontentloaded', timeout: 60000 });
   await waitVisible(page.locator('[data-testid="market-data-dashboard"]'), `${entry.id} dashboard`);
   const container = page.locator(`[data-testid="${entry.container}"]`);
@@ -374,12 +375,17 @@ async function openInventoryPopup(page, entry, functionActions, detailDataByData
   await waitVisible(dialog, `${entry.id} dialog`);
   const response = responsePromise ? await responsePromise : null;
   if (entry.expectRequest && !response) throw new Error(`${entry.id}: expected ${entry.dataset} detail response was not observed`);
-  const check = await inspectDialog(
-    page,
-    dialog,
-    entry.dataset,
-    await detailDataWithFallback(response, detailDataByDataset.get(entry.dataset)),
-  );
+  let check;
+  try {
+    check = await inspectDialog(
+      page,
+      dialog,
+      entry.dataset,
+      await detailDataWithFallback(response, detailDataByDataset.get(entry.dataset)),
+    );
+  } catch (error) {
+    throw new Error(`${entry.id}: ${error.message}`);
+  }
   if (!check.ok) throw new Error(`${entry.id}: popup display contract failed: ${JSON.stringify(check)}`);
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden', timeout: 10000 });
