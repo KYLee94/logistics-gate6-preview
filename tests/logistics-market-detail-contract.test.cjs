@@ -263,6 +263,8 @@ test('all Supply Pipeline table, map, and chart detail paths use the shared full
   assert.match(ui, /onSelect=\{\(row\) => openSupplyAssetModal\(row, 'supply_new'\)\}/u);
   assert.match(ui, /onRowClick=\{\(row\) => openSupplyAssetModal\(row, 'supply_pipeline'\)\}/u);
   assert.match(ui, /onRowClick=\{\(row\) => openSupplyAssetModal\(row, 'supply_cumulative'\)\}/u);
+  assert.match(ui, /const detailDataset = dataset === 'supply_cumulative' \? 'supply_new' : dataset/u);
+  assert.match(ui, /dataset:\s*detailDataset/u);
 });
 
 test('all market detail popup columns use bounded semantic widths without header overlap', () => {

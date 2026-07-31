@@ -6877,10 +6877,11 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   };
   const openSupplyAssetModal = (row, dataset) => {
     const warehouseName = text(row.center_name || row.warehouse_name, '');
+    const detailDataset = dataset === 'supply_cumulative' ? 'supply_new' : dataset;
     openMarketDetailModal({
       type: 'supply-detail-explorer',
       title: warehouseName,
-      dataset,
+      dataset: detailDataset,
       rows: [row],
       columns: supplyDetailColumns,
       filters: { warehouse_name: warehouseName, search: warehouseName },

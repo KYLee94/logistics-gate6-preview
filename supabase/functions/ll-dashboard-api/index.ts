@@ -6419,7 +6419,6 @@ function sectorMarketRawAddress(rawValues: Record<string, unknown>) {
   const direct = sectorMarketRawFieldValue(rawValues, [
     /^(?:소재지|주소|법정동주소|도로명주소|기타주소)(?:\s*\(.*\))?$/iu,
   ]);
-  if (safeText(direct)) return direct;
   const province = sectorMarketRawFieldValue(rawValues, [/^(?:도|시\/도|법정시\/도|법정도)$/iu]);
   const city = sectorMarketRawFieldValue(rawValues, [/^(?:시\/군|시군)$/iu]);
   const district = sectorMarketRawFieldValue(rawValues, [/^(?:구\/읍\/면|구읍면)$/iu]);
@@ -6427,14 +6426,20 @@ function sectorMarketRawAddress(rawValues: Record<string, unknown>) {
   const mainLot = safeText(sectorMarketRawFieldValue(rawValues, [/^본번$/iu]));
   const subLot = safeText(sectorMarketRawFieldValue(rawValues, [/^부번$/iu]));
   const lot = mainLot ? (subLot && subLot !== '0' ? `${mainLot}-${subLot}` : mainLot) : '';
-  const address = [province, city, district, dong, lot].map((part) => safeText(part)).filter(Boolean).join(' ');
-  return address || undefined;
+  const composed = [province, city, district, dong, lot].map((part) => safeText(part)).filter(Boolean).join(' ');
+  const directAddress = safeText(direct);
+  return (composed.length > directAddress.length ? composed : directAddress) || undefined;
 }
 
 function sectorMarketDetailValue(row: Record<string, unknown>, rawValues: Record<string, unknown>, column: SectorMarketDetailColumn) {
   const direct = row[column.dbKey || column.key];
   const rawAddress = column.key === 'legal_address' ? sectorMarketRawAddress(rawValues) : undefined;
-  return firstPresent(direct, rawAddress, sectorMarketRawFieldValue(rawValues, column.sourcePatterns), null);
+  if (column.key === 'legal_address') {
+    const directAddress = safeText(direct);
+    const recoveredAddress = safeText(rawAddress);
+    return firstPresent(recoveredAddress.length > directAddress.length ? recoveredAddress : directAddress, null);
+  }
+  return firstPresent(direct, sectorMarketRawFieldValue(rawValues, column.sourcePatterns), null);
 }
 
 function sectorMarketDetailValuePresent(value: unknown): boolean {

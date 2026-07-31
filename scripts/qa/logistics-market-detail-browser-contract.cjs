@@ -9,7 +9,7 @@ const DETAIL_DATASETS = ['lease_current', 'lease_history', 'lease_statistics', '
 const SUPPLY_SECTIONS = [
   { testId: 'market-supply-new', dataset: 'supply_new' },
   { testId: 'market-supply-pipeline', dataset: 'supply_pipeline' },
-  { testId: 'market-supply-cumulative', dataset: 'supply_cumulative' },
+  { testId: 'market-supply-cumulative', dataset: 'supply_new' },
 ];
 const POPUP_INVENTORY = [
   { id: 'overview-lease-chart', route: 'market-data/overview', container: 'market-overview-lease-chart', trigger: '[data-scoped-grouped-bar-row="true"][data-scoped-grouped-bar-clickable="true"], [data-scoped-bar-row="true"][data-scoped-bar-clickable="true"]', dataset: 'lease_statistics', expectRequest: true },
