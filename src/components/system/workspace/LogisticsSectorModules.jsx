@@ -641,10 +641,10 @@ const MARKET_TABS = [
 ];
 
 const MARKET_TAB_TITLES = {
-  overview: '시장 데이터 개요',
-  lease: '임대 시장 분석',
-  supply: '공급 파이프라인',
-  transactions: '매매 거래 분석',
+  overview: '시장 데이터 홈',
+  lease: '임대 시장',
+  supply: '공급 예정',
+  transactions: '거래 사례',
   source: '업데이트',
 };
 
@@ -726,12 +726,31 @@ function normalizeMarketDetailColumns(columns, fallbackColumns = []) {
   return normalized.length ? normalized : fallbackColumns;
 }
 
-function marketDetailPopupColumns(columns) {
-  return safeArray(columns).map((column) => {
+function marketDetailPopupColumnOrder(columns, rows) {
+  const sourceColumns = safeArray(columns);
+  const sourceRows = safeArray(rows).filter((row) => row && typeof row === 'object' && !Array.isArray(row));
+  if (sourceRows.length < 3) return sourceColumns;
+  const minimumNonEmptyCount = Math.max(1, Math.ceil(sourceRows.length * 0.25));
+  const enriched = sourceColumns.map((column, index) => {
+    const key = text(column?.key || column?.field || column?.name, '');
+    const label = text(column?.label || column?.title || key, '');
+    const requiredIdentity = /(?:center|warehouse|asset|building|company|tenant|fund|name)/iu.test(key)
+      || /(?:자산명|센터명|물류센터명|소재지|주소|대지\s*위치|위치)/u.test(label);
+    const nonEmptyCount = sourceRows.reduce((count, row) => {
+      const value = row?.[key];
+      return count + (value === null || value === undefined || String(value).trim() === '' || String(value).trim() === '-' ? 0 : 1);
+    }, 0);
+    return { column, index, sparse: !requiredIdentity && nonEmptyCount < minimumNonEmptyCount };
+  });
+  return enriched.sort((left, right) => Number(left.sparse) - Number(right.sparse) || left.index - right.index).map(({ column }) => column);
+}
+
+function marketDetailPopupColumns(columns, rows = []) {
+  return marketDetailPopupColumnOrder(columns, rows).map((column) => {
     const key = text(column?.key || column?.field || column?.name, '').toLowerCase();
     const label = text(column?.label || column?.title || key, '');
     const sourceWidth = Number(column?.width) || 0;
-    const isAddress = /address|location|site/.test(key);
+    const isAddress = /address|location|site/.test(key) || /소재지|주소|대지\s*위치|위치/.test(label);
     const isNarrative = /remarks?|notes?|memo|description|comment|detail|summary|condition|spec|content/.test(key);
     const isName = /(?:^|_)(?:name|owner|developer|constructor|buyer|seller|tenant|company|counterparty|party)(?:_|$)/.test(key);
     const isDate = /date|period|year|month|quarter|time/.test(key);
@@ -4341,6 +4360,7 @@ function MultiLineChart({
                   {points.map(([x, y, row]) => (
                     <circle
                       key={`${item}-${row.label}`}
+                      data-multi-line-point="true"
                       cx={x}
                       cy={y}
                       r="4.5"
@@ -4465,7 +4485,7 @@ function StackedPeriodBarChart({
                 let yCursor = bottom;
                 const total = totals.get(period) || 0;
                 return (
-                  <g key={period} className={onPeriodClick ? 'cursor-pointer' : ''} onClick={() => onPeriodClick?.(period)}>
+                  <g key={period} data-stacked-period-group="true" data-stacked-period-clickable={onPeriodClick ? 'true' : 'false'} className={onPeriodClick ? 'cursor-pointer' : ''} onClick={() => onPeriodClick?.(period)}>
                     {showTotalLabels ? (
                       <text data-stacked-total-label="true" x={xFor(periodIndex)} y={Math.max(16, yFor(total) - 9)} textAnchor="middle" fill="#E5E5E5" fontSize="10" fontWeight="700">{formatter(total)}</text>
                     ) : null}
@@ -6625,7 +6645,8 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       : supplyRowsForPeriod(periodLabel, seriesType).length
   );
   const openSupplyPeriodModal = (periodLabel, seriesType) => {
-    const rows = supplyRowsForPeriod(periodLabel, seriesType);
+    const chartValueRows = seriesType === 'cumulative_supply' ? supplyAreaValueRowsForPeriod(periodLabel, seriesType) : [];
+    const rows = chartValueRows.length ? chartValueRows : supplyRowsForPeriod(periodLabel, seriesType);
     const periodText = text(periodLabel, '');
     const expectedYear = periodText.match(/(?:19|20)\d{2}/)?.[0] || '';
     const expectedQuarterMatch = periodText.match(/(?:([1-4])\s*Q)|(?:Q\s*([1-4]))|(?:([1-4])\s*분기)/i);
@@ -6638,16 +6659,18 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
         : { dataset: 'supply_pipeline', suffix: '공급 예정 자산', groups: ['기본정보', '면적·건물', '건축·인허가', '일정', '사업주체·시공사', '비고'] });
     const useFallbackRows = seriesType === 'cumulative_supply' || Boolean(expectedQuarter || expectedHalf);
     openMarketDetailModal({
-      type: 'supply-detail-explorer',
+      type: chartValueRows.length ? 'supply-area-value-explorer' : 'supply-detail-explorer',
       title: `${periodLabel} ${supplyDetail.suffix}`,
       dataset: supplyDetail.dataset,
       rows,
-      columns: supplyDetailColumns,
+      columns: chartValueRows.length ? SUPPLY_AREA_VALUE_COLUMNS : supplyDetailColumns,
       filters: expectedYear ? { expected_year: expectedYear } : {},
       columnGroups: supplyDetail.groups,
-      minWidth: 1680,
-      defaultSort: [{ key: 'completion_period', direction: 'asc' }, { key: 'gross_area_py', direction: 'desc' }],
-      detailEnabled: !useFallbackRows && Boolean(expectedYear),
+      minWidth: chartValueRows.length ? 920 : 1680,
+      defaultSort: chartValueRows.length
+        ? [{ key: 'scope_label', direction: 'asc' }, { key: 'region_label', direction: 'asc' }]
+        : [{ key: 'completion_period', direction: 'asc' }, { key: 'gross_area_py', direction: 'desc' }],
+      detailEnabled: !chartValueRows.length && !useFallbackRows && Boolean(expectedYear),
       detailFallbackNotice: useFallbackRows
         ? '선택한 기간은 현재 상세 데이터의 서버 기간 필터가 지원되지 않아, 화면에서 이미 계산한 해당 기간 사례만 표시합니다.'
         : '',
@@ -6958,7 +6981,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     ? marketDetailState
     : null;
   const popupRows = Array.isArray(activeMarketDetail?.rows) ? activeMarketDetail.rows : fallbackPopupRows;
-  const popupColumns = marketDetailPopupColumns(activeMarketDetail?.columns || modal?.columns || transactionColumns);
+  const popupColumns = marketDetailPopupColumns(activeMarketDetail?.columns || modal?.columns || transactionColumns, popupRows);
   const popupMinWidth = Math.max(
     Number(modal?.minWidth) || 1180,
     popupColumns.reduce((sum, column) => sum + (Number(column.width) || 0), 0),
@@ -7015,11 +7038,13 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
                   <RegionFilterGroups label="권역" value={overviewLeaseRegion} onChange={setOverviewLeaseRegion} options={leaseStatisticRegionOptions} />
                 </FilterBlock>
               </FilterPanel>
-              {overviewLeaseTemp === '전체' ? (
-                <ScopedGroupedBarChart rows={overviewLeaseRentComparisonRows} formatter={leaseMetricFormatterFor(overviewLeaseSelectedMetric)} onRowClick={openLeaseStatisticModal} />
-              ) : (
-                <ScopedBarList rows={overviewLeaseRentSelectedRows} formatter={leaseMetricFormatterFor(overviewLeaseSelectedMetric)} color={chartSeriesColor(overviewLeaseTemp)} onRowClick={openLeaseStatisticModal} />
-              )}
+              <div data-testid="market-overview-lease-chart">
+                {overviewLeaseTemp === '전체' ? (
+                  <ScopedGroupedBarChart rows={overviewLeaseRentComparisonRows} formatter={leaseMetricFormatterFor(overviewLeaseSelectedMetric)} onRowClick={openLeaseStatisticModal} />
+                ) : (
+                  <ScopedBarList rows={overviewLeaseRentSelectedRows} formatter={leaseMetricFormatterFor(overviewLeaseSelectedMetric)} color={chartSeriesColor(overviewLeaseTemp)} onRowClick={openLeaseStatisticModal} />
+                )}
+              </div>
             </div>
             <div className={`${CARD} p-5`}>
               <ModuleHeader eyebrow="TRANSACTION" title={`권역별 ${overviewTxnMetric === 'unit_price' ? '평당가' : '거래금액'}`} />
@@ -7037,9 +7062,11 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
                   <RegionFilterGroups label="권역" value={overviewTxnRegion} onChange={setOverviewTxnRegion} options={regions} />
                 </FilterBlock>
               </FilterPanel>
-              <ScopedBarList rows={overviewTransactionRows} formatter={overviewTxnMetric === 'unit_price' ? formatKrw : formatKrw} color={CHART_COLORS.primary} onRowClick={openOverviewTransactionModal} />
+              <div data-testid="market-overview-transaction-chart">
+                <ScopedBarList rows={overviewTransactionRows} formatter={overviewTxnMetric === 'unit_price' ? formatKrw : formatKrw} color={CHART_COLORS.primary} onRowClick={openOverviewTransactionModal} />
+              </div>
             </div>
-            <div className={`${CARD} p-5 xl:col-span-2`}>
+            <div className={`${CARD} p-5 xl:col-span-2`} data-testid="market-overview-supply-chart">
               <ModuleHeader eyebrow="SUPPLY" title="공급 예정 면적" />
               <SupplyAreaChart rows={overviewSupplyRows} seriesType="supply_period" title="공급 예정 시점" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={supplyDetailCountForPeriod} />
             </div>
@@ -7049,7 +7076,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
 
       {currentTab === 'transactions' ? (
         <div className="space-y-5">
-          <section className={`${CARD} p-5`}>
+          <section className={`${CARD} p-5`} data-testid="market-transactions-cases">
             <ModuleHeader
               eyebrow="TRANSACTIONS"
               title="거래 사례 비교"
@@ -7057,6 +7084,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               right={(
                 <button
                   type="button"
+                  data-testid="market-transactions-statistics-button"
                   onClick={() => openMarketDetailModal({
                     type: 'transaction-statistics-explorer',
                     title: '매매통계 전체 상세',
@@ -7095,7 +7123,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               />
             </div>
           </section>
-          <section className={`${CARD} p-5`}>
+          <section className={`${CARD} p-5`} data-testid="market-transactions-period">
             <ModuleHeader
               eyebrow="TIME SERIES"
               title="2020년 이후 권역별 거래시장 규모"
@@ -7103,6 +7131,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               right={(
                 <button
                   type="button"
+                  data-testid="market-transactions-period-button"
                   onClick={() => openMarketDetailModal({
                     type: 'transaction-detail-explorer',
                     title: '2020년 이후 권역별 거래시장 규모 상세',
@@ -7153,17 +7182,17 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               <div className="xl:col-span-4 rounded-[10px] border border-[#333333] bg-[#171717] px-4 py-3 text-[12px] leading-5 text-[#A1A1AA]">{sizeBucketNote}</div>
             </FilterPanel>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-              <div className="min-w-0 rounded-[10px] border border-[#333333] bg-[#171717] p-4">
+              <div className="min-w-0 rounded-[10px] border border-[#333333] bg-[#171717] p-4" data-testid="market-transactions-size-unit-price">
                 <div className="mb-2 text-[13px] font-semibold text-white">평당 거래가</div>
                 <BarList rows={sizeUnitPriceChartRows} formatter={formatKrw} color={CHART_COLORS.secondary} onRowClick={(row) => openTransactionSizeModal(row, '평당 거래가')} />
               </div>
-              <div className="min-w-0 rounded-[10px] border border-[#333333] bg-[#171717] p-4">
+              <div className="min-w-0 rounded-[10px] border border-[#333333] bg-[#171717] p-4" data-testid="market-transactions-size-market">
                 <div className="mb-2 text-[13px] font-semibold text-white">거래시장 규모</div>
                 <BarList rows={sizeMarketChartRows} formatter={formatKrw} color={CHART_COLORS.primary} onRowClick={(row) => openTransactionSizeModal(row, '거래시장 규모')} />
               </div>
             </div>
           </section>
-          <section className={`${CARD} p-5`}>
+          <section className={`${CARD} p-5`} data-testid="market-transactions-cap-rate">
             <ModuleHeader
               eyebrow="CAP RATE"
               title="Cap Rate 추이"
@@ -7171,6 +7200,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               right={(
                 <button
                   type="button"
+                  data-testid="market-transactions-cap-rate-button"
                   onClick={() => openMarketDetailModal({
                     type: 'cap-rate-explorer',
                     title: 'Cap Rate 추이 상세',
@@ -7214,13 +7244,14 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
 
       {currentTab === 'lease' ? (
         <div className="space-y-5">
-          <section className={`${CARD} p-5`}>
+          <section className={`${CARD} p-5`} data-testid="market-lease-statistics">
             <ModuleHeader
               eyebrow="LEASE MARKET"
               title="최신 임대시장 통계"
               right={(
                 <button
                   type="button"
+                  data-testid="market-lease-history-button"
                   onClick={() => openMarketDetailModal({
                     type: 'lease-history',
                     title: '임대시장 전체 기록',
@@ -7296,7 +7327,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               </div>
             ) : null}
           </section>
-          <section className={`${CARD} p-5`}>
+          <section className={`${CARD} p-5`} data-testid="market-lease-center-table">
             <ModuleHeader eyebrow="CENTER DETAIL" title="권역별 물류센터 임대 현황" subtitle="임대시장 현황 시트의 센터별 관측치입니다. 행을 선택하면 같은 센터의 시점별 기록을 확인합니다." />
             <div className="mb-4 grid grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(280px,0.72fr)_minmax(520px,1.28fr)]" data-market-filter-block="true">
               <div className="h-full min-h-[92px] rounded-[10px] border border-[#333333] bg-[#171717] p-3" data-market-filter-card="true">

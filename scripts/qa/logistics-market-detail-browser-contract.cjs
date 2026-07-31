@@ -11,6 +11,27 @@ const SUPPLY_SECTIONS = [
   { testId: 'market-supply-pipeline', dataset: 'supply_pipeline' },
   { testId: 'market-supply-cumulative', dataset: 'supply_cumulative' },
 ];
+const POPUP_INVENTORY = [
+  { id: 'overview-lease-chart', route: 'market-data/overview', container: 'market-overview-lease-chart', trigger: '[data-scoped-grouped-bar-row="true"][data-scoped-grouped-bar-clickable="true"], [data-scoped-bar-row="true"][data-scoped-bar-clickable="true"]', dataset: 'lease_statistics', expectRequest: true },
+  { id: 'overview-transaction-chart', route: 'market-data/overview', container: 'market-overview-transaction-chart', trigger: '[data-scoped-bar-row="true"][data-scoped-bar-clickable="true"]', dataset: 'transaction_cases', expectRequest: true },
+  { id: 'overview-supply-chart', route: 'market-data/overview', container: 'market-overview-supply-chart', trigger: '[data-supply-chart-period-group="true"][data-supply-chart-clickable="true"]', dataset: 'supply_pipeline', expectRequest: false },
+  { id: 'lease-statistics-chart', route: 'market-data/lease-market', container: 'market-lease-statistics', trigger: '[data-scoped-bar-row="true"][data-scoped-bar-clickable="true"]', dataset: 'lease_statistics', expectRequest: true },
+  { id: 'lease-history-button', route: 'market-data/lease-market', container: 'market-lease-statistics', trigger: '[data-testid="market-lease-history-button"]', dataset: 'lease_history', expectRequest: true },
+  { id: 'lease-center-row', route: 'market-data/lease-market', container: 'market-lease-center-table', trigger: '[data-sortable-table="true"] tbody tr', dataset: 'lease_history', expectRequest: true },
+  { id: 'supply-new-row', route: 'market-data/supply-pipeline', container: 'market-supply-new', trigger: '[data-sortable-table="true"] tbody tr', dataset: 'supply_new', expectRequest: true },
+  { id: 'supply-pipeline-row', route: 'market-data/supply-pipeline', container: 'market-supply-pipeline', trigger: '[data-sortable-table="true"] tbody tr', dataset: 'supply_pipeline', expectRequest: true },
+  { id: 'supply-cumulative-row', route: 'market-data/supply-pipeline', container: 'market-supply-cumulative', trigger: '[data-sortable-table="true"] tbody tr', dataset: 'supply_cumulative', expectRequest: true },
+  { id: 'supply-pipeline-chart', route: 'market-data/supply-pipeline', container: 'market-supply-pipeline', trigger: '[data-supply-chart-period-group="true"][data-supply-chart-clickable="true"]', dataset: 'supply_pipeline', expectRequest: false },
+  { id: 'supply-cumulative-chart', route: 'market-data/supply-pipeline', container: 'market-supply-cumulative', trigger: '[data-supply-chart-period-group="true"][data-supply-chart-clickable="true"]', dataset: 'supply_cumulative', expectRequest: false },
+  { id: 'transaction-case-row', route: 'market-data/transactions', container: 'market-transactions-cases', trigger: '[data-sortable-table="true"] tbody tr', dataset: 'transaction_cases', expectRequest: true },
+  { id: 'transaction-statistics-button', route: 'market-data/transactions', container: 'market-transactions-cases', trigger: '[data-testid="market-transactions-statistics-button"]', dataset: 'transaction_statistics', expectRequest: true },
+  { id: 'transaction-period-button', route: 'market-data/transactions', container: 'market-transactions-period', trigger: '[data-testid="market-transactions-period-button"]', dataset: 'transaction_cases', expectRequest: false },
+  { id: 'transaction-period-chart', route: 'market-data/transactions', container: 'market-transactions-period', trigger: '[data-stacked-period-group="true"][data-stacked-period-clickable="true"]', dataset: 'transaction_cases', expectRequest: true },
+  { id: 'transaction-size-unit-price', route: 'market-data/transactions', container: 'market-transactions-size-unit-price', trigger: '[data-bar-list-row="true"][data-bar-list-clickable="true"]', dataset: 'transaction_cases', expectRequest: true },
+  { id: 'transaction-size-market', route: 'market-data/transactions', container: 'market-transactions-size-market', trigger: '[data-bar-list-row="true"][data-bar-list-clickable="true"]', dataset: 'transaction_cases', expectRequest: true },
+  { id: 'cap-rate-button', route: 'market-data/transactions', container: 'market-transactions-cap-rate', trigger: '[data-testid="market-transactions-cap-rate-button"]', dataset: 'cap_rate', expectRequest: true },
+  { id: 'cap-rate-point', route: 'market-data/transactions', container: 'market-transactions-cap-rate', trigger: '[data-multi-line-point="true"]', dataset: 'cap_rate', expectRequest: true },
+];
 const FORBIDDEN_FIELDS = new Set(['id', 'payload', 'source_row_id', 'source_file_id', 'source_row_number', 'pnu', 'legal_dong_code', 'row_hash', 'natural_key']);
 
 function readEnvFile(filePath) {
@@ -103,6 +124,24 @@ function assertDetailResponse(dataset, data, maxRows) {
   }
   const internal = forbiddenPaths(data);
   if (internal.length) throw new Error(`${dataset}: internal fields exposed: ${internal.join(', ')}`);
+  const businessRows = rows.filter((row) => columns.some((column) => hasBusinessValue(row?.[column.key])));
+  if (!businessRows.length) throw new Error(`${dataset}: no row has a non-empty business cell`);
+  if (dataset === 'supply_new' && !columns.some((column) => isAddressLabel(column.label))) {
+    throw new Error('supply_new: 소재지 business column is required');
+  }
+}
+
+function hasBusinessValue(value) {
+  if (value === 0 || value === false) return true;
+  return value !== null && value !== undefined && String(value).replace(/\s+/gu, ' ').trim() !== '' && String(value).trim() !== '-';
+}
+
+function isAddressLabel(value) {
+  return /(?:소재지|주소|대지\s*위치|위치)/u.test(String(value || ''));
+}
+
+function detailDataFromResponse(response) {
+  return response.json().then((body) => body?.data || {}).catch(() => ({}));
 }
 
 async function waitVisible(locator, label) {
@@ -111,7 +150,7 @@ async function waitVisible(locator, label) {
   }
 }
 
-async function inspectDialog(page, dialog, dataset) {
+async function inspectDialog(page, dialog, dataset, detailData = {}) {
   await page.waitForFunction(() => {
     const modal = [...document.querySelectorAll('[role="dialog"]')].at(-1);
     const rows = [...(modal?.querySelectorAll('[data-sortable-table="true"] tbody tr') || [])];
@@ -129,6 +168,7 @@ async function inspectDialog(page, dialog, dataset) {
       return { left: rect.left, right: rect.right, width: rect.width };
     });
     const headerOverlapCount = headerRects.slice(0, -1).filter((rect, index) => rect.right > headerRects[index + 1].left + 1).length;
+    const bodyRows = [...scroller.querySelectorAll('tbody tr')];
     const unreadableCellCount = [...scroller.querySelectorAll('tbody td')].filter((cell) => {
       const style = getComputedStyle(cell);
       const clipped = cell.scrollWidth > cell.clientWidth + 1 && style.whiteSpace !== 'normal';
@@ -137,11 +177,25 @@ async function inspectDialog(page, dialog, dataset) {
     if (scroller) scroller.scrollLeft = scroller.scrollWidth;
     const scrollerRect = scroller?.getBoundingClientRect();
     const lastHeaderRect = headers.at(-1)?.getBoundingClientRect();
+    const headerLabels = headers.map((header) => (header.textContent || '').replace(/\s+/gu, ' ').trim());
+    const addressColumnIndex = headerLabels.findIndex((label) => /(?:소재지|주소|대지\s*위치|위치)/u.test(label));
+    const nonEmptyCellCount = bodyRows.reduce((count, row) => count + [...row.querySelectorAll('td')].filter((cell) => {
+      const value = (cell.textContent || '').replace(/\s+/gu, ' ').trim();
+      return value && value !== '-';
+    }).length, 0);
+    const visibleAddressCellCount = addressColumnIndex < 0 ? 0 : bodyRows.filter((row) => {
+      const value = (row.querySelectorAll('td')[addressColumnIndex]?.textContent || '').replace(/\s+/gu, ' ').trim();
+      return value && value !== '-';
+    }).length;
     return {
       column_count: headers.length,
+      header_labels: headerLabels,
       header_overlap_count: headerOverlapCount,
       zero_width_header_count: headerRects.filter((rect) => rect.width < 40).length,
       unreadable_cell_count: unreadableCellCount,
+      non_empty_cell_count: nonEmptyCellCount,
+      address_header_visible: addressColumnIndex >= 0,
+      visible_address_cell_count: visibleAddressCellCount,
       horizontal_scroll: Boolean(scroller && scroller.scrollWidth > scroller.clientWidth + 1),
       last_column_visible_at_scroll_end: Boolean(
         scrollerRect
@@ -155,6 +209,13 @@ async function inspectDialog(page, dialog, dataset) {
   });
   const fullScreen = Boolean(box && viewport && box.width >= viewport.width * 0.9 && box.height >= viewport.height * 0.9);
   const internalText = /\b(?:payload|source_row_id|source_file_id|source_row_number|pnu|natural_key|row_hash)\b/iu.test(dialogText);
+  const apiColumns = Array.isArray(detailData.columns) ? detailData.columns : [];
+  const apiRows = Array.isArray(detailData.rows) ? detailData.rows : [];
+  const apiNonEmptyRowCount = apiRows.filter((row) => apiColumns.some((column) => hasBusinessValue(row?.[column.key]))).length;
+  const apiAddressColumn = apiColumns.find((column) => isAddressLabel(column.label));
+  const apiNonEmptyAddressRowCount = apiAddressColumn
+    ? apiRows.filter((row) => hasBusinessValue(row?.[apiAddressColumn.key])).length
+    : 0;
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const screenshotPath = path.join(OUT_DIR, `market-detail-browser-contract-${timestamp()}-${dataset}.png`);
   await dialog.screenshot({ path: screenshotPath });
@@ -162,13 +223,18 @@ async function inspectDialog(page, dialog, dataset) {
     dataset,
     fullscreen: fullScreen,
     table_rows: tableRows,
+    api_non_empty_row_count: apiNonEmptyRowCount,
+    api_non_empty_address_row_count: apiNonEmptyAddressRowCount,
     internal_text: internalText,
     ...layout,
     screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
     ok: fullScreen
       && tableRows > 0
+      && apiNonEmptyRowCount > 0
       && !internalText
       && layout.column_count > 0
+      && layout.non_empty_cell_count > 0
+      && (dataset !== 'supply_new' || layout.address_header_visible)
       && layout.header_overlap_count === 0
       && layout.zero_width_header_count === 0
       && layout.unreadable_cell_count === 0
@@ -229,7 +295,7 @@ async function openSupplyPopup(page, sectionTestId, expectedDataset, functionAct
     const requestState = await dialog.locator('[data-testid="market-detail-request-state"]').innerText().catch(() => 'request state not rendered');
     throw new Error(`${expectedDataset}: detail response was not observed; row=${JSON.stringify(rowText)}; state=${JSON.stringify(requestState)}; actions=${JSON.stringify(functionActions.slice(-10))}`);
   }
-  const check = await inspectDialog(page, dialog, expectedDataset);
+  const check = await inspectDialog(page, dialog, expectedDataset, await detailDataFromResponse(response));
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden', timeout: 10000 });
   return {
@@ -251,10 +317,55 @@ async function openTriggeredPopup(page, expectedDataset, trigger, functionAction
   if (!response) {
     throw new Error(`${expectedDataset}: detail response was not observed; actions=${JSON.stringify(functionActions.slice(-10))}`);
   }
-  const check = await inspectDialog(page, dialog, expectedDataset);
+  const check = await inspectDialog(page, dialog, expectedDataset, await detailDataFromResponse(response));
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden', timeout: 10000 });
   return check;
+}
+
+async function openCumulativeSupplyChartPopup(page, detailData, functionActions) {
+  const section = page.locator('[data-testid="market-supply-cumulative"]');
+  await waitVisible(section, 'cumulative supply section');
+  const period = section.locator('[data-supply-chart-period-group="true"][data-supply-chart-clickable="true"]').first();
+  await waitVisible(period, 'cumulative supply chart period');
+  const detailCallsBefore = functionActions.filter((action) => action === 'sector-market/detail/list').length;
+  await period.click();
+  const dialog = page.locator('[role="dialog"]').last();
+  await waitVisible(dialog, 'cumulative supply chart dialog');
+  const check = await inspectDialog(page, dialog, 'supply_cumulative_chart', detailData);
+  const detailCallsAfter = functionActions.filter((action) => action === 'sector-market/detail/list').length;
+  if (detailCallsAfter !== detailCallsBefore) {
+    throw new Error('cumulative supply chart popup must use the already loaded chart values without an extra detail request');
+  }
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden', timeout: 10000 });
+  return check;
+}
+
+async function openInventoryPopup(page, entry, functionActions, detailDataByDataset, baseUrl) {
+  await page.goto(joinUrl(baseUrl, entry.route), { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await waitVisible(page.locator('[data-testid="market-data-dashboard"]'), `${entry.id} dashboard`);
+  const container = page.locator(`[data-testid="${entry.container}"]`);
+  await waitVisible(container, `${entry.id} container`);
+  const trigger = container.locator(entry.trigger).first();
+  await waitVisible(trigger, `${entry.id} trigger`);
+  const responsePromise = entry.expectRequest
+    ? page.waitForResponse((response) => {
+      if (!response.url().includes('/functions/v1/ll-dashboard-api')) return false;
+      const body = response.request().postDataJSON?.() || {};
+      return body.action === 'sector-market/detail/list' && body.payload?.dataset === entry.dataset;
+    }, { timeout: 20000 }).catch(() => null)
+    : null;
+  await trigger.click();
+  const dialog = page.locator('[role="dialog"]').last();
+  await waitVisible(dialog, `${entry.id} dialog`);
+  const response = responsePromise ? await responsePromise : null;
+  if (entry.expectRequest && !response) throw new Error(`${entry.id}: expected ${entry.dataset} detail response was not observed`);
+  const check = await inspectDialog(page, dialog, entry.dataset, response ? await detailDataFromResponse(response) : detailDataByDataset.get(entry.dataset));
+  if (!check.ok) throw new Error(`${entry.id}: popup display contract failed: ${JSON.stringify(check)}`);
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden', timeout: 10000 });
+  return { ...check, id: entry.id, route: entry.route, request_observed: Boolean(response) };
 }
 
 async function main() {
@@ -274,11 +385,13 @@ async function main() {
   if (!authResponse.ok || !auth.access_token) throw new Error(`Real QA account login failed (${authResponse.status}).`);
 
   const apiChecks = [];
+  const detailDataByDataset = new Map();
   for (const dataset of DETAIL_DATASETS) {
     const firstPage = await invokeDetail(supabaseUrl, anonKey, auth.access_token, dataset);
     assertDetailResponse(dataset, firstPage, 100);
     const cappedPage = await invokeDetail(supabaseUrl, anonKey, auth.access_token, dataset, { page_size: 9999 });
     assertDetailResponse(dataset, cappedPage, 500);
+    detailDataByDataset.set(dataset, firstPage);
     apiChecks.push({ dataset, total: firstPage.total, default_rows: firstPage.rows.length, capped_rows: cappedPage.rows.length });
   }
 
@@ -309,7 +422,9 @@ async function main() {
     for (const { testId, dataset } of SUPPLY_SECTIONS) {
       supplyChecks.push(await openSupplyPopup(page, testId, dataset, functionActions));
     }
+    const cumulativeChartCheck = await openCumulativeSupplyChartPopup(page, detailDataByDataset.get('supply_cumulative'), functionActions);
     if (!supplyChecks.every((check) => check.ok)) throw new Error(`Supply popup contract failed: ${JSON.stringify(supplyChecks)}`);
+    if (!cumulativeChartCheck.ok) throw new Error(`Cumulative supply chart popup contract failed: ${JSON.stringify(cumulativeChartCheck)}`);
 
     await page.goto(joinUrl(baseUrl, 'market-data/lease-market'), { waitUntil: 'domcontentloaded', timeout: 60000 });
     await waitVisible(page.locator('[data-testid="market-data-dashboard"]'), 'lease market dashboard');
@@ -360,6 +475,14 @@ async function main() {
     ));
     if (!transactionChecks.every((check) => check.ok)) throw new Error(`Transaction popup contract failed: ${JSON.stringify(transactionChecks)}`);
 
+    const inventoryChecks = [];
+    for (const entry of POPUP_INVENTORY) {
+      inventoryChecks.push(await openInventoryPopup(page, entry, functionActions, detailDataByDataset, baseUrl));
+    }
+    if (inventoryChecks.length !== POPUP_INVENTORY.length || !inventoryChecks.every((check) => check.ok)) {
+      throw new Error(`Market popup inventory contract failed: ${JSON.stringify(inventoryChecks)}`);
+    }
+
     if (functionActions.some((action) => /(?:ingest|upload|create|update|delete|approve|submit)/iu.test(action))) {
       throw new Error(`QA issued a non-read-only Edge action: ${functionActions.join(', ')}`);
     }
@@ -375,8 +498,10 @@ async function main() {
       initial_detail_calls: initialDetailCalls,
       function_actions: functionActions,
       supply_checks: supplyChecks,
+      cumulative_supply_chart_check: cumulativeChartCheck,
       lease_checks: leaseChecks,
       transaction_checks: transactionChecks,
+      inventory_checks: inventoryChecks,
     }, null, 2));
     process.stdout.write(`${JSON.stringify({ ok: true, output: path.relative(ROOT, outputPath).replace(/\\/gu, '/') })}\n`);
   } finally {
