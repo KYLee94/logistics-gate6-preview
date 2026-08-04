@@ -2,9 +2,9 @@
 
 ## 현재 판정
 
-상태: **복구 게이트 미통과 — 기능 구현·운영 적용 차단**
+상태: **R0 독립 복구 PASS · R1 원본 mapping PARTIAL · 운영 적용 차단**
 
-이 디렉터리는 기존 운영본을 독립 복구 가능한 상태로 보존한 뒤 `홈 / 렌트롤 / 수익·비용` 플랫폼을 SDD·TDD 순서로 구축하기 위한 실행 명세와 증거를 모읍니다. 복구 게이트가 모두 통과하기 전에는 신규 migration, 운영 Edge 배포, 운영 frontend 배포를 수행하지 않습니다.
+이 디렉터리는 기존 운영본을 독립 복구 가능한 상태로 보존한 뒤 `홈 / 렌트롤 / 수익·비용` 플랫폼을 SDD·TDD 순서로 구축하기 위한 실행 명세와 증거를 모읍니다. R0는 기존 운영본의 DB·Auth·Storage·Edge·Pages 복구 가능성을 검증하는 단계이며 통과했습니다. R1은 Excel·기존 DB·API·화면·신규 필드의 의미를 연결하는 단계로 아직 진행 중입니다. R0·R1 통과 전에는 SDD 문서와 의도적으로 실패하는 테스트만 진척으로 인정합니다. 이미 작성된 migration·Edge·frontend 초안은 격리 상태로 보존하며 R1 승인 뒤 계약에 맞게 수정합니다. R1과 로컬 리허설 통과 뒤에만 같은 프로젝트에 외부 권한·writer·worker가 없는 비노출 additive DDL을 1회 적용해 R2를 검증할 수 있습니다. 공개 권한 부여·쓰기 활성화·배포는 신규 delta rollback을 포함한 R3 및 릴리스 게이트 통과 뒤에만 수행합니다.
 
 ## 고정 기준점
 
@@ -23,6 +23,8 @@
 - 821개 dirty 상태 항목은 tracked patch, 미추적 원본, 파일 목록, 크기, SHA-256으로 로컬 분리 보존했습니다. 원래 dirty 작업공간의 파일은 이동·삭제·되돌리기하지 않았습니다.
 - 운영 DB roles·전체 custom dump·schema SQL·data custom dump·catalog·Storage metadata를 Windows EFS 암호화 폴더에 저장했습니다.
 - 운영 Edge 함수 8개의 배포 목록과 원격 소스를 같은 암호화 폴더에 저장했습니다.
+- Gate 6 애플리케이션 객체 375개를 별도 로컬 DB에 종료 코드 0으로 복원하고, 27개 테이블·27,512행·전체 내용 해시 27/27과 제약·인덱스·RLS를 확인했습니다.
+- source·Pages archive와 Edge 8개를 5.25초 안에 재조립하고 live 기존 경로·번들 hash를 readback했습니다.
 
 ## 복구 검증 결과
 
@@ -30,24 +32,30 @@
 |---|---|---|
 | 운영 DB dump | roles/schema/data/full 모두 종료 코드 0 | 통과 |
 | 로컬 roles 복원 | 종료 코드 0 | 통과 |
-| 로컬 전체 DB 복원 | `pg_net`, `postgis`, `supabase_vault`, `vector` 부재로 종료 코드 1 | 미통과 |
+| 로컬 전체 DB 복원 | Supabase 관리 확장 4개는 플랫폼 책임으로 분리; Gate 6 소유 객체 375개 선택 복원 종료 코드 0 | 통과 |
 | `public.ll_*` 행 수 readback | 27개 테이블 전부 일치, 총 27,512행 | 통과 |
-| `public.ll_*` 내용 해시 | 24개 일치, 3개 불일치 | 조건부 |
-| 해시 불일치 테이블 | `ll_news_items`, `ll_notifications`, `ll_sector_market_lease_observations`; 행 수는 모두 일치 | 재검증 필요 |
+| 동일 dump snapshot `public.ll_*` 내용 해시 | 27/27 일치 | 통과 |
+| 운영-vs-dump 동적 테이블 해시 | 24/27 일치 | cutover 직전 동일 snapshot 재검증 |
 | Auth 사용자 | 운영 13명, 로컬 복원 13명 | 통과 |
 | Storage metadata | 운영 49개, 로컬 복원 49개 | 통과 |
-| Storage 원본 파일 | 기존 로그인 사용자의 RLS로 49/49 다운로드 거부 | 미통과 |
+| Storage 원본 파일 | 관리 권한으로 49/49·113,226,015바이트·파일별 SHA-256 확보 | 통과 |
 | 운영 Edge archive | 8개 함수, `ll-dashboard-api` 운영 버전 545 포함 | 통과 |
-| Supabase staging branch | 기존 branch 0개 | 미통과 |
+| schema 격리 방식 | 동일 프로젝트 `logistics_core`·`logistics_api` additive schema | 사용자 승인 |
 
-해시 불일치 3개는 dump 이후에도 갱신될 수 있는 동적 테이블입니다. 원인이 시간 차이인지 데이터 손실인지 단정하지 않으며, 동일 시점 snapshot 또는 쓰기 잠금 하에서 다시 비교하기 전에는 성공으로 처리하지 않습니다.
+운영-vs-dump 해시 불일치 3개는 서로 다른 시점의 동적 테이블 비교이며 R0 복원본의 동일 snapshot 검증과 구분합니다. R0는 동일 dump snapshot 27/27 해시로 통과했고, cutover 직전에는 쓰기 잠금 하에 운영 snapshot을 다시 고정하여 비교합니다.
 
 ## 현재 차단 항목
 
-1. Supabase와 동일한 전용 확장을 가진 staging에서 전체 restore 종료 코드 0과 기능 readback을 확인해야 합니다.
-2. Storage 원본 49개를 권한 있는 비공개 경로로 백업하고 크기·SHA-256을 확인해야 합니다.
-3. 운영 유사 staging branch는 현재 존재하지 않습니다. 공식 요금 기준 Preview branch는 Micro에서 시간당 USD 0.01344부터 시작하며 추가 사용량이 발생할 수 있으므로 비용 승인이 필요합니다.
-4. 15분 rollback 리허설은 위 두 복구 공백이 해소된 뒤 다시 수행해야 합니다.
+1. Excel·기존 DB·API·화면·신규 필드 mapping의 critical exception을 0건으로 만들어야 합니다.
+2. 월별 수익·비용·수납·대출상환 원천과 계산 fixture를 승인받아야 합니다.
+3. additive schema의 production shadow와 신규 delta를 포함한 R2·R3 rollback 리허설을 수행해야 합니다.
+
+## 현재 개발 상태
+
+- SDD 문서 간 의미·계약 충돌은 0건으로 감사되어 설계 기준은 고정했습니다.
+- DB·API·계산·frontend 정적 계약 테스트는 구현보다 먼저 작성했고, 누락 계약을 정확히 가리키며 RED로 실패했습니다.
+- 기존에 작성된 schema·Edge·frontend 초안은 RED를 통과하기 전까지 격리 상태이며 운영 구현 완료로 계산하지 않습니다.
+- 다음 순서는 원천 mapping의 critical exception을 해소한 뒤, RED를 하나씩 GREEN으로 만드는 구현과 로컬 migration·backfill·reverse 리허설입니다.
 
 ## 구현 금지선
 
@@ -65,7 +73,11 @@
 1. `00-execution-gates.md`: 실행·승인·차단 게이트
 2. `01-feature-disposition.md`: 기존 기능 보존·미이관·호환·폐기 검토 분류
 3. `02-acceptance-matrix.md`: 제품 수준 인수 기준
-4. `10-data-api-sdd.md`: DB·권한·API·계산 계약
-5. `11-backfill-rollback-sdd.md`: 이관·호환·역이관·rollback 계약
-6. `20-frontend-test-sdd.md`: 세 탭 화면과 브라우저 TDD 계약
-7. `21-release-gate-sdd.md`: 파일럿·배포·live 검증 게이트
+4. `03-r0-recovery-result.md`: 독립 복구·archive rollback 실행 결과
+5. `04-ll-inventory-mapping.md`: 27개 `ll_*` 전수조사와 old-to-new mapping manifest
+6. `05-source-workbook-manifest.md`: 업무 Excel 해시·물리 좌표·마지막 정상 버전 증거
+7. `field-mapping.csv`: Excel→기존 DB→신규 field 단위 mapping 초안
+8. `10-data-api-sdd.md`: DB·권한·API·계산 계약
+9. `11-backfill-rollback-sdd.md`: 이관·호환·역이관·rollback 계약
+10. `20-frontend-test-sdd.md`: 세 탭 화면과 브라우저 TDD 계약
+11. `21-release-gate-sdd.md`: 파일럿·배포·live 검증 게이트

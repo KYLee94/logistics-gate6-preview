@@ -1,6 +1,6 @@
 # Release Gate SDD
 
-현재 상태: **BLOCKED** — 독립 복구 게이트 미통과
+현재 상태: **BLOCKED** — R0 독립 복구 PASS, R1 mapping 및 R2·R3 미통과
 
 ## 증거 등급
 
@@ -15,12 +15,12 @@
 
 모든 QA JSON은 `evidence_mode`, `source_status`, `request_id`, `revision`, `readback_confirmed`를 기록합니다.
 
-## 배포 전 게이트
+## 배포 전 release gate
 
-1. archive·DB/Auth/Storage/Edge restore와 15분 rollback 통과
+1. R0 archive·DB/Auth/Storage/Edge 독립 복구와 기존 버전 archive rollback 통과
 2. 데이터·API·권한·계산·frontend·메일 SDD 확정
 3. 의도된 실패 테스트 확인 후 구현 테스트 green
-4. staging migration 2회 실행 결과 동일
+4. 복구 로컬 DB(`local rehearsal`) migration 2회 실행 결과 동일, 같은 프로젝트 비노출 schema(`production shadow`) readback, 신규 delta 포함 15분 rollback 통과
 5. old/new API wire-shape와 forward/reverse delta sync 확인
 6. 3인 pilot user ID·8개 권한 확인
 7. 회사 발신 도메인 SPF·DKIM과 Resend 실제 수신 확인
@@ -44,22 +44,25 @@
 
 테스트는 최신 JSON과 timestamp JSON, screenshot, network 요약, console/page error, primary/fallback 판정을 남깁니다.
 
-## 배포 순서
+## 배포·writer 전환 순서
 
 1. remote·branch·HEAD·dirty 파일·base path·Supabase project ref 재확인
-2. staging migration·backfill·reverse 검증
-3. 승인된 운영 migration 적용과 readback
-4. Edge 배포, auth/permission/action smoke
-5. frontend `build:preview`
-6. 명시적 파일만 stage·commit; `git add -A` 금지
-7. 검증 커밋만 원격 main에 반영
-8. gh-pages 배포
-9. live HTML·JS·CSS hash 확인
-10. root·`/home`·`/rent-roll`·`/income-expense` deep link 검증
+2. `local rehearsal` migration·backfill·reverse 검증
+3. 운영 프로젝트에 additive DDL을 **1회만** 적용하고 외부 grant·writer·worker가 비활성인 `production shadow`로 readback
+4. `logistics_api` read RPC에만 EXECUTE를 부여하고, mutation RPC grant는 없는 상태에서 Edge를 `v2_write_enabled=false`로 먼저 배포하여 JWT·권한·read action·403/timeout 계약을 smoke
+5. frontend `build:preview` 후 명시적 파일만 stage·commit; `git add -A` 금지
+6. 검증 커밋만 원격 main에 반영하고 gh-pages를 파일럿 feature flag 비활성 상태로 배포
+7. live HTML·JS·CSS hash와 root·`/home`·`/rent-roll`·`/income-expense` deep link의 로그인 복귀를 읽기 전용으로 검증
+8. mutation RPC EXECUTE를 부여하되 `asset_writer_routes=legacy`, `v2_write_enabled=false`에서 direct RPC와 Edge mutation이 모두 `503 MAINTENANCE_MODE`인지 검증
+9. 짧은 전환 창에 대상 자산의 `writer_mode=locked`를 설정하고 기존 진행 중 쓰기가 0건이 될 때까지 drain
+10. 전환 watermark·forward/reverse delta·legacy projection·primary readback hash를 확인
+11. 한 DB transaction에서 대상 자산의 `writer_mode=v2`, pilot Auth UID, `v2_write_enabled=true`를 함께 commit
+12. worker는 도메인 QA와 발신 승인이 끝날 때까지 비활성 유지하고 즉시 파일럿 CRUD·409·readback을 검증
+13. 아래 배포 후 live acceptance를 실행하고 실패 시 즉시 rollback
 
-Edge가 먼저, frontend가 다음입니다. 대상은 `qvegpozwrcmspdvjokiz`와 `KYLee94/logistics-gate6-preview`뿐입니다.
+Edge가 먼저, frontend가 다음이며 둘 다 writer 비활성 상태로 선배포합니다. read RPC grant, mutation RPC grant, 자산 writer route, pilot feature flag는 서로 다른 상태로 기록합니다. 실제 쓰기 개방은 `locked → drain → delta/readback → 단일 transaction(writer_mode=v2 + pilot flag on)` 순서이고 이 transaction commit이 유일한 unlock입니다. 대상은 `qvegpozwrcmspdvjokiz`와 `KYLee94/logistics-gate6-preview`뿐입니다.
 
-## Live 통과 조건
+## 배포 후 live acceptance
 
 - 세션 없는 deep link→로그인→원래 경로 복귀
 - 읽기 가능한 자산만 노출

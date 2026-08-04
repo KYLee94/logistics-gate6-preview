@@ -1,6 +1,6 @@
 # Gate 6 backfill·호환·rollback SDD
 
-문서 상태: **설계 기준선(draft) — 복구 게이트 미통과, migration 실행 금지**
+문서 상태: **R0 PASS · R1 PARTIAL — 구현 진척·운영 migration 실행 금지**
 작성 기준일: 2026-08-04
 적용 범위: 운영 snapshot, old-to-new mapping, backfill, legacy projection, 역이관, cutover, 15분 rollback
 
@@ -10,7 +10,7 @@
 
 다음 원칙은 예외가 없습니다.
 
-- 복구 게이트가 닫혀 있는 동안 migration·Edge 코드 작성 또는 운영 적용을 금지합니다.
+- R0·R1 통과 전에는 SDD 문서와 의도적으로 실패하는 테스트만 진척으로 인정합니다. 이미 생긴 migration·handler·frontend 구현 초안은 격리 보존하되 R1 승인 전 더 수정하거나 진척으로 인정하지 않습니다.
 - source를 정리·수정한 뒤 이관하지 않습니다. source 원문과 hash를 먼저 고정합니다.
 - 행 수 일치만으로 성공 처리하지 않습니다. 관계, 업무값, 권한, 계산, source/target hash가 모두 일치해야 합니다.
 - source 자료가 없으면 NULL과 `not_provided`를 보존합니다. 샘플·추정값으로 통과시키지 않습니다.
@@ -36,17 +36,18 @@
 |---|---:|---|
 | 운영 DB dump | roles/schema/data/full 종료 코드 0 | 통과 |
 | 로컬 roles restore | 종료 코드 0 | 통과 |
-| 로컬 전체 DB restore | `pg_net`, `postgis`, `supabase_vault`, `vector` 부재로 종료 코드 1 | **미통과** |
+| 로컬 전체 DB restore | 플랫폼 관리 확장 4개 부재로 종료 코드 1 | 책임 분리 |
+| Gate 6 애플리케이션 선택 restore | 375개 객체, 종료 코드 0 | 통과 |
 | `public.ll_*` table count | 27개 | 통과 |
 | `public.ll_*` row readback | 27/27 일치, 총 27,512행 | 통과 |
-| `public.ll_*` content hash | 24/27 일치 | **미통과** |
-| hash 불일치 | `ll_news_items`, `ll_notifications`, `ll_sector_market_lease_observations` | 원인 재검증 필요 |
+| 동일 dump snapshot `public.ll_*` content hash | 27/27 일치 | 통과 |
+| 운영-vs-dump 동적 table hash | 24/27 일치 | cutover 직전 동일 snapshot 재검증 |
 | Auth 사용자 | 운영 13명 = 로컬 13명 | 통과 |
 | Storage metadata | 운영 49개 = 로컬 49개 | 통과 |
-| Storage 원본 파일 | 49/49 기존 로그인 RLS로 다운로드 거부 | **미통과** |
-| Supabase staging branch | 0개 | **미통과** |
+| Storage 원본 파일 | 49/49, 총 113,226,015바이트, 파일별 SHA-256 | 통과 |
+| schema 격리 방식 | 동일 프로젝트 `logistics_core`·`logistics_api` additive schema | 승인 |
 
-세 hash 불일치는 dump 이후 변경된 동적 데이터일 수 있으나 현재는 추정일 뿐입니다. 동일 시점 snapshot 또는 쓰기 잠금 상태에서 재비교하기 전까지 복구 성공으로 간주하지 않습니다.
+운영-vs-dump의 세 hash 불일치는 서로 다른 시점 비교라서 R0 복원 parity 증거로 사용하지 않습니다. R0는 같은 dump snapshot의 27/27 content hash로 통과했습니다. cutover 직전에는 쓰기 잠금 상태에서 운영 snapshot을 새로 고정해 다시 비교합니다.
 
 ### 2.3 현재 확인된 27개 `ll_*`
 
@@ -86,17 +87,17 @@
 
 ### R0. 독립 복구 게이트
 
-아래가 모두 충족되기 전에는 신규 schema migration 파일도 작성하지 않습니다.
+R0는 아래 기존 운영본의 독립 복구 조건을 검증하는 게이트이며 통과했습니다. 신규 schema·delta를 포함한 운영 rollback은 R2·R3에서 별도로 검증합니다.
 
-1. Supabase와 동일한 확장 버전을 가진 격리 staging 확보
-2. roles, schema, data, full restore 각각 종료 코드 0
+1. Supabase 관리 확장과 애플리케이션 소유 객체의 복구 책임을 분리한 manifest 확정
+2. 플랫폼 소유 확장 네 개를 제외한 roles, application schema, application data restore와 readback 종료 코드 0
 3. 27개 table의 행 수와 전체 열 content hash 27/27 일치
 4. Auth 사용자 13명의 UUID·이메일·직원·권한 연결 관계 일치
 5. Storage 49개 원본의 파일 수·크기·SHA-256 일치
 6. 함수·trigger·RLS·policy·grant·index·FK·sequence inventory 일치
 7. 보존 Edge 8개의 원격 source와 hash 확인
-8. 기존 frontend에서 login, 자산 조회, 렌트롤 조회, 권한 판정 smoke 통과
-9. 기존 버전 rollback 리허설 15분 이내 통과
+8. archive source·Pages·Edge를 독립적으로 재조립하고 기존 public deep link readback 통과
+9. 기존 버전 archive rollback 경로를 15분 이내 재현
 
 ### R1. mapping 승인 게이트
 
@@ -107,9 +108,12 @@
 - 임대료 일할·반올림·인상·렌트프리 fixture 승인
 - critical migration exception 0건
 
-### R2. staging backfill 게이트
+현재 판정은 `PARTIAL`입니다. 27개 source table의 disposition은 분류했지만 Excel 원본과 기존 화면의 마지막 정상값, 권한 이중 표현, finance 원천, 임대료·대출 계산식에 critical exception이 남아 있습니다.
 
-- 동일 snapshot에서 backfill 재실행 2회 결과가 동일함
+### R2. local rehearsal·production shadow backfill 게이트
+
+- 복구된 로컬 DB(`local rehearsal`)의 동일 snapshot에서 migration·backfill 재실행 2회 결과가 동일함
+- 같은 운영 프로젝트의 비노출 additive schema(`production shadow`)에서 외부 grant·writer·worker를 비활성화한 채 readback 통과
 - source/target business hash 일치
 - PK/FK·기간 중복·8개 권한·계산·만기 검증 통과
 - 기존 화면용 legacy projection readback 통과
@@ -185,7 +189,7 @@ source PK가 UUID가 아니어도 `source_table + source_pk_json`으로 유일�
 | `ll_assets` | backfill | `assets` | asset code·명칭·면적·투자 핵심값 필드별 hash |
 | `ll_funds` | backfill | `funds` | fund code·명칭·상태; 만기는 `maturities`로 분리 |
 | `ll_fund_asset_links` | backfill | `fund_asset_links` | asset-fund 관계와 유효기간 |
-| `ll_fund_capital_tranches` | 조건부 분해 | `loans`, `lenders`, `loan_lenders` 및 승인된 자본 구조 | 명시적 대출·대주 식별값만 분해. 이름 추정 병합 금지 |
+| `ll_fund_capital_tranches` | 조건부 분해 | `fund_beneficiary_tranches`, `loans`, `lenders`, `loan_lenders` | 수익증권과 대출을 원본 type으로 분리. 이름 추정 병합 금지 |
 | `ll_tenants` | backfill | `tenants` | 사업자번호 우선, 이름 유사도 병합 금지 |
 | `ll_leases` | backfill | `lease_contracts`, `maturities` | 계약 단위와 공식 종료일 |
 | `ll_lease_spaces` | backfill | `spaces`, `contract_spaces`, 초기 `rent_terms` | 공간·계약 배정 cardinality와 면적 |
@@ -232,9 +236,10 @@ source PK가 UUID가 아니어도 `source_table + source_pk_json`으로 유일�
 ### B0. 준비
 
 1. 승인된 동일 시점 운영 snapshot과 27-table manifest를 읽기 전용으로 고정합니다.
-2. backfill용 staging은 운영과 네트워크·비밀·메일 발송을 분리합니다.
-3. 이메일·Push worker는 비활성화하고 outbox만 검증합니다.
-4. mapping version과 formula version을 run에 고정합니다.
+2. `local rehearsal`은 복구된 로컬 DB이며 migration 2회·backfill·reverse·rollback을 실행합니다.
+3. `production shadow`는 같은 운영 프로젝트의 `logistics_core`·`logistics_api` additive schema입니다. 검증 중 `logistics_api` 외부 grant, v2 writer, 이메일 worker를 비활성화합니다.
+4. 이메일·Push worker는 비활성화하고 outbox만 검증합니다.
+5. mapping version과 formula version을 run에 고정합니다.
 
 ### B1. 순서
 
@@ -298,7 +303,7 @@ cutover 이후 동일 업무 entity를 신규 API와 기존 API가 동시에 수
 - 비파일럿 자산: 기존 API writer 유지
 - 전체 전환: 신규 RPC만 writer
 
-writer 소유권은 자산 단위 routing registry로 관리하고, 한 transaction에서 바뀝니다. frontend 표시만 바꾸는 것은 writer 전환이 아닙니다.
+writer 소유권은 `logistics_core.asset_writer_routes`로 관리합니다. 상태는 `legacy|v2|locked`이며 revision·변경자·변경시각·잠금 사유를 기록합니다. 기존 API와 v2 RPC 모두 동일한 DB guard를 호출하고, 전환은 `locked` → in-flight idempotency drain → 최종 delta/readback → 목표 mode 순서로 수행합니다. frontend 표시만 바꾸는 것은 writer 전환이 아닙니다.
 
 ## 10. shadow read와 cutover
 
@@ -363,7 +368,7 @@ writer 소유권은 자산 단위 routing registry로 관리하고, 한 transact
 
 | 누적 시간 | 조치 | 통과 증거 |
 |---:|---|---|
-| 0~1분 | incident 선언, 신규 write 차단, rollback correlation ID 발급 | 신규 write 503/maintenance, 진행 중 요청 목록 |
+| 0~1분 | incident 선언, `MAINTENANCE_MODE` 설정, 신규 write 차단, rollback correlation ID 발급 | 신규 write 503, 진행 중 요청 목록 |
 | 1~3분 | in-flight RPC drain, idempotency `in_progress` 상태 확정 또는 취소 | 미확정 transaction 0건 |
 | 3~7분 | watermark 이후 delta를 legacy로 역이관 | 대상 count 일치, projection critical 0 |
 | 7~9분 | legacy readback과 L1 hash·권한·공식 만기 검증 | 불일치 0건 |
@@ -402,7 +407,7 @@ writer 소유권은 자산 단위 routing registry로 관리하고, 한 transact
 | MIG-T012 | reverse rule이 없는 신규 필드가 있으면 cutover gate가 실패합니다. |
 | MIG-T013 | writer routing 경합을 만들어도 한 자산에 활성 writer가 동시에 둘이 되지 않습니다. |
 | MIG-T014 | 실제 archive Edge·Pages로 rollback하고 신규 delta를 보존한 전체 리허설이 15분 이내 완료됩니다. |
-| MIG-T015 | `ll_news_items`, `ll_notifications`, `ll_sector_market_lease_observations`의 동일 시점 hash가 해소되지 않으면 R0가 계속 실패합니다. |
+| MIG-T015 | cutover 직전 쓰기 잠금 snapshot에서 `ll_news_items`, `ll_notifications`, `ll_sector_market_lease_observations`를 포함한 27개 hash가 고정되지 않으면 R3가 실패합니다. |
 | MIG-T016 | Storage 49개 중 한 파일의 size 또는 SHA-256이 다르면 R0가 실패합니다. |
 
 ## 15. 필수 증거 산출물
@@ -422,11 +427,9 @@ writer 소유권은 자산 단위 routing registry로 관리하고, 한 transact
 
 ## 16. 사용자 승인 또는 자료가 필요한 차단 항목
 
-1. 운영 유사 Supabase staging/Preview branch 비용과 생성 승인
-2. 권한 있는 방식의 Storage 49개 원본 백업 승인
-3. 실제 월별 손익·현금 수취·예산·예측·대출 상환·평가액 자료 위치
-4. 시장 임대료에 사용할 승인 source와 적용 방식
-5. 실제 이메일 공급자와 허용된 테스트 수신자
-6. 임대료 일할·반올림, 대출 약정 지표 계산식의 업무 승인자
+1. 실제 월별 손익·현금 수취·예산·예측·대출 상환·평가액 자료 위치
+2. 시장 임대료에 사용할 승인 source와 적용 방식
+3. 실제 이메일 공급자와 허용된 테스트 수신자
+4. 임대료 일할·반올림, 대출 약정 지표 계산식의 업무 승인자
 
 위 항목을 확인하지 않고 값이나 공급자를 추정해 구현하지 않습니다.

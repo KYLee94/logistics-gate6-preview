@@ -1,6 +1,6 @@
 # Frontend·Browser Test SDD
 
-상태: 복구 게이트 통과 전 구현 금지, 명세 확정용
+상태: R0 PASS · R1 PARTIAL, 명세·실패 테스트만 진척 인정
 
 ## 정보 구조
 
@@ -84,7 +84,9 @@ KST 기준 임대차·펀드·대출의 최근 만기를 각각 표시합니다.
 
 발생/현금, 렌트롤 계산 임대수입/실제값/조정금액·사유를 구분합니다. 월별 원본에서 분기·연도를 집계하고 근거 월을 펼칠 수 있어야 합니다.
 
-시나리오는 브라우저 메모리에서만 계산합니다. 새로고침하면 초기화되고 DB/API mutation 및 영구 local storage 기록은 0이어야 합니다. 임의 시장 가정을 운영값처럼 자동 입력하지 않습니다.
+시나리오 입력은 브라우저 메모리에만 보관합니다. 새로고침하면 초기화되고 DB mutation 및 영구 local/session storage 기록은 0이어야 합니다. 계산은 권위 서버 action `v2/calculations/explain`에 read-only 요청하여 formula version·test vector hash와 결과를 함께 받고, 브라우저 자체 수식 실행은 금지합니다. 임의 시장 가정을 운영값처럼 자동 입력하지 않습니다.
+
+공개 자산 식별자는 모든 요청의 `payload.asset_key`와 화면·URL에서만 사용합니다. 내부 UUID는 응답에 있더라도 계약 위반으로 폐기합니다. 기존 `{action,payload}` 전송 wrapper를 유지하며, 렌트롤·수익비용 저장 응답은 행별 공개키·operation·revision, mutation ID, readback hash를 확인한 뒤 별도 read action 결과와 비교합니다. archive 행은 `delete_reason`이 필수입니다.
 
 ## TDD 매트릭스
 
@@ -112,3 +114,16 @@ KST 기준 임대차·펀드·대출의 최근 만기를 각각 표시합니다.
 | LIFE-03 | 탭 30회 전환 | 요청 누수·무한 로딩·overlay 0 |
 | A11Y-01 | axe WCAG 2.2 AA | serious·critical 0 |
 | RESP-01 | 390×844, 768×1024, 1440×900, 1600×1100 | 핵심 기능 잘림·겹침 0 |
+
+## 현재 RED 실행 증거
+
+실행일은 2026-08-04이며, 네 테스트 모두 외부 네트워크와 운영 DB 쓰기 없이 격리 worktree의 명세·초안만 검사했습니다. 실패는 테스트 자체의 오류가 아니라 아직 구현되지 않은 SDD 계약을 먼저 고정한 결과입니다.
+
+| 계약 테스트 | 실행 명령 | 의도한 실패 범주 |
+|---|---|---|
+| DB | `node scripts/qa/logistics-data-platform-db-contract.cjs` | 수익권 tranche·만기 자산 범위·feature flag·월 원장 원천키·RLS·backfill/reverse gate 부재, core 함수 직접 grant 노출 |
+| API | `node scripts/qa/logistics-data-platform-api-contract.cjs` | 점검 모드 503 계약·읽기/쓰기 grant 분리·platform feature flag 부재 |
+| 계산 | `node scripts/qa/logistics-data-platform-formula-contract.cjs` | formula 승인 상태·test vector hash·미승인 실행 차단 함수 부재 |
+| frontend | `node scripts/qa/logistics-data-platform-frontend-contract.cjs` | finance 원천 미제공·formula 미승인 시 쓰기 비활성 계약 부재 |
+
+`network_used=false`, `production_database_write_used=false`입니다. 실제 DB runtime RED는 로컬 PostgreSQL에서 migration을 반복 실행하고 일부러 잘못된 FK·권한·revision·hash를 넣는 테스트로 보강합니다. 브라우저 RED는 세 deep link, 늦은 응답, 탭 unmount, 새로고침·재로그인·15분 idle을 자동화한 뒤 G5 재판정에 포함합니다.

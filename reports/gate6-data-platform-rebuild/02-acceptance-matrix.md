@@ -6,12 +6,12 @@
 |---|---|---|
 | ARC-01 | main·Pages·dirty가 각각 별도 hash/manifest로 보존됨 | PASS |
 | ARC-02 | DB roles/schema/data/full dump가 암호화 보존됨 | PASS |
-| ARC-03 | 전체 restore 종료 코드 0과 Supabase 전용 확장 검증 | FAIL |
-| ARC-04 | 27개 `ll_*` count/hash parity | PARTIAL |
-| ARC-05 | Storage 49개 원본·크기·SHA-256 | FAIL |
-| ARC-06 | Auth 사용자-직원-권한 연결 readback | PARTIAL |
-| ARC-07 | 운영 유사 staging에서 15분 rollback | BLOCKED |
-| DAT-01 | 자산·필드별 Excel→DB→API→화면→신규 mapping | NOT STARTED |
+| ARC-03 | Supabase 관리 확장과 Gate 6 소유 객체 책임 분리, 애플리케이션 restore 종료 코드 0 | PASS |
+| ARC-04 | 동일 dump snapshot 27개 `ll_*` count/hash parity | PASS |
+| ARC-05 | Storage 49개 원본·크기·SHA-256 | PASS |
+| ARC-06 | Auth 사용자·직원·권한 행 수와 연결 관계 복원 parity | PASS |
+| ARC-07 | 동일 프로젝트 additive schema의 15분 rollback | NOT STARTED |
+| DAT-01 | 자산·필드별 Excel→DB→API→화면→신규 mapping | PARTIAL |
 | DAT-02 | critical migration exception 0 | BLOCKED |
 | DAT-03 | 월별 finance 원천 확정, 샘플값 0 | BLOCKED |
 
@@ -27,7 +27,7 @@
 | API-01 | JWT 없음·오류·만료는 401, 권한 부족은 403이며 `ok:true`가 아닙니다. |
 | API-02 | 정상 응답만 `{ok:true,status:"primary",request_id,revision,data}`입니다. |
 | API-03 | batch 일부 오류는 전체 rollback되고 readback에서 변경이 없습니다. |
-| API-04 | `(user_id, client_request_id)` 재시도는 중복 행을 만들지 않습니다. |
+| API-04 | `(auth_uid, action, client_request_id)` 재시도는 중복 행을 만들지 않습니다. |
 | API-05 | revision 충돌은 409이며 최신 revision을 제공합니다. |
 | API-06 | timeout·stale·fallback을 정상 성공으로 포장하지 않습니다. |
 
@@ -45,7 +45,7 @@
 | FIN-02 | actual/budget/forecast와 accrual/cash를 명확히 구분합니다. |
 | FIN-03 | NOI=`유효총수입-운영비용`, NCF·부채상환 후 현금흐름을 분리합니다. |
 | FIN-04 | 입력값·계산값·조정금액·사유·formula version을 설명할 수 있습니다. |
-| FIN-05 | 시나리오 가정은 브라우저에서만 계산되고 운영 DB에 저장되지 않습니다. |
+| FIN-05 | 시나리오 입력은 브라우저 메모리에만 두고, 계산은 서버 `v2/calculations/explain`이 수행하며 운영 DB에 저장하지 않습니다. |
 
 ## 권한·메일·브라우저
 
