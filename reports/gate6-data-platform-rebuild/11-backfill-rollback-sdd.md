@@ -104,16 +104,16 @@ R0는 아래 기존 운영본의 독립 복구 조건을 검증하는 게이트�
 - 모든 source table과 사용 열에 disposition과 target이 지정됨
 - 27개 table 중 `unclassified` 0개
 - source 자연키·target 자연키·cardinality가 확정됨
-- 실제 업무자료가 없는 예산·예측·현금수취·부채상환·평가값은 `not_provided`로 명시됨
+- actual 수익·비용·수납은 초기 0행과 웹 `manual_input` 계약이 확정되고 budget/forecast·월별 대출상환·평가값 부재는 `not_provided`로 명시됨
 - 임대료 일할·반올림·인상·렌트프리 fixture 승인
 - critical migration exception 0건
 
-현재 판정은 `PARTIAL`입니다. 27개 source table의 disposition은 분류했지만 Excel 원본과 기존 화면의 마지막 정상값, 권한 이중 표현, finance 원천, 임대료·대출 계산식에 critical exception이 남아 있습니다.
+현재 판정은 `PARTIAL`입니다. 27개 source table의 disposition은 분류했고 임대차·대출 공식 원천은 운영 Supabase로 확정했습니다. 운영 field→canonical mapping, 권한 이중 표현, finance 웹 입력·reverse 규칙, 임대료·대출 계산식에 critical exception이 남아 있습니다.
 
 ### R2. local rehearsal·production shadow backfill 게이트
 
 - 복구된 로컬 DB(`local rehearsal`)의 동일 snapshot에서 migration·backfill 재실행 2회 결과가 동일함
-- 같은 운영 프로젝트의 비노출 additive schema(`production shadow`)에서 외부 grant·writer·worker를 비활성화한 채 readback 통과
+- 같은 운영 프로젝트의 비노출 additive schema(`production shadow`)에서 외부 grant·writer를 비활성화한 채 readback 통과
 - source/target business hash 일치
 - PK/FK·기간 중복·8개 권한·계산·만기 검증 통과
 - 기존 화면용 legacy projection readback 통과
@@ -124,7 +124,7 @@ R0는 아래 기존 운영본의 독립 복구 조건을 검증하는 게이트�
 - shadow read 비교 기간과 표본이 승인됨
 - 신규 write와 legacy projection transaction 테스트 통과
 - 역이관 delta 0건 또는 전건 검증 완료
-- 실제 이메일 공급자·허용 수신자 승인 및 30·7·3·1·0 수신 검증
+- 로그인 사용자 권한 기반 30·7·3·1·0 인앱 만기 조회와 응답 중복 0건 검증
 - 운영 rollback 리허설 15분 이내 통과
 
 ## 4. source·target hash 계약
@@ -189,18 +189,18 @@ source PK가 UUID가 아니어도 `source_table + source_pk_json`으로 유일�
 | `ll_assets` | backfill | `assets` | asset code·명칭·면적·투자 핵심값 필드별 hash |
 | `ll_funds` | backfill | `funds` | fund code·명칭·상태; 만기는 `maturities`로 분리 |
 | `ll_fund_asset_links` | backfill | `fund_asset_links` | asset-fund 관계와 유효기간 |
-| `ll_fund_capital_tranches` | 조건부 분해 | `fund_beneficiary_tranches`, `loans`, `lenders`, `loan_lenders` | 수익증권과 대출을 원본 type으로 분리. 이름 추정 병합 금지 |
-| `ll_tenants` | backfill | `tenants` | 사업자번호 우선, 이름 유사도 병합 금지 |
-| `ll_leases` | backfill | `lease_contracts`, `maturities` | 계약 단위와 공식 종료일 |
-| `ll_lease_spaces` | backfill | `spaces`, `contract_spaces`, 초기 `rent_terms` | 공간·계약 배정 cardinality와 면적 |
-| `ll_lease_attributes` | 필드별 분해 | 계약·공간·rent term의 승인된 target field | 동적 key 전수 분류, 미분류 key 0 |
-| `ll_rent_history` | backfill | `rent_terms`, `rent_term_history` | 유효기간, 임대료·관리비, 겹침 0 |
-| `ll_asset_operating_costs` | 조건부 backfill | `monthly_ledger_entries` | 2026-07-14 snapshot은 0행. 최신 source 재확인, 임의 생성 금지 |
+| `ll_fund_capital_tranches` | 조건부 분해 | `fund_beneficiary_tranches`, `loans`, `lenders`, `loan_lenders` | 운영 Supabase loan 59건(active 51건)이 공식 원천. 약정·인출·만기·금리 값 55건 보존, 이름 추정 병합 금지 |
+| `ll_tenants` | 운영 Supabase backfill | `tenants` | 사업자번호 우선, 이름 유사도 병합 금지. Excel 값으로 덮어쓰기 금지 |
+| `ll_leases` | 운영 Supabase backfill | `lease_contracts`, `maturities` | 계약 단위와 공식 종료일. source 상태·PK·hash 보존 |
+| `ll_lease_spaces` | 운영 Supabase backfill | `spaces`, `contract_spaces`, 초기 `rent_terms` | 공간·계약 배정 cardinality와 면적 |
+| `ll_lease_attributes` | 운영 Supabase field별 분해 | 계약·공간·rent term의 승인된 target field | 동적 key 전수 분류, 미분류 key 0 |
+| `ll_rent_history` | 운영 Supabase backfill | `rent_terms`, `rent_term_history` | 유효기간, 임대료·관리비, 겹침 0 |
+| `ll_asset_operating_costs` | backfill 0건 | `monthly_ledger_entries` | 초기 0행이 정상. actual 수익·비용·수납은 cutover 뒤 웹 `manual_input`으로 생성 |
 | `ll_user_permissions` | backfill | `user_permission_profiles`, `user_asset_assignments` | Auth UUID 연결, scope와 8개 flag 완전 일치 |
 | `ll_staff_profiles` | 최소 참조 | 사용자 표시 프로필 또는 기존 보존 | Auth 연결만 검증; 권한 원장으로 사용 금지 |
 | `ll_edit_requests` | 이력 보존 | `audit_events`, migration provenance, legacy 원본 | 승인·실제 write·readback 상태를 구분; 미완료를 성공으로 이관 금지 |
-| `ll_notifications` | 선택 backfill | 공식 만기 관련 건만 delivery 감사로 분류, 나머지 legacy 보존 | 일반 알림을 신규 만기로 오인 금지 |
-| `ll_notification_subscriptions` | legacy 보존 | 기존 browser push 호환 | 이메일 구독으로 변환 금지 |
+| `ll_notifications` | legacy 보존 | 기존 알림 이력 | 신규 인앱 만기의 canonical 원천이나 delivery 이력으로 변환 금지 |
+| `ll_notification_subscriptions` | legacy 보존 | 기존 browser push 호환 | 신규 인앱 알림 구독으로 변환 금지 |
 | `ll_login_events` | legacy 보존 | 기존 인증 지원 이력 | 비밀번호·raw 오류를 신규 schema로 복제 금지 |
 | `ll_source_files` | provenance 보존 | migration manifest의 source artifact 참조 | 파일 hash·workbook 구조 연결 |
 | `ll_source_rows` | provenance 보존 | `migration_row_mappings`의 source 참조 | 원본 sheet·row·hash 추적 |
@@ -229,7 +229,7 @@ source PK가 UUID가 아니어도 `source_table + source_pk_json`으로 유일�
 
 필드 mapping 문서에는 source sample 원문이 아니라 안전한 예시, source/target type, 단위, NULL 처리, enum mapping, 반올림, timezone, cardinality, 역변환 가능 여부, 승인자를 기록합니다. `blocked`가 핵심 엔터티에 하나라도 남으면 R1은 실패합니다.
 
-특히 기존 자산·투자·펀드 화면에서 사라진 값은 Git 이력, 과거 배포본, 운영 Supabase, 원본 Excel, 과거 QA 화면을 자산별·필드별로 비교해 정상 source를 확정한 뒤에만 mapping합니다. `-`, `개발 중`, `자료 없음`을 값으로 이관하지 않습니다.
+특히 기존 자산·투자·펀드 화면에서 사라진 값은 Git 이력, 과거 배포본, 운영 Supabase, 원본 Excel, 과거 QA 화면을 자산별·필드별로 비교해 정상 source를 확정한 뒤에만 mapping합니다. 단, 임대차와 대출은 운영 Supabase 저장값이 공식 원천이며 Excel은 provenance/UI reference로만 사용합니다. `-`, `개발 중`, `자료 없음`을 값으로 이관하지 않습니다.
 
 ## 8. backfill 실행 계약
 
@@ -237,8 +237,8 @@ source PK가 UUID가 아니어도 `source_table + source_pk_json`으로 유일�
 
 1. 승인된 동일 시점 운영 snapshot과 27-table manifest를 읽기 전용으로 고정합니다.
 2. `local rehearsal`은 복구된 로컬 DB이며 migration 2회·backfill·reverse·rollback을 실행합니다.
-3. `production shadow`는 같은 운영 프로젝트의 `logistics_core`·`logistics_api` additive schema입니다. 검증 중 `logistics_api` 외부 grant, v2 writer, 이메일 worker를 비활성화합니다.
-4. 이메일·Push worker는 비활성화하고 outbox만 검증합니다.
+3. `production shadow`는 같은 운영 프로젝트의 `logistics_core`·`logistics_api` additive schema입니다. 검증 중 `logistics_api` 외부 grant와 v2 writer를 비활성화합니다.
+4. 외부 이메일·Push·Cron·delivery table은 신규 범위에 만들지 않습니다.
 5. mapping version과 formula version을 run에 고정합니다.
 
 ### B1. 순서
@@ -273,7 +273,7 @@ source PK가 UUID가 아니어도 `source_table + source_pk_json`으로 유일�
 - 임대 계약·공간·rent term 기간 겹침
 - 렌트롤 계산 월액과 ledger 계약 임대료의 formula version·금액
 - 8개 권한 matrix와 read/create/update/delete 결과
-- 만기 대상·날짜·30·7·3·1·0 schedule
+- 만기 대상·날짜·30·7·3·1·0 인앱 schedule과 권한별 조회 중복 0
 - critical/warning exception 목록
 
 성공 조건은 critical 0건, 승인되지 않은 warning 0건입니다.
@@ -294,6 +294,8 @@ cutover 뒤 신규 화면에서 생성·수정·soft delete한 값은 기존 화
 6. commit
 
 legacy schema가 표현할 수 없는 신규 필드는 별도 승인 전 저장 기능을 열지 않습니다. JSON 임시 필드나 이름 기반 조합으로 우회하지 않습니다. projection 실패 시 canonical write도 rollback하고 `READBACK_MISMATCH`를 반환합니다.
+
+웹 actual 수익·비용·수납은 초기 backfill 대상이 아니라 cutover 이후 신규 delta입니다. finance writer를 열기 전 `ll_asset_operating_costs`에 표현 가능한 field의 projection과 표현 불가능한 cash 수납의 손실 없는 reverse 규칙을 승인해야 합니다. reverse 규칙이 없으면 해당 finance mutation을 활성화하지 않습니다. budget/forecast와 대출상환 수동입력은 projection 대상이 아니라 API에서 거절합니다.
 
 ### 9.2 단일 writer
 
@@ -401,7 +403,7 @@ writer 소유권은 `logistics_core.asset_writer_routes`로 관리합니다. 상
 | MIG-T006 | 임대 source 46→공간 81→속성 다수 같은 one-to-many 관계도 row mapping으로 전건 추적됩니다. |
 | MIG-T007 | 미분류 `ll_lease_attributes` key가 하나라도 있으면 backfill이 중단됩니다. |
 | MIG-T008 | 기존 권한 사용자 전원의 담당·기타 8개 flag와 Auth UUID가 target 판정과 일치합니다. |
-| MIG-T009 | 예산 source가 없을 때 target budget 행은 0건이고 API는 `not_provided`를 반환합니다. |
+| MIG-T009 | 초기 actual 수익·비용·수납 source가 0행이면 target도 0행이고 API는 `not_entered`를 반환하며, budget/forecast는 `not_provided`입니다. |
 | MIG-T010 | legacy projection을 실패시키면 canonical write, audit, idempotency 성공 응답이 모두 rollback됩니다. |
 | MIG-T011 | cutover 후 신규 create/update/delete를 역이관하면 legacy readback과 L1 hash가 일치합니다. |
 | MIG-T012 | reverse rule이 없는 신규 필드가 있으면 cutover gate가 실패합니다. |
@@ -409,6 +411,8 @@ writer 소유권은 `logistics_core.asset_writer_routes`로 관리합니다. 상
 | MIG-T014 | 실제 archive Edge·Pages로 rollback하고 신규 delta를 보존한 전체 리허설이 15분 이내 완료됩니다. |
 | MIG-T015 | cutover 직전 쓰기 잠금 snapshot에서 `ll_news_items`, `ll_notifications`, `ll_sector_market_lease_observations`를 포함한 27개 hash가 고정되지 않으면 R3가 실패합니다. |
 | MIG-T016 | Storage 49개 중 한 파일의 size 또는 SHA-256이 다르면 R0가 실패합니다. |
+| MIG-T017 | 임대차 Excel 값이 운영 Supabase와 달라도 canonical backfill은 운영 `public.ll_*` snapshot의 count·hash와 일치합니다. |
+| MIG-T018 | loan 59건(active 51건), 약정·인출·만기·금리 55건이 추적되고 월별 상환 schedule 부재 시 repayment target 행은 0건입니다. |
 
 ## 15. 필수 증거 산출물
 
@@ -421,15 +425,14 @@ writer 소유권은 `logistics_core.asset_writer_routes`로 관리합니다. 상
 - `row-mapping-hashes.json`: L1 source/target count·hash와 불일치 key
 - `permission-parity.json`: Auth UUID별 담당·기타 8개 flag 판정
 - `calculation-parity.json`: 월별 rent·ledger·formula version 비교
-- `maturity-parity.json`: lease·fund·loan 공식 날짜와 schedule 비교
+- `maturity-parity.json`: lease·fund·loan 공식 날짜와 30·7·3·1·0 인앱 schedule·권한별 조회 비교
 - `reverse-migration.json`: watermark, delta, projection, critical exception 0
 - `rollback-rehearsal.json`: 단계별 시작·종료시각, 실제 배포 version, smoke, 총 소요시간
 
 ## 16. 사용자 승인 또는 자료가 필요한 차단 항목
 
-1. 실제 월별 손익·현금 수취·예산·예측·대출 상환·평가액 자료 위치
+1. actual 수익·비용·수납 계정표, 발생/현금, 필수 입력·증빙·reverse 규칙 승인자
 2. 시장 임대료에 사용할 승인 source와 적용 방식
-3. 실제 이메일 공급자와 허용된 테스트 수신자
-4. 임대료 일할·반올림, 대출 약정 지표 계산식의 업무 승인자
+3. 임대료 일할·반올림, 대출 약정 지표 계산식의 업무 승인자
 
 위 항목을 확인하지 않고 값이나 공급자를 추정해 구현하지 않습니다.

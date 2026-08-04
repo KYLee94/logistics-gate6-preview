@@ -4,7 +4,7 @@
 
 상태: **R0 독립 복구 PASS · R1 원본 mapping PARTIAL · 운영 적용 차단**
 
-이 디렉터리는 기존 운영본을 독립 복구 가능한 상태로 보존한 뒤 `홈 / 렌트롤 / 수익·비용` 플랫폼을 SDD·TDD 순서로 구축하기 위한 실행 명세와 증거를 모읍니다. R0는 기존 운영본의 DB·Auth·Storage·Edge·Pages 복구 가능성을 검증하는 단계이며 통과했습니다. R1은 Excel·기존 DB·API·화면·신규 필드의 의미를 연결하는 단계로 아직 진행 중입니다. R0·R1 통과 전에는 SDD 문서와 의도적으로 실패하는 테스트만 진척으로 인정합니다. 이미 작성된 migration·Edge·frontend 초안은 격리 상태로 보존하며 R1 승인 뒤 계약에 맞게 수정합니다. R1과 로컬 리허설 통과 뒤에만 같은 프로젝트에 외부 권한·writer·worker가 없는 비노출 additive DDL을 1회 적용해 R2를 검증할 수 있습니다. 공개 권한 부여·쓰기 활성화·배포는 신규 delta rollback을 포함한 R3 및 릴리스 게이트 통과 뒤에만 수행합니다.
+이 디렉터리는 기존 운영본을 독립 복구 가능한 상태로 보존한 뒤 `홈 / 렌트롤 / 수익·비용` 플랫폼을 SDD·TDD 순서로 구축하기 위한 실행 명세와 증거를 모읍니다. R0는 기존 운영본의 DB·Auth·Storage·Edge·Pages 복구 가능성을 검증하는 단계이며 통과했습니다. R1은 도메인별 공식 원천·기존 API·화면·신규 필드의 의미를 연결하는 단계로 아직 진행 중입니다. 임대차와 대출은 기존 운영 Supabase 저장값을 공식 이관 원천으로 사용하고, 월별 actual 수익·비용·수납은 초기 0행에서 웹 `manual_input`으로 시작합니다. Excel은 historical provenance 또는 렌트롤 UI 구조 참고자료일 뿐 운영값 이관 원천이 아닙니다. R0·R1 통과 전에는 SDD 문서와 의도적으로 실패하는 테스트만 진척으로 인정합니다. 이미 작성된 migration·Edge·frontend 초안은 격리 상태로 보존하며 R1 승인 뒤 계약에 맞게 수정합니다. R1과 로컬 리허설 통과 뒤에만 같은 프로젝트에 외부 권한·writer가 없는 비노출 additive DDL을 1회 적용해 R2를 검증할 수 있습니다. 공개 권한 부여·쓰기 활성화·배포는 신규 delta rollback을 포함한 R3 및 릴리스 게이트 통과 뒤에만 수행합니다.
 
 ## 고정 기준점
 
@@ -46,13 +46,13 @@
 
 ## 현재 차단 항목
 
-1. Excel·기존 DB·API·화면·신규 필드 mapping의 critical exception을 0건으로 만들어야 합니다.
-2. 월별 수익·비용·수납·대출상환 원천과 계산 fixture를 승인받아야 합니다.
+1. 운영 Supabase 임대차·대출 field를 canonical entity에 연결하고 critical exception을 0건으로 만들어야 합니다.
+2. 월별 actual 수익·비용·수납의 계정표·발생/현금·웹 입력 검증과 계산 fixture를 승인해야 합니다. 대출 canonical은 `public.ll_fund_capital_tranches`의 loan 59행(active 51행)이며 약정·인출·만기·금리 값은 55행에 존재하고, 월별 실제 상환 schedule은 `not_provided`입니다.
 3. additive schema의 production shadow와 신규 delta를 포함한 R2·R3 rollback 리허설을 수행해야 합니다.
 
 ## 현재 개발 상태
 
-- SDD 문서 간 의미·계약 충돌은 0건으로 감사되어 설계 기준은 고정했습니다.
+- 2026-08-04 SDD 계약 감사 뒤 사용자 결정에 따라 공식 원천·finance 최초입력·인앱 만기 알림·렌트롤 참고서식 계약을 재기준화했습니다. 수정된 RED 테스트 재실행과 문서 간 의미 감사 전에는 구현 완료로 계산하지 않습니다.
 - DB·API·계산·frontend 정적 계약 테스트는 구현보다 먼저 작성했고, 누락 계약을 정확히 가리키며 RED로 실패했습니다.
 - 기존에 작성된 schema·Edge·frontend 초안은 RED를 통과하기 전까지 격리 상태이며 운영 구현 완료로 계산하지 않습니다.
 - 다음 순서는 원천 mapping의 critical exception을 해소한 뒤, RED를 하나씩 GREEN으로 만드는 구현과 로컬 migration·backfill·reverse 리허설입니다.
@@ -62,6 +62,9 @@
 - `public.ll_*` 삭제·이름 변경 금지
 - `ll_v2_*` 난립 금지
 - 샘플·추정 budget/forecast 생성 금지
+- 임대차·대출 운영값을 Excel로 덮어쓰거나 Excel을 backfill 원천으로 사용 금지
+- 웹 finance 입력에서 `budget`, `forecast`, 대출상환 또는 `approved_import` 사칭 금지
+- Resend·DNS·Cron·외부 이메일 worker를 신규 범위에 재도입 금지
 - stale·fallback·timeout을 primary 성공으로 처리 금지
 - 기존 사용자 권한의 임의 회수 금지
 - dirty 운영 작업공간 정리·되돌리기 금지
@@ -76,8 +79,9 @@
 4. `03-r0-recovery-result.md`: 독립 복구·archive rollback 실행 결과
 5. `04-ll-inventory-mapping.md`: 27개 `ll_*` 전수조사와 old-to-new mapping manifest
 6. `05-source-workbook-manifest.md`: 업무 Excel 해시·물리 좌표·마지막 정상 버전 증거
-7. `field-mapping.csv`: Excel→기존 DB→신규 field 단위 mapping 초안
-8. `10-data-api-sdd.md`: DB·권한·API·계산 계약
-9. `11-backfill-rollback-sdd.md`: 이관·호환·역이관·rollback 계약
-10. `20-frontend-test-sdd.md`: 세 탭 화면과 브라우저 TDD 계약
-11. `21-release-gate-sdd.md`: 파일럿·배포·live 검증 게이트
+7. `06-rent-roll-reference-mapping.md`: `260804_렌트롤 참고자료`의 UI 구조·범용 열 계약
+8. `field-mapping.csv`: 운영 Supabase→신규 field와 비이관 참고자료 분류
+9. `10-data-api-sdd.md`: DB·권한·API·계산 계약
+10. `11-backfill-rollback-sdd.md`: 이관·호환·역이관·rollback 계약
+11. `20-frontend-test-sdd.md`: 세 탭 화면과 브라우저 TDD 계약
+12. `21-release-gate-sdd.md`: 파일럿·배포·live 검증 게이트

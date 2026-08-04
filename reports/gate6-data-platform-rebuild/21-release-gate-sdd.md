@@ -23,7 +23,7 @@
 4. 복구 로컬 DB(`local rehearsal`) migration 2회 실행 결과 동일, 같은 프로젝트 비노출 schema(`production shadow`) readback, 신규 delta 포함 15분 rollback 통과
 5. old/new API wire-shape와 forward/reverse delta sync 확인
 6. 3인 pilot user ID·8개 권한 확인
-7. 회사 발신 도메인 SPF·DKIM과 Resend 실제 수신 확인
+7. 로그인 사용자별 인앱 만기 조회 권한·30·7·3·1·0 revision·중복 0 검증
 
 ## 필수 명령
 
@@ -48,7 +48,7 @@
 
 1. remote·branch·HEAD·dirty 파일·base path·Supabase project ref 재확인
 2. `local rehearsal` migration·backfill·reverse 검증
-3. 운영 프로젝트에 additive DDL을 **1회만** 적용하고 외부 grant·writer·worker가 비활성인 `production shadow`로 readback
+3. 운영 프로젝트에 additive DDL을 **1회만** 적용하고 외부 grant·writer가 비활성인 `production shadow`로 readback
 4. `logistics_api` read RPC에만 EXECUTE를 부여하고, mutation RPC grant는 없는 상태에서 Edge를 `v2_write_enabled=false`로 먼저 배포하여 JWT·권한·read action·403/timeout 계약을 smoke
 5. frontend `build:preview` 후 명시적 파일만 stage·commit; `git add -A` 금지
 6. 검증 커밋만 원격 main에 반영하고 gh-pages를 파일럿 feature flag 비활성 상태로 배포
@@ -57,7 +57,7 @@
 9. 짧은 전환 창에 대상 자산의 `writer_mode=locked`를 설정하고 기존 진행 중 쓰기가 0건이 될 때까지 drain
 10. 전환 watermark·forward/reverse delta·legacy projection·primary readback hash를 확인
 11. 한 DB transaction에서 대상 자산의 `writer_mode=v2`, pilot Auth UID, `v2_write_enabled=true`를 함께 commit
-12. worker는 도메인 QA와 발신 승인이 끝날 때까지 비활성 유지하고 즉시 파일럿 CRUD·409·readback을 검증
+12. 즉시 파일럿 렌트롤 CRUD, actual 수익·비용·수납 최초입력, 409·readback을 검증
 13. 아래 배포 후 live acceptance를 실행하고 실패 시 즉시 rollback
 
 Edge가 먼저, frontend가 다음이며 둘 다 writer 비활성 상태로 선배포합니다. read RPC grant, mutation RPC grant, 자산 writer route, pilot feature flag는 서로 다른 상태로 기록합니다. 실제 쓰기 개방은 `locked → drain → delta/readback → 단일 transaction(writer_mode=v2 + pilot flag on)` 순서이고 이 transaction commit이 유일한 unlock입니다. 대상은 `qvegpozwrcmspdvjokiz`와 `KYLee94/logistics-gate6-preview`뿐입니다.
@@ -67,18 +67,21 @@ Edge가 먼저, frontend가 다음이며 둘 다 writer 비활성 상태로 선�
 - 세션 없는 deep link→로그인→원래 경로 복귀
 - 읽기 가능한 자산만 노출
 - 렌트롤 create/update/archive transaction과 primary readback
+- 렌트롤 Excel reference-only, 운영 Supabase 값 유지, 공통·선택·상세 열 계약 일치
+- 초기 finance 0행→actual 수익·비용·수납 `manual_input`→primary readback→재로그인 유지
+- budget/forecast·대출상환 수동입력 거절, 월별 상환 부재 시 post-debt `incomplete`
 - 새로고침·로그아웃·재로그인 후 값 유지
 - 수익비용 월/분기/연도·발생/현금·formula explain 일치
 - 15분 idle 후 새로고침 없이 primary 재조회
 - 탭 반복·늦은 응답 차단
-- 실제 30·7·3·1·0일 이메일 수신
+- 로그인 후 30·7·3·1·0일 인앱 만기 권한·revision·중복 0
 - console/page error 0, 예상 밖 4xx/5xx 0
 - 숨은 탭 요청 0, 권한 밖 응답 0
 - WCAG 2.2 AA serious/critical 0
 
 ## Rollback 트리거
 
-권한 밖 데이터 노출, CRUD 유실·중복·부분 반영, readback 불일치, 계산 오류, stale/fallback 성공 오판, 주요 경로 404, 새로고침/재로그인 데이터 소실, 무한 로딩 중 하나라도 발생하면 즉시 rollback합니다.
+권한 밖 데이터·인앱 만기 노출, CRUD 유실·중복·부분 반영, readback 불일치, 계산 오류, Excel 운영값 덮어쓰기, finance 빈 값의 자동 0 생성, stale/fallback 성공 오판, 주요 경로 404, 새로고침/재로그인 데이터 소실, 무한 로딩 중 하나라도 발생하면 즉시 rollback합니다.
 
 ## Rollback 절차
 

@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const V2_DIR = path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 'v2');
+const EDGE_INDEX = path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 'index.ts');
 const MIGRATIONS_DIR = path.join(ROOT, 'supabase', 'migrations');
 const EXPECTED_ACTIONS = Object.freeze([
   'v2/home/read',
@@ -50,6 +51,13 @@ function migrationSource() {
     .sort();
   assert.ok(files.length > 0, 'data-platform migration is missing');
   return files.map((name) => fs.readFileSync(path.join(MIGRATIONS_DIR, name), 'utf8')).join('\n');
+}
+
+function apiMigrationSource() {
+  return fs.readFileSync(
+    path.join(MIGRATIONS_DIR, '20260804091000_logistics_data_platform_api.sql'),
+    'utf8',
+  );
 }
 
 async function importModule(name) {
@@ -149,6 +157,87 @@ async function main() {
       return 'write request id enforced';
     });
 
+    await check('finance-flat-entries-normalize-to-deterministic-operations', () => {
+      const requestId = '00000000-0000-4000-8000-000000000002';
+      const entries = [
+        {
+          operation: 'create',
+          month: '2026-08',
+          account_code: 'MANUAL_REVENUE',
+          amount: '1000',
+          scenario: 'actual',
+          accounting_basis: 'accrual',
+          reason: 'new revenue evidence',
+        },
+        {
+          operation: 'update',
+          entry_key: 'manual:existing-entry',
+          month: '2026-08',
+          account_code: 'MANUAL_COST',
+          amount: '-300',
+          scenario: 'actual',
+          accounting_basis: 'accrual',
+          reason: 'correct source amount',
+        },
+        {
+          operation: 'delete',
+          entry_key: 'manual:archive-entry',
+          reason: 'archive duplicate',
+        },
+      ];
+      const request = {
+        client_request_id: requestId,
+        asset_key: 'asset_a112127001',
+        payload: { entries },
+      };
+      const first = router.buildRpcArguments('v2/finance/batch-save', request);
+      const second = router.buildRpcArguments('v2/finance/batch-save', request);
+
+      assert.deepEqual(first.p_payload, second.p_payload, 'normalization must be retry-stable');
+      assert.equal(Object.hasOwn(first.p_payload, 'entries'), false);
+      assert.deepEqual(first.p_payload.operations, [
+        {
+          operation: 'create',
+          entry_key: `manual:${requestId}:0`,
+          reason: 'new revenue evidence',
+          record: {
+            month: '2026-08',
+            account_code: 'MANUAL_REVENUE',
+            amount: '1000',
+            scenario: 'actual',
+            accounting_basis: 'accrual',
+          },
+        },
+        {
+          operation: 'update',
+          entry_key: 'manual:existing-entry',
+          reason: 'correct source amount',
+          record: {
+            month: '2026-08',
+            account_code: 'MANUAL_COST',
+            amount: '-300',
+            scenario: 'actual',
+            accounting_basis: 'accrual',
+          },
+        },
+        {
+          operation: 'delete',
+          entry_key: 'manual:archive-entry',
+          reason: 'archive duplicate',
+          record: {},
+        },
+      ]);
+      assert.deepEqual(request.payload.entries, entries, 'normalization must not mutate the caller payload');
+      assert.throws(
+        () => router.buildRpcArguments('v2/finance/batch-save', {
+          client_request_id: requestId,
+          payload: { entries: [{ operation: 'update', reason: 'missing key' }] },
+        }),
+        /FINANCE_ENTRY_KEY_REQUIRED/u,
+      );
+      return 'flat entries become deterministic nested operations';
+    });
+
     await check('public-envelope-uses-asset-key-without-uuid', () => {
       const args = router.buildRpcArguments('v2/home/read', {
         asset_key: 'asset_a112127001',
@@ -222,8 +311,114 @@ async function main() {
     assert.match(source, /grant usage on schema logistics_api to authenticated/iu);
     const apiFunctionBlocks = source.match(/create or replace function logistics_api\.[\s\S]*?\$function\$;/giu) || [];
     assert.equal(apiFunctionBlocks.length, 7);
-    apiFunctionBlocks.forEach((block) => assert.match(block, /security invoker/iu));
+    apiFunctionBlocks.forEach((block) => {
+      assert.match(block, /security definer/iu);
+      assert.match(block, /set search_path = ''/iu);
+    });
     return EXPECTED_RPCS;
+  });
+
+  await check('canonical-loan-and-rent-roll-projections', () => {
+    const source = migrationSource();
+    const apiSource = apiMigrationSource();
+    assert.match(source, /public\.ll_fund_capital_tranches/iu);
+    assert.match(source, /tranche_type[\s\S]{0,80}'loan'/iu);
+    assert.match(apiSource, /tranche\.is_active\s*=\s*true[\s\S]{0,100}tranche\.deleted_at\s+is\s+null/iu);
+    assert.match(source, /repayment_schedule_status[\s\S]{0,80}'not_provided'/iu);
+    for (const field of [
+      'lender_name', 'committed_amount_krw', 'drawdown_date', 'maturity_date',
+      'loan_period', 'loan_type', 'interest_type', 'base_rate', 'spread_rate',
+      'loan_rate', 'interest_rate', 'fee_rate', 'all_in_rate',
+    ]) {
+      assert.match(apiSource, new RegExp(`'${field}'`, 'iu'), `missing canonical loan field ${field}`);
+    }
+    assert.match(apiSource, /'repayment_schedule'[\s\S]{0,180}'status',\s*'not_provided'[\s\S]{0,100}'rows',\s*'\[\]'::jsonb/iu);
+    assert.doesNotMatch(apiSource, /(?:insert\s+into|update|delete\s+from)\s+(?:public\.ll_fund_capital_tranches|logistics_core\.loans)\b/iu);
+    assert.match(source, /jsonb_build_object\([\s\S]{0,120}'rows'/iu, 'rent-roll read must return data.rows');
+    for (const field of [
+      'occupancy_status', 'use_category', 'floor_label', 'zone_label',
+      'exclusive_area_sqm', 'common_area_sqm', 'leased_area_sqm', 'efficiency_ratio',
+      'commencement_date', 'expiry_date', 'deposit_total_krw', 'deposit_per_py_krw',
+      'monthly_rent_total_krw', 'rent_per_py_krw', 'monthly_cam_total_krw', 'cam_per_py_krw',
+      'rent_free_schedule', 'deposit_escalation_rule', 'rent_escalation_rule', 'cam_escalation_rule',
+      'fit_out_months', 'fit_out_amount', 'effective_rent', 'tenant_cost_terms',
+      'landlord_cost_terms', 'renewal_terms', 'termination_terms', 'restoration_terms',
+      'bond_terms', 'operation_start_date', 'pallet_rack_fee', 'notes',
+    ]) {
+      assert.match(source, new RegExp(`'${field}'`, 'iu'), `missing rent-roll row field ${field}`);
+    }
+    assert.match(source, /p_payload\s*->\s*'rows'/iu, 'batch-save must accept payload.rows');
+    assert.doesNotMatch(source, /create table(?: if not exists)? logistics_core\.loan_repayment/iu);
+    return 'legacy loan projection and row-first rent-roll contract';
+  });
+
+  await check('home-bootstrap-and-month-editor-contract', () => {
+    const source = migrationSource();
+    assert.match(source, /nullif\(btrim\(p_asset_key\),\s*''\)\s+is\s+null[\s\S]{0,700}'assets'/iu);
+    assert.match(source, /'selected_asset',\s*null/iu);
+    assert.match(source, /'asset_key',\s*asset\.asset_key/iu);
+    assert.doesNotMatch(source, /jsonb_build_object\([\s\S]{0,100}'asset_id'/iu, 'home must not expose internal UUID');
+    assert.match(source, /create or replace function logistics_core\.normalize_month/iu);
+    assert.match(source, /\^\[0-9\]\{4\}-\(0\[1-9\]\|1\[0-2\]\)\$/u);
+    assert.match(source, /return \(p_value \|\| '-01'\)::date/iu);
+    assert.match(source, /to_char\(entry\.month,\s*'YYYY-MM'\)/iu);
+    return 'blank asset bootstrap and YYYY-MM editor normalization';
+  });
+
+  await check('finance-manual-input-and-in-app-alerts-only', () => {
+    const source = migrationSource();
+    const apiSource = apiMigrationSource();
+    assert.match(source, /source_kind[\s\S]{0,240}'manual_input'/iu);
+    assert.match(source, /public\.ll_notifications/iu);
+    for (const field of [
+      'accounts', 'loans', 'finance_write_enabled', 'data_status',
+      'formula_status', 'formula_version', 'waterfall',
+    ]) {
+      assert.match(apiSource, new RegExp(`'${field}'`, 'iu'), `missing finance response field ${field}`);
+    }
+    assert.match(apiSource, /p_payload->>'from_month',\s*p_payload->>'start_month'/iu);
+    assert.match(apiSource, /p_payload->>'to_month',\s*p_payload->>'end_month'/iu);
+    assert.match(apiSource, /entry_count\s*=\s*0\s+then\s+'not_entered'/iu);
+    assert.doesNotMatch(source, /delivery_outbox|delivery_attempts|\bresend\b|ll-maturity-email/iu);
+    assert.doesNotMatch(source, /insert\s+into\s+logistics_core\.monthly_ledger_entries[\s\S]{0,600}(?:loan_schedule|repayment)/iu);
+    return 'manual finance CRUD and login-visible in-app maturity alerts';
+  });
+
+  await check('finance-mutation-enforces-server-side-manual-ledger-policy', () => {
+    const apiSource = apiMigrationSource();
+    const financeMutation = apiSource.match(
+      /create or replace function logistics_core\.finance_batch_save_entry[\s\S]*?\$body\$;/iu,
+    )?.[0] || '';
+    assert.ok(financeMutation, 'finance mutation function is missing');
+    assert.match(financeMutation, /v_scenario\s+is\s+distinct\s+from\s+'actual'/iu);
+    for (const accountCode of ['MANUAL_REVENUE', 'MANUAL_COST', 'MANUAL_RECEIPT']) {
+      assert.match(financeMutation, new RegExp(`'${accountCode}'`, 'iu'));
+    }
+    assert.match(financeMutation, /v_account_code\s*=\s*'MANUAL_RECEIPT'[\s\S]{0,160}v_accounting_basis\s+is\s+distinct\s+from\s+'cash'/iu);
+    assert.match(financeMutation, /v_amount_text\s*!~/iu);
+    assert.match(financeMutation, /\[0-9\]\+/u);
+    assert.match(financeMutation, /v_reason\s+is\s+null/iu);
+    assert.match(financeMutation, /errcode\s*=\s*'PT422'/iu);
+    assert.doesNotMatch(financeMutation, /'budget'|'forecast'|'debt_service'/iu);
+    assert.match(financeMutation, /account\.account_code\s*=\s*v_account_code/iu);
+    assert.match(financeMutation, /entry\.entry_key\s*=\s*v_entry_key/iu);
+    assert.doesNotMatch(financeMutation, /account\.account_code\s*=\s*account_code\b/iu);
+    assert.doesNotMatch(financeMutation, /entry\.entry_key\s*=\s*entry_key\b/iu);
+    return 'actual-only manual account policy with finite amount and mandatory reason';
+  });
+
+  await check('edge-index-dispatches-v2-with-user-jwt-client', () => {
+    const source = fs.readFileSync(EDGE_INDEX, 'utf8');
+    assert.match(source, /import\s*\{\s*dispatchV2Action,\s*isV2PublicAction\s*\}\s*from\s*['"]\.\/v2\/router\.ts['"]/iu);
+    assert.match(source, /if\s*\(isV2PublicAction\(action\)\)[\s\S]{0,500}dispatchV2Action/iu);
+    assert.match(source, /authMode:\s*'anon-key-user-jwt'/iu);
+    assert.match(source, /client:\s*ctx\.userRpcClient/iu);
+    assert.doesNotMatch(
+      source,
+      /if\s*\(isV2PublicAction\(action\)\)[\s\S]{0,700}client:\s*ctx\.serviceClient/iu,
+      'v2 RPCs must never use the service-role client',
+    );
+    return 'Edge v2 dispatch uses the original user JWT client';
   });
 
   await check('database-dispatch-enforces-auth-permission-and-primary-readback', () => {

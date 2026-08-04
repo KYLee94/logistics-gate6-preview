@@ -2,7 +2,7 @@
 
 문서 상태: **R0 PASS · R1 PARTIAL — 공통 구현 진척·운영 활성화 금지**
 작성 기준일: 2026-08-04
-적용 범위: 신규 `logistics_core`, `logistics_api`, v2 API, 권한, 계산, 만기·이메일 전달 계약
+적용 범위: 신규 `logistics_core`, `logistics_api`, v2 API, 권한, 계산, 만기·인앱 알림 계약
 
 ## 1. 목적과 구현 금지선
 
@@ -19,7 +19,7 @@
 - Storage metadata·원본: 운영 49개, 로컬 복원·다운로드 49개
 - Storage 원본: 49/49 다운로드, 총 113,226,015바이트, 파일별 SHA-256 검증 완료
 
-사용자 결정에 따라 별도 Preview branch는 만들지 않습니다. 구현은 격리 Git worktree에서 TDD로 진행하고, 운영 migration은 기존 객체를 수정하지 않는 `logistics_core`·`logistics_api` additive schema로 제한합니다. R1과 로컬 리허설 통과 뒤 외부 grant·writer·worker가 없는 비노출 DDL만 R2 production shadow 검증을 위해 적용할 수 있습니다. 공개 활성화 전에는 동일 시점의 27개 테이블 해시 재검증과 신규 delta를 포함한 15분 rollback 리허설이 필수입니다.
+사용자 결정에 따라 별도 Preview branch는 만들지 않습니다. 구현은 격리 Git worktree에서 TDD로 진행하고, 운영 migration은 기존 객체를 수정하지 않는 `logistics_core`·`logistics_api` additive schema로 제한합니다. R1과 로컬 리허설 통과 뒤 외부 grant·writer가 없는 비노출 DDL만 R2 production shadow 검증을 위해 적용할 수 있습니다. 공개 활성화 전에는 동일 시점의 27개 테이블 해시 재검증과 신규 delta를 포함한 15분 rollback 리허설이 필수입니다.
 
 금지 사항은 다음과 같습니다.
 
@@ -43,7 +43,7 @@
 | DAPI-007 | 실적·예산·예측과 발생·현금을 명시적으로 구분합니다. | 모든 원장 행에 두 차원이 존재합니다. |
 | DAPI-008 | 계산식은 불변 버전의 formula registry 한 곳에서 관리합니다. | 같은 버전·입력은 모든 API에서 같은 결과와 설명을 냅니다. |
 | DAPI-009 | 신규 쓰기는 canonical 원장과 legacy projection을 함께 확정합니다. | 어느 한쪽 실패 시 전체 transaction이 취소됩니다. |
-| DAPI-010 | 만기 알림은 KST 30·7·3·1·0일, 권한 기반, 중복 0건이어야 합니다. | 허용된 실제 수신자의 수신 확인까지 통과합니다. |
+| DAPI-010 | 만기 알림은 KST 30·7·3·1·0일, 로그인 사용자 권한 기반, 응답 중복 0건이어야 합니다. | 로그인 후 허용 자산의 인앱 알림만 primary로 조회됩니다. |
 
 ## 3. schema 경계
 
@@ -88,9 +88,7 @@ erDiagram
     LEASE_CONTRACTS ||--o| MATURITIES : "공식 만기"
     FUNDS ||--o{ MATURITIES : "공식 만기"
     LOANS ||--o{ MATURITIES : "공식 만기"
-    MATURITIES ||--o{ MATURITY_SCHEDULES : "30·7·3·1·0"
-    MATURITY_SCHEDULES ||--o{ DELIVERY_OUTBOX : "수신자별 발송"
-    DELIVERY_OUTBOX ||--o{ DELIVERY_ATTEMPTS : "재시도·결과"
+    MATURITIES ||--o{ MATURITY_SCHEDULES : "30·7·3·1·0 인앱 기준"
 
     AUTH_USERS ||--o{ API_IDEMPOTENCY_KEYS : "요청 주체"
     AUTH_USERS ||--o{ AUDIT_EVENTS : "행위 주체"
@@ -126,6 +124,8 @@ ERD의 `AUTH_USERS`는 새 테이블이 아니라 `auth.users`를 의미합니�
 | `lenders` | `lender_code`, 명칭, 기관 식별 정보 | 이름만으로 자동 병합하지 않습니다. |
 | `loan_lenders` | `loan_id`, `lender_id`, 순위, 약정액·비율 | 대주별 약정액 합계와 대출 약정액 차이는 검증 예외로 기록합니다. |
 
+대출 canonical 이관 원천은 운영 `public.ll_fund_capital_tranches`의 loan 59행(active 51행)입니다. 약정·인출·만기·금리 값이 존재하는 55행을 그대로 보존하고, Excel 대주 자료로 덮어쓰지 않습니다. 운영 원장에 월별 실제 상환 schedule이 없으므로 대출상환 ledger 행을 생성하거나 사용자가 수동 입력하지 않으며 `data_status=not_provided`로 반환합니다.
+
 ### 5.3 임대차·렌트롤
 
 | 테이블 | 핵심 열 | 불변 조건 |
@@ -151,9 +151,17 @@ Excel처럼 보이는 렌트롤 한 행은 API가 조합한 편집 모델일 뿐
 
 - `scenario`: `actual`(실적), `budget`(예산), `forecast`(예측)
 - `accounting_basis`: `accrual`(발생), `cash`(현금)
-- `source_kind`: `rent_roll_calculation`, `manual_input`, `approved_import`, `loan_schedule`, `adjustment`
+- `source_kind`: `rent_roll_calculation`, `manual_input`, `adjustment`. `approved_import`와 `loan_schedule`은 1단계 신규 API의 허용값이 아닙니다.
 
 예산·예측은 실제 승인된 업무자료가 확인된 경우에만 적재합니다. 자료가 없으면 0으로 만들지 않고 `data_status=not_provided`로 응답합니다. 분기·연도 값과 잠재총수입·유효총수입·순영업소득·자산 순현금흐름·부채상환 후 현금흐름 같은 소계는 저장하지 않고 승인된 RPC가 원자행과 조정행을 집계합니다. `source_ref`는 승인된 원천 문서·계약·전표 하나를 가리키고, 그 안의 여러 행은 `source_line_key`로 구분합니다.
+
+초기 월별 actual 수익·비용·수납 행은 0건이며 이는 정상 상태입니다. 입력 전 API는 `data_status=not_entered`를 반환하고 명시적 숫자 0, NULL, 빈 값을 서로 구분합니다. 권한 있는 사용자의 `v2/finance/batch-save`는 다음을 강제합니다.
+
+- 영구 저장 가능 범위는 `scenario=actual` 수익·비용·수납뿐입니다. 수납은 `accounting_basis=cash`이고 수익·비용은 요청마다 발생/현금을 명시합니다.
+- 서버가 `source_kind=manual_input`, `source_ref=manual:<mutation_id>`를 생성합니다. 클라이언트가 `approved_import`, `loan_schedule`, 임의 `source_ref`를 보내면 거절합니다.
+- 각 입력행은 안정적인 `source_line_key`, 계정, 월, 금액, 사유를 포함하고 Auth UID·입력시각·before/after hash를 audit에 남깁니다.
+- budget/forecast와 대출상환 수동입력은 1단계에서 `BUSINESS_RULE_VIOLATION`으로 거절합니다.
+- 월별 대출상환이 `not_provided`이면 부채상환 후 현금흐름을 완전한 값으로 표시하지 않고 `data_status=incomplete`와 누락 구성요소를 반환합니다.
 
 ### 5.5 자산별 단일 writer 원장
 
@@ -226,8 +234,7 @@ Excel처럼 보이는 렌트롤 한 행은 API가 조합한 편집 모델일 뿐
 | `post_debt_cash_flow` | 자산 순현금흐름 - 대출이자 - 대출원금 - 금융수수료 - 헤지비용 |
 
 대출원리금 상환능력은 해당 `loan`에 연결된 약정 formula를 우선합니다. 분모·분자, 측정 기간, 예외 항목을 응답의 `calculation_basis`에 표시합니다. 약정식이 없으면 공통 지표는 별도 이름으로 계산할 수 있지만 약정 충족 여부로 표시하지 않습니다.
-
-## 8. 만기·이메일 전달 계약
+## 8. 만기·인앱 알림 계약
 
 ### 8.1 공식 만기 원장
 
@@ -235,48 +242,30 @@ Excel처럼 보이는 렌트롤 한 행은 API가 조합한 편집 모델일 뿐
 
 `maturity_asset_scopes`는 `scope_id` 단일 PK와 `maturity_id`, `asset_id` 양쪽 FK, `created_at`, `retired_at`, `scope_revision`을 갖습니다. 만기 또는 fund-asset 관계가 바뀌는 같은 transaction에서 기존 scope를 `retired_at`으로 닫고 현재 연결을 새 `scope_id`로 insert합니다. 물리 삭제하지 않으며 `(maturity_id, asset_id) WHERE retired_at IS NULL` partial unique로 활성 관계만 한 쌍당 하나를 허용합니다. 펀드 만기를 수정하려면 사용자가 현재 scope와 요청 후 scope의 **모든 자산**에 read와 update 권한을 모두 가져야 합니다. 일부 자산 권한만 있으면 목록에는 읽을 수 있는 자산 정보만 보이지만 수정은 403입니다.
 
-`maturity_schedules`는 공식 만기 revision마다 KST 기준 30·7·3·1·0일의 발송일을 계산합니다. 만기 수정 transaction은 기존 미발송 일정을 `cancelled`로 바꾸고 새 revision 일정을 생성합니다.
+`maturity_schedules`는 공식 만기 revision마다 KST 기준 30·7·3·1·0일의 인앱 표시 기준을 생성합니다. 만기 수정 transaction은 구 revision schedule을 `cancelled`로 바꾸고 새 revision schedule을 생성합니다. 별도 Cron이나 발송 worker가 schedule을 소비하지 않습니다.
 
-### 8.2 수신자와 중복 방지
+### 8.2 로그인 후 조회와 중복 방지
 
-발송 직전에 다음을 모두 만족하는 사용자를 수신자로 확정합니다.
+`v2/home/read`과 `v2/maturities/read`는 `auth.uid()`의 현재 자산 read 권한을 확인한 뒤 KST 기준 활성 인앱 알림만 반환합니다.
 
-- 활성 Auth 사용자
-- 연결된 scope 자산 중 하나 이상에 read 권한 true. 메일에는 사용자가 읽을 수 있는 자산명만 포함
-- 유효한 승인 이메일 주소
-- 알림 수신 비활성화 정책에 해당하지 않음
+- alert 공개키는 `(maturity_id, maturity_revision, lead_days)`의 불변 조합으로 생성합니다.
+- 같은 공개키는 한 응답에 한 번만 포함합니다.
+- 사용자가 읽을 수 없는 자산명·대상명·만기 존재 여부를 노출하지 않습니다.
+- 응답은 자산 공개키, 만기 종류, 대상명, 공식 만기일, 남은 일수, lead days, revision, 권한 확인 가능한 수정 링크를 포함합니다.
+- 만기가 없으면 샘플 날짜를 만들지 않고 `data_status=not_registered`를 반환합니다.
+- delivery outbox, delivery attempt, 수신 이메일, provider 상태, webhook 상태는 생성하거나 반환하지 않습니다.
 
-`delivery_outbox`의 고유키는 `(maturity_id, maturity_revision, lead_days, recipient_user_id, channel)`입니다. 동일 키 재실행은 기존 행을 반환합니다. 이메일에는 자산명, 만기 종류, 대상명, 만기일, 남은 일수, 권한 확인 가능한 수정 화면 링크만 포함합니다.
+현재 범위는 로그인 시점의 권한 기반 조회이며 영구 읽음·닫기·다시알림 상태 저장은 포함하지 않습니다. 해당 기능은 별도 제품 결정과 SDD 없이 추가하지 않습니다.
 
-### 8.3 공급자·worker·webhook
+### 8.3 외부 전달 제외
 
-공급자는 **Resend Free**로 고정합니다. 2026-08-04 공식 요금 확인값은 월 3,000건·일 100건이며, 예상 발송량이 어느 한도를 넘으면 worker가 새 메일을 큐에 남기고 한도 증액 승인 전 추가 발송을 중단합니다. `ll-maturity-email` worker는 Supabase Cron의 `0 0 * * *`(KST 09:00)에 실행하고 Resend API key는 Edge secret, Cron 호출 secret은 Vault에 둡니다.
-
-provider 멱등키는 `gate6/<delivery_outbox_id>/<maturity_revision>`으로 한 번 정한 뒤 변경하지 않고 Resend `Idempotency-Key` 헤더로 보냅니다. payload hash도 outbox에 고정합니다. API 응답이 유실되면 24시간 안에는 같은 payload·같은 provider 멱등키로만 재시도합니다. 24시간을 넘긴 `sending_unknown`은 자동 재발송하지 않고 `dead_letter`로 보내 수동 대사합니다. 공급자가 접수한 뒤 응답만 유실된 경우에도 같은 email ID가 돌아오므로 중복 발송하지 않습니다.
-
-| 입력 사건 | 내부 상태 | 자동 재발송 |
-|---|---|---|
-| send 시작 | `sending` | 아님 |
-| API 2xx·email ID 수신 | `sent` | 아님 |
-| timeout·429·5xx·동시 멱등 409 | `sending_unknown` 또는 `retry_wait` | 24시간 안 같은 키로 1·5·30분, 최대 3회 |
-| `email.delivered` | `delivered` | 없음 |
-| `email.delivery_delayed` | `delivery_delayed` | 없음; provider 결과 대기 |
-| `email.failed` | `failed` | provider가 미전달을 확정한 경우에만 승인된 새 attempt key로 최대 잔여 횟수 |
-| `email.bounced` | `bounced` | 없음, 수신자 억제 |
-| `email.complained` | `complained` | 없음, 수신자 억제 |
-| 미확정 24시간 경과·3회 소진 | `dead_letter` | 없음 |
-
-4xx 검증 오류, hard bounce, complaint는 자동 재시도하지 않습니다. webhook은 raw body와 `svix-id`, `svix-timestamp`, `svix-signature`를 Resend signing secret으로 검증하고, event ID unique key로 replay를 차단합니다. SPF·DKIM과 실제 회사 수신함 도착 확인 전에는 이메일 cutover를 완료로 처리하지 않습니다.
-
-`delivery_attempts`는 provider 요청 ID, 시도 번호, 상태, 안전한 오류 분류, 다음 재시도 시각을 기록합니다. provider timeout 후에도 새 outbox를 만들지 않고 같은 outbox를 조회한 뒤 재시도합니다. 공급자는 Resend로 확정하며 실제 테스트 수신자는 별도 승인 목록에 있는 주소만 허용합니다.
-
-근거: [Resend 공식 요금](https://resend.com/docs/knowledge-base/what-is-resend-pricing), [Resend webhook 서명 검증](https://resend.com/docs/webhooks/verify-webhooks-requests), [Supabase Edge 사용자 인증](https://supabase.com/docs/guides/functions/auth), [Supabase 전용 API schema](https://supabase.com/docs/guides/api/securing-your-api)
+신규 플랫폼은 만기 이메일, SMS, browser push 또는 외부 알림 공급자를 사용하지 않습니다. Resend, SPF·DKIM, DNS 설정, provider API key, Cron secret, delivery webhook, 테스트 수신자, 재시도·bounce·complaint 처리는 모두 범위 밖이며 관련 table·function·worker·secret을 만들지 않습니다. 기존 `public.ll_notifications`와 `ll_notification_subscriptions`는 archive/rollback 호환 이력으로만 보존하고 신규 인앱 알림의 canonical 원천으로 사용하지 않습니다.
 
 ## 9. v2 RPC·action 계약
 
 ### 9.1 전송 경계
 
-신규 Edge API는 인증된 POST 요청 하나를 action router로 전달할 수 있으나, 업무 처리는 아래 `logistics_api` RPC가 담당합니다. Edge가 service role로 데이터를 먼저 읽어 권한을 대신 판정하는 구조는 금지합니다. v2 handler는 프로젝트 publishable/anon key와 원 요청의 `Authorization: Bearer <user-jwt>`로 만든 `userRpcClient`만 사용하고, RPC는 이 문맥의 `auth.uid()`를 확인합니다. service-role client는 v2 업무 RPC에서 금지하고 worker·운영 복구 등 별도 관리 경로로만 제한합니다.
+신규 Edge API는 인증된 POST 요청 하나를 action router로 전달할 수 있으나, 업무 처리는 아래 `logistics_api` RPC가 담당합니다. Edge가 service role로 데이터를 먼저 읽어 권한을 대신 판정하는 구조는 금지합니다. v2 handler는 프로젝트 publishable/anon key와 원 요청의 `Authorization: Bearer <user-jwt>`로 만든 `userRpcClient`만 사용하고, RPC는 이 문맥의 `auth.uid()`를 확인합니다. service-role client는 v2 업무 RPC에서 금지하고 운영 복구 등 별도 관리 경로로만 제한합니다.
 
 Supabase API exposed schema에는 `logistics_api`만 등록하고 `logistics_core`는 등록하지 않습니다. `anon`에는 schema/table 권한을 주지 않습니다. `authenticated`에는 `logistics_api` USAGE와 승인된 7개 RPC EXECUTE만 주고 모든 table 직접 권한과 미승인 routine EXECUTE를 revoke합니다. `logistics_core` table은 `authenticated`, `anon` 직접 접근을 모두 revoke합니다.
 
@@ -318,7 +307,7 @@ Supabase API exposed schema에는 `logistics_api`만 등록하고 `logistics_cor
 | `v2/rent-roll/read` | `{"asset_key":"...","status":"active","cursor":null,"limit":100}` | `rows[{row_key,revision,...}]`, `next_cursor` |
 | `v2/rent-roll/batch-save` | `{"asset_key":"...","client_request_id":"uuid","base_revision":42,"rows":[{"operation":"archive","row_key":"...","expected_revision":7,"delete_reason":"계약 종료"}],"domain_operations":[{"operation":"update_maturity","target_type":"lease","target_key":"lease_...","maturity_key":"mat_...","official_date":"2027-08-31","expected_revision":2}]}` | `client_request_id`, `mutation_id`, `rows[{row_key,operation,revision}]`, `domain_operations`, `readback` |
 | `v2/finance/read` | `{"asset_key":"...","start_month":"2026-01","end_month":"2026-12","scenario":"actual","accounting_basis":"accrual","cursor":null,"limit":200}` | `entries[{entry_key,revision,...}]`, `totals`, `formula_version`, `test_vector_hash`, `next_cursor` |
-| `v2/finance/batch-save` | `{"asset_key":"...","client_request_id":"uuid","base_revision":42,"entries":[{"operation":"create","month":"2026-08","account_code":"RENT","scenario":"actual","accounting_basis":"accrual","amount":"1000","source_kind":"approved_import","source_ref":"voucher_202608","source_line_key":"17","reason":"승인 전표 반영"}],"domain_operations":[{"operation":"update_maturity","target_type":"fund","target_key":"fund_...","maturity_key":"mat_...","official_date":"2028-12-31","expected_revision":4,"scope_asset_keys":["asset_a120085001","asset_b..."]}]}` | `client_request_id`, `mutation_id`, `entries[{entry_key,operation,revision}]`, `domain_operations`, `readback` |
+| `v2/finance/batch-save` | `{"asset_key":"...","client_request_id":"uuid","base_revision":42,"entries":[{"operation":"create","month":"2026-08","account_code":"RENT","scenario":"actual","accounting_basis":"accrual","amount":"1000","source_line_key":"web-row-17","reason":"담당자 월 실적 입력"}]}` | `client_request_id`, `mutation_id`, `entries[{entry_key,operation,revision,source_kind:"manual_input"}]`, `readback` |
 | `v2/maturities/read` | `{"asset_key":"...","as_of_date":"2026-08-04","horizon_days":365}` | `rows[{maturity_key,kind,official_date,revision}]` |
 | `v2/calculations/explain` | `{"asset_key":"...","metric":"net_operating_income","start_month":"2026-01","end_month":"2026-12","formula_version":"...","scenario_inputs":{}}` | `result`, `formula_version`, `test_vector_hash`, `calculation_basis`, `lineage` |
 
@@ -428,12 +417,12 @@ readback은 write 직후 동일 transaction에서 PK로 다시 읽어 다음을 
 | DAPI-T006 | legacy projection 또는 readback을 강제로 실패시키면 canonical·audit·멱등 성공 상태가 모두 rollback됩니다. |
 | DAPI-T007 | 사용자 delete 후 기본 조회에서 사라지되 감사·복구 조회에는 남고 물리 행 수는 유지됩니다. |
 | DAPI-T008 | 월 12개의 금액을 입력하면 분기 4개·연도 1개의 합계가 월 원장과 정확히 일치하며 별도 집계행이 없습니다. |
-| DAPI-T009 | actual/budget/forecast와 accrual/cash 조합이 서로 덮어쓰지 않고 독립적으로 조회됩니다. |
+| DAPI-T009 | 웹 batch-save는 actual 수익·비용·수납만 저장하고 budget/forecast·대출상환 수동입력을 거절하며 기존 조회 차원을 덮어쓰지 않습니다. |
 | DAPI-T010 | 렌트프리·인상·중도 입퇴거 fixture에서 렌트롤 월 임대료와 수익 원장의 계약상 임대료가 같은 formula version과 금액입니다. |
-| DAPI-T011 | 순영업소득에 대출이자·원금·감가상각·법인세·자본적 지출이 포함되지 않습니다. |
+| DAPI-T011 | 순영업소득에 대출이자·원금·감가상각·법인세·자본적 지출이 포함되지 않고, 월별 대출상환 부재 시 post-debt 결과가 `incomplete`입니다. |
 | DAPI-T012 | 만기일 수정 시 구 schedule은 취소되고 새 30·7·3·1·0 schedule만 활성화됩니다. |
-| DAPI-T013 | 발송 worker를 반복 실행하거나 provider timeout을 만들더라도 수신자별 같은 알림은 1건만 발송됩니다. |
-| DAPI-T014 | 권한 없는 사용자는 이메일 대상에서도 제외되고 링크 접근도 403입니다. |
+| DAPI-T013 | 로그인 후 같은 `(maturity_id, maturity_revision, lead_days)` 인앱 알림은 응답에 1건만 나타납니다. |
+| DAPI-T014 | 권한 없는 사용자는 인앱 만기 목록에서 제외되고 수정 링크 접근도 403입니다. |
 | DAPI-T015 | primary DB timeout·401·403·stale cache가 `ok=true` 또는 `source=primary`로 변환되지 않습니다. |
 | DAPI-T016 | 선택 자산·기간 외 행은 SQL read count와 API payload에 포함되지 않습니다. |
 
@@ -443,18 +432,17 @@ readback은 write 직후 동일 transaction에서 PK로 다시 읽어 다음을 
 
 1. SDD 문서와 의도적으로 실패하는 테스트는 R0·R1 전에도 작성할 수 있습니다.
 2. 공통 schema·API·frontend 골격 구현은 `11-backfill-rollback-sdd.md`의 R0와 R1이 모두 통과한 뒤 시작합니다.
-3. finance 저장·계산 활성화는 실제 예산·예측·현금 수취·대출 상환·평가액 원천과 계정 mapping 승인 뒤에만 수행합니다.
-4. 이메일 발송 구현·활성화는 허용된 테스트 수신자와 발신 도메인 승인 뒤에만 수행합니다.
-5. 임대료·대출 약정 계산 구현·활성화는 해당 formula fixture와 반올림·일할 규칙 승인 뒤에만 수행합니다.
-6. R1과 로컬 리허설 통과 뒤에는 외부 grant·writer·worker가 없는 additive DDL만 R2 production shadow 검증을 위해 같은 프로젝트에 1회 적용할 수 있습니다.
-7. 공개 grant·writer 전환은 R3와 **배포 전 release gate**가 모두 통과한 뒤에만 수행합니다. Edge와 frontend는 writer가 잠긴 비활성 상태로 먼저 배포·검증할 수 있습니다.
-8. 배포 후 live acceptance가 하나라도 실패하면 즉시 15분 rollback을 실행하며 완료로 판정하지 않습니다.
+3. finance 저장 활성화는 actual 수익·비용·수납 계정 mapping, 발생/현금, 필수값, provenance, legacy/reverse 규칙 승인 뒤에만 수행합니다. budget/forecast와 대출상환 수동입력은 계속 차단합니다.
+4. 임대료·대출 약정 계산 구현·활성화는 해당 formula fixture와 반올림·일할 규칙 승인 뒤에만 수행합니다.
+5. R1과 로컬 리허설 통과 뒤에는 외부 grant·writer가 없는 additive DDL만 R2 production shadow 검증을 위해 같은 프로젝트에 1회 적용할 수 있습니다.
+6. 공개 grant·writer 전환은 R3와 **배포 전 release gate**가 모두 통과한 뒤에만 수행합니다. Edge와 frontend는 writer가 잠긴 비활성 상태로 먼저 배포·검증할 수 있습니다.
+7. 배포 후 live acceptance가 하나라도 실패하면 즉시 15분 rollback을 실행하며 완료로 판정하지 않습니다.
 
 완료 조건:
 
 - DAPI-T001~T016 통과
 - core table 직접 접근 0건, 승인 RPC 외 execute 0건
 - write의 멱등성·revision 409·transaction·readback 증거 생성
-- 30·7·3·1·0일 실제 이메일 수신과 중복 0건 확인
+- 로그인 후 30·7·3·1·0일 인앱 알림 권한·revision·중복 0건 확인
 - 월별 원장과 분기·연도·렌트롤·손익 계산 교차 검증 통과
 - legacy projection과 reverse migration 검증 통과

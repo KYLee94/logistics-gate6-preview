@@ -15,6 +15,7 @@ import sectorData from './logisticsSectorData.json';
 import { floorPlanLabelFromRecord, normalizeFloorPlanImageSource } from './floorPlanImageSource';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './logisticsRoutes';
 import { normalizeStackingFloorLabel, normalizeStackingFloorLabelFromRow } from './stackingFloorNormalizer';
+import LogisticsDataPlatform from '../../../features/logistics-data-platform/LogisticsDataPlatform';
 import { deriveCompanySearchPreviewMetrics, sortCompanySearchPreviewRows } from './searchPreviewUtils';
 import {
   AssetSpecDashboard,
@@ -5392,6 +5393,14 @@ function aiMentionHighlightSegments(text, selections) {
 }
 
 export default function WorkspaceLogistics({ currentPath = '' }) {
+  const normalizedCurrentPath = normalizeLogisticsPath(currentPath);
+  if (normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/data-platform/`)) {
+    return <LogisticsDataPlatform currentPath={normalizedCurrentPath} />;
+  }
+  return <WorkspaceLogisticsExisting currentPath={currentPath} />;
+}
+
+function WorkspaceLogisticsExisting({ currentPath = '' }) {
   const { memberInfo, permissionsLoading } = useAuth();
   const [showAllTasks, _setShowAllTasks] = useState(false);
   const [showCompletedTasks, _setShowCompletedTasks] = useState(false);

@@ -11,9 +11,9 @@
 | ARC-05 | Storage 49개 원본·크기·SHA-256 | PASS |
 | ARC-06 | Auth 사용자·직원·권한 행 수와 연결 관계 복원 parity | PASS |
 | ARC-07 | 동일 프로젝트 additive schema의 15분 rollback | NOT STARTED |
-| DAT-01 | 자산·필드별 Excel→DB→API→화면→신규 mapping | PARTIAL |
+| DAT-01 | 임대차·대출은 운영 Supabase→canonical→API→화면 mapping, Excel은 historical provenance 또는 UI reference로만 분류 | PARTIAL |
 | DAT-02 | critical migration exception 0 | BLOCKED |
-| DAT-03 | 월별 finance 원천 확정, 샘플값 0 | BLOCKED |
+| DAT-03 | 초기 0행에서 actual 수익·비용·수납을 웹 `manual_input`으로 저장하고 샘플·추정·자동 0 생성 0건 | BLOCKED |
 
 ## DB·API
 
@@ -41,22 +41,25 @@
 | RENT-01 | 계약·공간·임대료 이력은 DB에서 분리되고 표에서만 합쳐집니다. |
 | RENT-02 | 행 추가·다중 붙여넣기·검증·soft delete·변경 요약·readback을 지원합니다. |
 | RENT-03 | 새로고침·재로그인 뒤 primary readback 값이 유지됩니다. |
+| RENT-04 | `260804_렌트롤 참고자료` 4종의 공통 열은 범용 그리드에, 선택·특수 필드는 상세 영역에 매핑하며 Excel 셀값은 운영 이관에 사용하지 않습니다. |
 | FIN-01 | 월별 원장만 원본이며 분기·연도 합계가 월 합계와 정확히 일치합니다. |
 | FIN-02 | actual/budget/forecast와 accrual/cash를 명확히 구분합니다. |
 | FIN-03 | NOI=`유효총수입-운영비용`, NCF·부채상환 후 현금흐름을 분리합니다. |
 | FIN-04 | 입력값·계산값·조정금액·사유·formula version을 설명할 수 있습니다. |
 | FIN-05 | 시나리오 입력은 브라우저 메모리에만 두고, 계산은 서버 `v2/calculations/explain`이 수행하며 운영 DB에 저장하지 않습니다. |
+| FIN-06 | 운영 웹 저장은 actual 수익·비용·수납만 허용하고 `manual_input` provenance·audit·primary readback을 남깁니다. budget/forecast와 대출상환 수동입력은 거절합니다. |
+| FIN-07 | 기존 대출 원장의 월별 실제 상환 schedule이 없으면 대출상환 행은 0건이고 부채상환 후 현금흐름은 `not_provided` 또는 `incomplete`로 표시합니다. |
 
-## 권한·메일·브라우저
+## 권한·인앱 알림·브라우저
 
 | ID | 기준 |
 |---|---|
 | AUTH-01 | 담당/기타 자산 × CRUD 8개 판정이 SQL·API·UI에서 같습니다. |
 | AUTH-02 | 이름·이메일·역할 하드코딩으로 권한을 우회하지 않습니다. |
 | AUTH-03 | 기존 전체 권한은 명시적 회수 승인 전까지 유지됩니다. |
-| MAIL-01 | KST 30·7·3·1·0일 schedule과 만기 변경 취소·재생성을 검증합니다. |
-| MAIL-02 | 수신자 권한, delivery unique key, retry, bounce/delivered webhook을 검증합니다. |
-| MAIL-03 | SPF·DKIM과 실제 수신함 도착 전에는 완료가 아닙니다. |
+| ALERT-01 | KST 30·7·3·1·0일 schedule과 만기 변경 시 구 revision 취소·새 revision 생성을 검증합니다. |
+| ALERT-02 | 로그인 사용자의 읽기 권한이 있는 자산 만기만 표시하며 같은 `(maturity_id, revision, lead_days)`는 한 번만 반환합니다. |
+| ALERT-03 | Resend·DNS·Cron·provider webhook·외부 이메일 호출·delivery outbox가 신규 범위에 0건입니다. |
 | UI-01 | 비활성 탭은 unmount되고 요청·timer가 중단됩니다. |
 | UI-02 | background refresh 성공 전 기존 primary 값을 지우지 않습니다. |
 | UI-03 | abort와 request generation으로 늦은 응답이 최신 화면을 덮지 못합니다. |
@@ -66,7 +69,7 @@
 
 | ID | 기준 |
 |---|---|
-| REL-01 | 3인 pilot이 실제 CRUD·권한·계산·메일을 확인합니다. |
+| REL-01 | 3인 pilot이 실제 CRUD·권한·계산·로그인 후 인앱 만기 알림을 확인합니다. |
 | REL-02 | lint, SQL/Node contract, `build:preview`, `check:edge`, `qa:v2:release-gate`, advisor가 모두 통과합니다. |
 | REL-03 | Edge→frontend 순으로 배포하고 live root·세 deep link를 readback합니다. |
 | REL-04 | 실패 시 신규 delta reverse sync와 archive 재배포가 15분 안에 끝납니다. |

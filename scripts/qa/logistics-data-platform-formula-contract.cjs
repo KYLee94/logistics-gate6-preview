@@ -177,6 +177,22 @@ async function main() {
       assert.deepEqual([...formulas.ACCOUNTING_BASES], ['accrual', 'cash']);
       return { scenarios: formulas.LEDGER_SCENARIOS, bases: formulas.ACCOUNTING_BASES };
     });
+
+    await check('loan-repayment-schedule-is-never-synthesized', () => {
+      assert.equal(formulas.LOAN_REPAYMENT_SCHEDULE_STATUS, 'not_provided');
+      assert.equal(typeof formulas.projectLoanRepaymentSchedule, 'function');
+      const projection = formulas.projectLoanRepaymentSchedule({
+        maturityDate: '2028-12-31',
+        committedAmountKrw: 1000000,
+        loanRate: '5.2%',
+      });
+      assert.deepEqual(projection, {
+        status: 'not_provided',
+        rows: [],
+        reason: 'SOURCE_HAS_NO_MONTHLY_REPAYMENT_SCHEDULE',
+      });
+      return projection;
+    });
   }
 
   const report = {

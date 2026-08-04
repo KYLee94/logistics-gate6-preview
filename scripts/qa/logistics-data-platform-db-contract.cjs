@@ -28,8 +28,6 @@ const CORE_TABLES = Object.freeze([
   'maturities',
   'maturity_asset_scopes',
   'maturity_schedules',
-  'delivery_outbox',
-  'delivery_attempts',
   'formula_definitions',
   'api_idempotency_keys',
   'audit_events',
@@ -101,6 +99,24 @@ function main() {
       return 'schemas are additive and public.ll_* DDL is absent';
     });
 
+    check('legacy-canonical-sources-are-preserved', () => {
+      for (const table of [
+        'll_assets', 'll_funds', 'll_fund_asset_links', 'll_fund_capital_tranches',
+        'll_tenants', 'll_leases', 'll_lease_spaces', 'll_lease_attributes',
+        'll_rent_history', 'll_notifications', 'll_user_permissions',
+      ]) {
+        requirePattern(source, new RegExp(`public\\.${table}\\b`, 'iu'), `${table} canonical source`);
+      }
+      requirePattern(source, /tranche_type[\s\S]{0,80}(?:=\s*'loan'|in\s*\(\s*'loan'\s*\))/iu, 'loan tranche discriminator');
+      requirePattern(source, /source_is_active\s+boolean\s+not null/iu, 'loan source active state');
+      requirePattern(source, /source_tranche_id,\s*source_is_active,\s*name_ko/iu, 'loan active state backfill column');
+      requirePattern(source, /nullif\(source_row->>'is_active',\s*''\)::boolean/iu, 'loan active state backfill value');
+      requirePattern(source, /repayment_schedule_status[\s\S]{0,80}not_provided/iu, 'missing repayment schedule is explicit');
+      assert.doesNotMatch(source, /create table(?: if not exists)? logistics_core\.loan_repayment/iu);
+      assert.doesNotMatch(source, /insert into logistics_core\.monthly_ledger_entries[\s\S]{0,600}(?:loan_schedule|repayment)/iu);
+      return 'public.ll_* remains canonical and loan schedules are not synthesized';
+    });
+
     check('normalized-core-tables', () => CORE_TABLES.map((table) => requirePattern(
       source,
       new RegExp(`create table(?: if not exists)? logistics_core\\.${table}\\b`, 'iu'),
@@ -162,7 +178,20 @@ function main() {
       requirePattern(source, /check\s*\(\s*btrim\(source_line_key\)\s*<>\s*''/iu, 'non-empty source line key'),
       requirePattern(source, /account_kind\s+text\s+not null[\s\S]{0,180}'atomic'[\s\S]{0,80}'derived'/iu, 'atomic versus derived account'),
       requirePattern(source, /assert_atomic_ledger_account/iu, 'derived subtotal persistence guard'),
+      requirePattern(source, /source_kind[\s\S]{0,240}'manual_input'/iu, 'manual input source kind'),
     ]);
+
+    check('finance-starts-empty-and-email-delivery-is-absent', () => {
+      const backfillSource = bundle.files
+        .filter((name) => /backfill/iu.test(name))
+        .map((name) => fs.readFileSync(path.join(MIGRATIONS_DIR, name), 'utf8'))
+        .join('\n');
+      assert.doesNotMatch(backfillSource, /insert\s+into\s+logistics_core\.monthly_ledger_entries/iu, 'finance rows must start empty');
+      assert.doesNotMatch(source, /create table(?: if not exists)? logistics_core\.(?:delivery_outbox|delivery_attempts)\b/iu);
+      assert.doesNotMatch(source, /\bresend\b|ll-maturity-email|recipient_email[\s\S]{0,120}channel\s+text/iu);
+      requirePattern(source, /public\.ll_notifications/iu, 'existing in-app notifications store');
+      return 'manual finance only and no outbound email schema';
+    });
 
     check('formula-registry-is-versioned-and-immutable', () => [
       requirePattern(source, /formula_key\s+text\s+not null/iu, 'formula key'),
@@ -206,6 +235,9 @@ function main() {
       requirePattern(source, /critical_exception_count/iu, 'critical exception zero gate');
       requirePattern(source, /source_row_hash/iu, 'source row hash');
       requirePattern(source, /target_row_hash/iu, 'target row hash');
+      requirePattern(source, /public\.ll_fund_capital_tranches/iu, 'loan and beneficiary source');
+      requirePattern(source, /public\.ll_leases/iu, 'lease source');
+      requirePattern(source, /public\.ll_rent_history/iu, 'rent source');
       return 'backfill migration and hash gates';
     });
   }

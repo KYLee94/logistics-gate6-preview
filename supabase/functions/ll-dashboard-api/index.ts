@@ -1,10 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { dispatchV2Action, isV2PublicAction } from './v2/router.ts';
 
 // The project has no generated Database type yet, so the client schema is dynamic.
 // Keep request and response shapes typed at the function boundary instead.
 type SupabaseClient = any;
 type Context = {
   serviceClient: SupabaseClient;
+  userRpcClient: SupabaseClient;
+  accessToken: string;
   user: { id: string; email?: string | null };
   permission: Record<string, unknown> | null;
   role: string;
@@ -781,6 +784,8 @@ const ACTION_MANIFEST = new Map<string, ActionClassification>([
     'dashboard/company/read', 'dashboard/read', 'ai/search-chat', 'asset-floor-plans/register', 'market-docs/upload',
     'market-docs/ingest', 'market-docs/embed', 'market-docs/status', 'market-docs/search',
     'dashboard-metrics/refresh', 'snapshot-refresh', 'cache-clear',
+    'v2/home/read', 'v2/rent-roll/read', 'v2/rent-roll/batch-save', 'v2/finance/read',
+    'v2/finance/batch-save', 'v2/maturities/read', 'v2/calculations/explain',
   ].map((action) => [action, 'authenticated'] as const),
 ]);
 type ActionScopeContract = 'public' | 'self' | 'global' | 'asset' | 'multi_asset';
@@ -799,6 +804,8 @@ const ACTION_SCOPE_MANIFEST = new Map<string, ActionScopeContract>([
     'news/list', 'news/collect-run', 'news/restore-20260617',
     'market-docs/upload', 'market-docs/ingest', 'market-docs/embed', 'market-docs/status', 'market-docs/search',
     'dashboard-metrics/refresh', 'snapshot-refresh', 'cache-clear',
+    'v2/home/read', 'v2/rent-roll/read', 'v2/rent-roll/batch-save', 'v2/finance/read',
+    'v2/finance/batch-save', 'v2/maturities/read', 'v2/calculations/explain',
   ].map((action) => [action, 'global'] as const),
   ...[
     'asset-spec/read', 'asset-spec/save', 'asset-admin/gyeongsan-coupang-floor-count-preview', 'operating-costs/read',
@@ -1278,7 +1285,15 @@ async function getContext(request: Request, origin: string): Promise<Context> {
   if (!permission) throw new Response('Active logistics profile is required', { status: 403 });
 
   const role = safeText(permission?.logistics_role, 'Reader');
-  return { serviceClient, user: { id: userData.user.id, email: userData.user.email || null }, permission, role, origin };
+  return {
+    serviceClient,
+    userRpcClient: authClient,
+    accessToken: jwt,
+    user: { id: userData.user.id, email: userData.user.email || null },
+    permission,
+    role,
+    origin,
+  };
 }
 
 async function audit(serviceClient: SupabaseClient, userId: string | null, action: string, status: number, payload: unknown) {
@@ -27701,6 +27716,29 @@ Deno.serve(async (request): Promise<Response> => {
   if (manifestAuthorization) return manifestAuthorization;
   const scopeAuthorization = await authorizeActionScope(ctx, action, payload);
   if (scopeAuthorization) return scopeAuthorization;
+
+  if (isV2PublicAction(action)) {
+    try {
+      const response = await dispatchV2Action({
+        authMode: 'anon-key-user-jwt',
+        accessToken: ctx.accessToken,
+        client: ctx.userRpcClient,
+      }, action, {
+        client_request_id: safeText(payload.client_request_id) || undefined,
+        asset_key: safeText(payload.asset_key) || undefined,
+        payload,
+        expected_revisions: payload.expected_revisions && typeof payload.expected_revisions === 'object'
+          ? payload.expected_revisions as Record<string, number>
+          : {},
+      });
+      return jsonResponse(response, 200, origin);
+    } catch (error) {
+      const failure = error as Error & { httpStatus?: number; retryable?: boolean };
+      return fail(failure.httpStatus || 500, failure.message || 'INTERNAL_ERROR', origin, {
+        retryable: failure.retryable === true,
+      });
+    }
+  }
 
   if (action === 'health') return jsonResponse({ ok: true, role: ctx.role }, 200, origin);
   if (action === 'ai/search-chat-demo') return callGoogleAiSearchChatDemo(ctx, payload);

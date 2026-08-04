@@ -3,7 +3,10 @@ export const LOGISTICS_DEPLOY_BASE = 'logistics-gate6-preview';
 
 export const LOGISTICS_ROUTE_BY_KEY = {
   'work-platform': LOGISTICS_INTERNAL_BASE,
-  home: `${LOGISTICS_INTERNAL_BASE}/dashboard/home`,
+  home: `${LOGISTICS_INTERNAL_BASE}/data-platform/home`,
+  'rent-roll': `${LOGISTICS_INTERNAL_BASE}/data-platform/rent-roll`,
+  'income-expense': `${LOGISTICS_INTERNAL_BASE}/data-platform/income-expense`,
+  'legacy-dashboard-home': `${LOGISTICS_INTERNAL_BASE}/dashboard/home`,
   asset: `${LOGISTICS_INTERNAL_BASE}/dashboard/asset`,
   company: `${LOGISTICS_INTERNAL_BASE}/dashboard/company`,
   'investment-index': `${LOGISTICS_INTERNAL_BASE}/dashboard/investment-index`,
@@ -47,7 +50,7 @@ export function normalizeLogisticsPath(path = '') {
   }
   if (LOGISTICS_ROUTE_BY_KEY[clean]) return LOGISTICS_ROUTE_BY_KEY[clean];
   if (clean === 'logistics-gate6-preview') return LOGISTICS_INTERNAL_BASE;
-  if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/weekly`)) return LOGISTICS_ROUTE_BY_KEY.home;
+  if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/weekly`)) return LOGISTICS_ROUTE_BY_KEY['legacy-dashboard-home'];
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/contracts`)) return LOGISTICS_ROUTE_BY_KEY['contract-data'];
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/data-playground`)) return LOGISTICS_ROUTE_BY_KEY['data-playground'];
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/pivot-table`)) return LOGISTICS_ROUTE_BY_KEY['pivot-table'];
@@ -71,10 +74,10 @@ export function publicLogisticsPath(path = '') {
         'investment-index': 'investment-index',
         'asset-spec': 'asset-spec',
         contracts: 'contract-data',
-        weekly: 'home',
-        sector: 'home',
+        weekly: 'legacy-dashboard-home',
+        sector: 'legacy-dashboard-home',
     }[moduleName] || moduleName;
-    return alias || 'home';
+    return alias || 'legacy-dashboard-home';
   }
   if (normalized.startsWith(`${LOGISTICS_INTERNAL_BASE}/market-data/`)) {
     const moduleName = normalized.split('/').at(-1);
