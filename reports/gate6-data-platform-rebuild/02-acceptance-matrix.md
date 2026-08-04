@@ -1,0 +1,73 @@
+# 제품 인수 기준 매트릭스
+
+## 복구·데이터
+
+| ID | 기준 | 현재 |
+|---|---|---|
+| ARC-01 | main·Pages·dirty가 각각 별도 hash/manifest로 보존됨 | PASS |
+| ARC-02 | DB roles/schema/data/full dump가 암호화 보존됨 | PASS |
+| ARC-03 | 전체 restore 종료 코드 0과 Supabase 전용 확장 검증 | FAIL |
+| ARC-04 | 27개 `ll_*` count/hash parity | PARTIAL |
+| ARC-05 | Storage 49개 원본·크기·SHA-256 | FAIL |
+| ARC-06 | Auth 사용자-직원-권한 연결 readback | PARTIAL |
+| ARC-07 | 운영 유사 staging에서 15분 rollback | BLOCKED |
+| DAT-01 | 자산·필드별 Excel→DB→API→화면→신규 mapping | NOT STARTED |
+| DAT-02 | critical migration exception 0 | BLOCKED |
+| DAT-03 | 월별 finance 원천 확정, 샘플값 0 | BLOCKED |
+
+## DB·API
+
+| ID | 기준 |
+|---|---|
+| DB-01 | `logistics_core` 테이블은 외부 직접 접근이 없고 `logistics_api` RPC만 노출합니다. |
+| DB-02 | PK/FK/check/RLS/index가 8개 권한 truth table과 함께 검증됩니다. |
+| DB-03 | migration과 backfill을 두 번 실행해도 결과 hash가 같습니다. |
+| DB-04 | 모든 중요 행에 old PK, new UUID, source/target hash, 상태가 있습니다. |
+| DB-05 | 신규 write와 legacy projection이 하나의 transaction에서 commit/rollback됩니다. |
+| API-01 | JWT 없음·오류·만료는 401, 권한 부족은 403이며 `ok:true`가 아닙니다. |
+| API-02 | 정상 응답만 `{ok:true,status:"primary",request_id,revision,data}`입니다. |
+| API-03 | batch 일부 오류는 전체 rollback되고 readback에서 변경이 없습니다. |
+| API-04 | `(user_id, client_request_id)` 재시도는 중복 행을 만들지 않습니다. |
+| API-05 | revision 충돌은 409이며 최신 revision을 제공합니다. |
+| API-06 | timeout·stale·fallback을 정상 성공으로 포장하지 않습니다. |
+
+## 홈·렌트롤·수익비용
+
+| ID | 기준 |
+|---|---|
+| HOME-01 | 읽기 가능한 담당 자산만 선택할 수 있습니다. |
+| HOME-02 | 임대차·펀드·대출의 최근 만기와 검증된 핵심값만 표시합니다. |
+| HOME-03 | 내부 UUID·raw source key를 화면에 노출하지 않습니다. |
+| RENT-01 | 계약·공간·임대료 이력은 DB에서 분리되고 표에서만 합쳐집니다. |
+| RENT-02 | 행 추가·다중 붙여넣기·검증·soft delete·변경 요약·readback을 지원합니다. |
+| RENT-03 | 새로고침·재로그인 뒤 primary readback 값이 유지됩니다. |
+| FIN-01 | 월별 원장만 원본이며 분기·연도 합계가 월 합계와 정확히 일치합니다. |
+| FIN-02 | actual/budget/forecast와 accrual/cash를 명확히 구분합니다. |
+| FIN-03 | NOI=`유효총수입-운영비용`, NCF·부채상환 후 현금흐름을 분리합니다. |
+| FIN-04 | 입력값·계산값·조정금액·사유·formula version을 설명할 수 있습니다. |
+| FIN-05 | 시나리오 가정은 브라우저에서만 계산되고 운영 DB에 저장되지 않습니다. |
+
+## 권한·메일·브라우저
+
+| ID | 기준 |
+|---|---|
+| AUTH-01 | 담당/기타 자산 × CRUD 8개 판정이 SQL·API·UI에서 같습니다. |
+| AUTH-02 | 이름·이메일·역할 하드코딩으로 권한을 우회하지 않습니다. |
+| AUTH-03 | 기존 전체 권한은 명시적 회수 승인 전까지 유지됩니다. |
+| MAIL-01 | KST 30·7·3·1·0일 schedule과 만기 변경 취소·재생성을 검증합니다. |
+| MAIL-02 | 수신자 권한, delivery unique key, retry, bounce/delivered webhook을 검증합니다. |
+| MAIL-03 | SPF·DKIM과 실제 수신함 도착 전에는 완료가 아닙니다. |
+| UI-01 | 비활성 탭은 unmount되고 요청·timer가 중단됩니다. |
+| UI-02 | background refresh 성공 전 기존 primary 값을 지우지 않습니다. |
+| UI-03 | abort와 request generation으로 늦은 응답이 최신 화면을 덮지 못합니다. |
+| UI-04 | 15분 idle, 반복 탭 전환, deep link, 새로고침, 재로그인을 통과합니다. |
+
+## 릴리스
+
+| ID | 기준 |
+|---|---|
+| REL-01 | 3인 pilot이 실제 CRUD·권한·계산·메일을 확인합니다. |
+| REL-02 | lint, SQL/Node contract, `build:preview`, `check:edge`, `qa:v2:release-gate`, advisor가 모두 통과합니다. |
+| REL-03 | Edge→frontend 순으로 배포하고 live root·세 deep link를 readback합니다. |
+| REL-04 | 실패 시 신규 delta reverse sync와 archive 재배포가 15분 안에 끝납니다. |
+| REL-05 | 기존 frontend·DB 삭제는 안정화 후 별도 통합 승인으로 남습니다. |
