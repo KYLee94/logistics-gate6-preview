@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import {
   LOGISTICS_INTERNAL_BASE,
   normalizeLogisticsPath,
@@ -125,15 +126,7 @@ function SectionCard({ title, description, children, action = null }) {
   );
 }
 
-function HomePanel({ assetKey, homeResource }) {
-  const maturityPayload = useMemo(() => ({
-    asset_key: assetKey,
-    as_of_date: todayKst(),
-    horizon_days: 365,
-  }), [assetKey]);
-  const maturities = usePrimaryResource(DATA_PLATFORM_ACTIONS.maturitiesRead, maturityPayload, {
-    enabled: Boolean(assetKey),
-  });
+function HomePanel({ assetKey, homeResource, maturities }) {
   const data = homeResource.data || {};
   const asset = data.asset || null;
   const kpis = Array.isArray(data.kpis) ? data.kpis : [];
@@ -562,8 +555,10 @@ function activeTabFromPath(currentPath) {
 }
 
 export default function LogisticsDataPlatform({ currentPath = '' }) {
+  const { user, memberInfo, signOut } = useAuth();
   const activeTab = activeTabFromPath(currentPath);
   const [assetKey, setAssetKey] = useState(() => sessionStorage.getItem('gate6-data-platform-asset-key') || '');
+  const [openUtility, setOpenUtility] = useState('');
   const homePayload = useMemo(() => ({
     ...(assetKey ? { asset_key: assetKey } : {}),
     as_of_date: todayKst(),
@@ -573,6 +568,18 @@ export default function LogisticsDataPlatform({ currentPath = '' }) {
     () => (Array.isArray(homeResource.data?.assets) ? homeResource.data.assets : []),
     [homeResource.data?.assets],
   );
+  const maturityPayload = useMemo(() => ({
+    asset_key: assetKey,
+    as_of_date: todayKst(),
+    horizon_days: 365,
+  }), [assetKey]);
+  const maturities = usePrimaryResource(DATA_PLATFORM_ACTIONS.maturitiesRead, maturityPayload, {
+    enabled: Boolean(assetKey),
+  });
+  const maturityRows = Array.isArray(maturities.data?.rows) ? maturities.data.rows : [];
+  const accountName = memberInfo?.staff_name || memberInfo?.name || user?.email || '로그인 사용자';
+  const accountEmail = user?.email || memberInfo?.email || '';
+  const accountOrganization = memberInfo?.organization || memberInfo?.department || '';
 
   useEffect(() => {
     if (!assetKey && assets.length) setAssetKey(assets[0].asset_key);
@@ -589,7 +596,7 @@ export default function LogisticsDataPlatform({ currentPath = '' }) {
   };
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-950">
+    <main data-testid="logistics-data-platform" className="min-h-screen bg-slate-100 text-slate-950">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-[1680px] px-5 py-5 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -597,13 +604,75 @@ export default function LogisticsDataPlatform({ currentPath = '' }) {
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Gate 6</p>
               <h1 className="mt-1 text-xl font-semibold tracking-tight">물류센터 데이터 관리 플랫폼</h1>
             </div>
-            <label className="flex min-w-64 flex-col gap-1 text-xs font-medium text-slate-500">
-              담당 자산
-              <select value={assetKey} onChange={(event) => setAssetKey(event.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none focus:border-emerald-600">
-                {!assets.length ? <option value="">조회 가능한 자산 없음</option> : null}
-                {assets.map((asset) => <option key={asset.asset_key} value={asset.asset_key}>{asset.name_ko || asset.asset_code}</option>)}
-              </select>
-            </label>
+            <div className="relative flex flex-wrap items-end justify-end gap-2">
+              <label className="flex min-w-64 flex-col gap-1 text-xs font-medium text-slate-500">
+                담당 자산
+                <select value={assetKey} onChange={(event) => setAssetKey(event.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none focus:border-emerald-600">
+                  {!assets.length ? <option value="">조회 가능한 자산 없음</option> : null}
+                  {assets.map((asset) => <option key={asset.asset_key} value={asset.asset_key}>{asset.name_ko || asset.asset_code}</option>)}
+                </select>
+              </label>
+              <button
+                data-testid="data-platform-maturity-button"
+                type="button"
+                onClick={() => setOpenUtility((current) => (current === 'maturities' ? '' : 'maturities'))}
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-emerald-600 hover:text-emerald-800"
+                aria-expanded={openUtility === 'maturities'}
+                aria-haspopup="dialog"
+              >
+                만기 알림 {maturityRows.length}
+              </button>
+              <button
+                data-testid="data-platform-account-button"
+                type="button"
+                onClick={() => setOpenUtility((current) => (current === 'account' ? '' : 'account'))}
+                className="rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                aria-expanded={openUtility === 'account'}
+                aria-haspopup="dialog"
+              >
+                {accountName}
+              </button>
+              {openUtility === 'maturities' ? (
+                <section className="absolute right-0 top-full z-30 mt-2 w-[min(26rem,calc(100vw-2.5rem))] rounded-2xl border border-slate-200 bg-white p-4 shadow-xl" role="dialog" aria-label="만기 알림">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-sm font-semibold text-slate-950">1년 이내 만기 알림</h2>
+                      <p className="mt-1 text-xs text-slate-500">선택한 자산의 확인된 계약·대출 만기만 표시합니다.</p>
+                    </div>
+                    <button type="button" onClick={() => setOpenUtility('')} className="rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100">닫기</button>
+                  </div>
+                  <LoadingLine visible={maturities.loading} />
+                  <ErrorNotice error={maturities.error} />
+                  {maturityRows.length ? (
+                    <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+                      {maturityRows.slice(0, 12).map((row) => (
+                        <div key={row.maturity_id || `${row.kind}-${row.maturity_date}`} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-slate-900">{valueOrDash(row.title || row.subject_name)}</p>
+                            <p className="mt-0.5 text-xs text-slate-500">{valueOrDash(row.kind_label || row.kind)}</p>
+                          </div>
+                          <time className="shrink-0 text-xs font-semibold text-slate-700">{valueOrDash(row.maturity_date)}</time>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="mt-3 rounded-xl bg-slate-50 px-3 py-4 text-sm text-slate-600">조회 기간 안에 확인된 만기가 없습니다.</p>}
+                </section>
+              ) : null}
+              {openUtility === 'account' ? (
+                <section className="absolute right-0 top-full z-30 mt-2 w-[min(22rem,calc(100vw-2.5rem))] rounded-2xl border border-slate-200 bg-white p-4 shadow-xl" role="dialog" aria-label="계정 및 권한">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-sm font-semibold text-slate-950">{accountName}</h2>
+                      {accountEmail ? <p className="mt-1 text-xs text-slate-500">{accountEmail}</p> : null}
+                      {accountOrganization ? <p className="mt-1 text-xs text-slate-500">{accountOrganization}</p> : null}
+                    </div>
+                    <button type="button" onClick={() => setOpenUtility('')} className="rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100">닫기</button>
+                  </div>
+                  <p className="mt-4 rounded-xl bg-emerald-50 px-3 py-3 text-xs leading-5 text-emerald-900">조회·수정 권한은 로그인 사용자 ID와 서버 권한표, 선택 자산을 기준으로 적용됩니다.</p>
+                  <button data-testid="data-platform-sign-out" type="button" onClick={() => void signOut()} className="mt-3 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700">로그아웃</button>
+                </section>
+              ) : null}
+            </div>
           </div>
           <nav className="mt-5 flex gap-1" aria-label="데이터 관리 주요 탭">
             {TABS.map((tab) => (
@@ -613,7 +682,7 @@ export default function LogisticsDataPlatform({ currentPath = '' }) {
         </div>
       </header>
       <div className="mx-auto max-w-[1680px] px-5 py-6 lg:px-8">
-        {activeTab === 'home' ? <HomePanel key={`home-${assetKey}`} assetKey={assetKey} homeResource={homeResource} /> : null}
+        {activeTab === 'home' ? <HomePanel key={`home-${assetKey}`} assetKey={assetKey} homeResource={homeResource} maturities={maturities} /> : null}
         {activeTab === 'rent-roll' ? <RentRollPanel key={`rent-roll-${assetKey}`} assetKey={assetKey} /> : null}
         {activeTab === 'income-expense' ? <FinancePanel key={`income-expense-${assetKey}`} assetKey={assetKey} /> : null}
       </div>

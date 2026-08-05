@@ -8,6 +8,7 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 
 const routes = read('src/components/system/workspace/logisticsRoutes.js');
 const workspace = read('src/components/system/workspace/WorkspaceLogistics.jsx');
+const platformCore = read('src/components/system/PlatformCore.jsx');
 const platformFeature = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
 const financeSchema = read('src/features/logistics-data-platform/financeSchema.js');
 const feature = [
@@ -22,7 +23,8 @@ const pagesFallback = read('scripts/build/write-github-pages-fallback.cjs');
 for (const route of ['home', 'rent-roll', 'income-expense']) {
   assert.ok(
     routes.includes(`${route}: \`\${LOGISTICS_INTERNAL_BASE}/data-platform/${route}\``)
-      || routes.includes(`'${route}': \`\${LOGISTICS_INTERNAL_BASE}/data-platform/${route}\``),
+      || routes.includes(`'${route}': \`\${LOGISTICS_INTERNAL_BASE}/data-platform/${route}\``)
+      || (route === 'home' && routes.includes('home: LOGISTICS_DATA_PLATFORM_HOME')),
     `missing public route: ${route}`,
   );
   assert.ok(pagesFallback.includes(`'${route}'`), `missing GitHub Pages deep-link fallback: ${route}`);
@@ -30,6 +32,8 @@ for (const route of ['home', 'rent-roll', 'income-expense']) {
 assert.match(routes, /legacy-dashboard-home/);
 assert.match(workspace, /LogisticsDataPlatform/);
 assert.match(workspace, /WorkspaceLogisticsExisting/);
+assert.match(platformCore, /isLogisticsDataPlatform/);
+assert.match(platformCore, /!isLogisticsDataPlatform\s*\?/);
 
 for (const action of [
   'v2/home/read',
@@ -113,6 +117,14 @@ for (const label of [
 assert.doesNotMatch(feature, /fallback|stale/i);
 
 assert.match(platformFeature, /function WriteLockNotice/iu);
+assert.match(platformFeature, /useAuth/iu);
+for (const testId of [
+  'data-platform-maturity-button',
+  'data-platform-account-button',
+  'data-platform-sign-out',
+]) {
+  assert.match(platformFeature, new RegExp(`data-testid=["']${testId}["']`, 'iu'));
+}
 assert.match(platformFeature, /resource\.data\?\.write_enabled\s*===\s*true/iu);
 assert.match(platformFeature, /resource\.data\?\.reason/iu);
 assert.match(platformFeature, /testId=["']rent-roll-write-lock["']/iu);
@@ -166,7 +178,36 @@ async function verifyFinanceMutationPayloadContract() {
   assert.equal(entry.scenario, 'actual', 'finance mutation must remain actual-only');
 }
 
-verifyFinanceMutationPayloadContract()
+async function verifyRootRouteContract() {
+  const modulePath = path.resolve(root, 'src', 'components', 'system', 'workspace', 'logisticsRoutes.js');
+  const routeModule = await import(`${pathToFileURL(modulePath).href}?contract=${Date.now()}`);
+  const expectedHome = routeModule.LOGISTICS_ROUTE_BY_KEY.home;
+  for (const rootPath of [
+    '',
+    routeModule.LOGISTICS_DEPLOY_BASE,
+    'work-platform',
+    routeModule.LOGISTICS_INTERNAL_BASE,
+  ]) {
+    assert.equal(
+      routeModule.normalizeLogisticsPath(rootPath),
+      expectedHome,
+      `${rootPath || '(empty root)'} must open the new data-platform home`,
+    );
+    assert.equal(routeModule.publicLogisticsPath(rootPath), 'home');
+  }
+  for (const publicPath of ['home', 'rent-roll', 'income-expense']) {
+    assert.equal(
+      routeModule.publicLogisticsPath(routeModule.LOGISTICS_ROUTE_BY_KEY[publicPath]),
+      publicPath,
+      `${publicPath} must retain a stable public route`,
+    );
+  }
+}
+
+Promise.all([
+  verifyFinanceMutationPayloadContract(),
+  verifyRootRouteContract(),
+])
   .then(() => console.log('PASS logistics data platform frontend contract'))
   .catch((error) => {
     console.error(error);

@@ -3,10 +3,13 @@ import SystemLeftNav from './SystemLeftNav';
 import IotaLeftNav from './IotaLeftNav';
 import PlatformCenter from './PlatformCenter';
 import { useTheme } from '../../context/ThemeContext';
+import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath } from './workspace/logisticsRoutes';
 
 export default function PlatformCore({ isPlatform = true, isIotaWorkspaceOverride = false, currentPath = '' }) {
     const { isLightMode, toggleTheme } = useTheme();
     const [isIotaWorkspace, setIsIotaWorkspace] = useState(isIotaWorkspaceOverride);
+    const isLogisticsDataPlatform = normalizeLogisticsPath(currentPath)
+        .startsWith(`${LOGISTICS_INTERNAL_BASE}/data-platform/`);
 
     useEffect(() => {
         if (isLightMode) toggleTheme();
@@ -29,7 +32,11 @@ export default function PlatformCore({ isPlatform = true, isIotaWorkspaceOverrid
         <div className="w-full h-screen bg-[#1F1F1E] flex overflow-hidden font-sans text-[#E5E5E5] relative border-none">
             
             {/* 좌측 사이드바 스위칭 로직 */}
-            {isIotaWorkspace ? <IotaLeftNav isCore={true} isPlatform={isPlatform} currentPath={currentPath} /> : <SystemLeftNav isCore={true} isPlatform={isPlatform} />}
+            {!isLogisticsDataPlatform ? (
+                isIotaWorkspace
+                    ? <IotaLeftNav isCore={true} isPlatform={isPlatform} currentPath={currentPath} />
+                    : <SystemLeftNav isCore={true} isPlatform={isPlatform} />
+            ) : null}
 
             {/* Stage 2 Layout (상세페이지 고정) - No Right AI Panel for Platform */}
             <div className="flex-1 flex overflow-hidden">

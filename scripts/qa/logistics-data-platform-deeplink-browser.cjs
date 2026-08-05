@@ -11,6 +11,11 @@ const DEFAULT_LIVE_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview
 const DEFAULT_TIMEOUT_MS = 30_000;
 const ROUTES = Object.freeze([
   {
+    key: 'root',
+    publicPath: '',
+    internalPath: 'platform/iotaseoul/workspace/logistics/data-platform/home',
+  },
+  {
     key: 'home',
     publicPath: 'home',
     internalPath: 'platform/iotaseoul/workspace/logistics/data-platform/home',
@@ -129,7 +134,7 @@ function resolveDistFile(pathname, basePath) {
   )) || null;
 }
 
-function startDistServer(basePath) {
+function startDistServer(basePath, port = 0) {
   if (!fs.existsSync(path.join(DIST_DIR, 'index.html'))) {
     throw new Error(`Local dist is missing. Run "npm run build:preview" first: ${DIST_DIR}`);
   }
@@ -165,7 +170,7 @@ function startDistServer(basePath) {
 
   return new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(port, '127.0.0.1', () => {
       const address = server.address();
       resolve({
         baseUrl: `http://127.0.0.1:${address.port}${normalizeBasePath(basePath)}`,
@@ -321,9 +326,9 @@ async function anonymousAuthProbe(browser, baseUrl, route, timeoutMs) {
   return report;
 }
 
-async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expectWriteEnabled) {
+async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expectWriteEnabled, screenshotDir = '') {
   const targetUrl = joinRoute(baseUrl, route.publicPath);
-  const expectedPath = normalizedPathname(targetUrl);
+  const expectedPath = normalizedPathname(joinRoute(baseUrl, route.publicPath || 'home'));
   const context = await browser.newContext({
     serviceWorkers: 'block',
     viewport: { width: 1440, height: 1000 },
@@ -343,7 +348,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
   let report;
   try {
     const directResponse = await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-    const main = page.locator('main').first();
+    const main = page.locator('[data-testid="logistics-data-platform"]');
     await main.waitFor({ state: 'visible', timeout: timeoutMs });
     await page.locator('nav button[aria-current="page"]').waitFor({ state: 'visible', timeout: timeoutMs });
     const sessionAdoption = await page.evaluate(async ({ accessToken, refreshToken }) => {
@@ -384,8 +389,9 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
     }
     const assetSelected = Boolean(await page.locator('header select').inputValue().catch(() => ''));
     const assetOptionCount = await page.locator('header select option').count().catch(() => 0);
+    const legacyWorkPlatformVisible = await page.locator('[data-work-platform-quick-tabs="true"]').isVisible().catch(() => false);
     let writeUi = { checked: false };
-    if (expectWriteEnabled && route.key !== 'home') {
+    if (expectWriteEnabled && !route.internalPath.endsWith('/home')) {
       const addSelector = route.key === 'rent-roll'
         ? '[data-testid="rent-roll-add"]'
         : '[data-testid="finance-add"]';
@@ -414,6 +420,12 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
         return '';
       }
     });
+    let screenshotPath = '';
+    if (screenshotDir) {
+      fs.mkdirSync(screenshotDir, { recursive: true });
+      screenshotPath = path.join(screenshotDir, `${route.key}.png`);
+      await page.screenshot({ path: screenshotPath, fullPage: false });
+    }
     report = {
       ok: false,
       target_url: targetUrl,
@@ -426,7 +438,9 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       browser_session_adopted: sessionAdoption.ok,
       asset_selected: assetSelected,
       asset_option_count: assetOptionCount,
+      legacy_work_platform_visible: legacyWorkPlatformVisible,
       write_ui: writeUi,
+      screenshot_path: screenshotPath,
       errors,
     };
     report.ok = report.direct_status === 200
@@ -436,6 +450,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       && report.direct_selected_tab_count === 1
       && report.session_user_preserved
       && (!expectWriteEnabled || assetSelected)
+      && !legacyWorkPlatformVisible
       && (!writeUi.checked || (writeUi.add_enabled && !writeUi.lock_visible))
       && errors.length === 0;
   } catch (error) {
@@ -461,9 +476,11 @@ function runSelfTest() {
     joinRoute(DEFAULT_LIVE_BASE_URL, 'rent-roll'),
     'https://kylee94.github.io/logistics-gate6-preview/rent-roll',
   );
+  assert.equal(joinRoute(DEFAULT_LIVE_BASE_URL, ''), DEFAULT_LIVE_BASE_URL);
   assert.equal(normalizedPathname(`${DEFAULT_LIVE_BASE_URL}home/`), '/logistics-gate6-preview/home');
   for (const route of ROUTES) {
-    assert.match(route.internalPath, new RegExp(`/data-platform/${route.publicPath}$`, 'u'));
+    const expectedTab = route.publicPath || 'home';
+    assert.match(route.internalPath, new RegExp(`/data-platform/${expectedTab}$`, 'u'));
   }
   console.log('logistics data platform deep-link self-test PASS');
 }
@@ -489,11 +506,17 @@ async function main() {
       throw new Error(`GitHub Pages base-path mismatch: expected ${expectedBasePath}, received ${suppliedPath}`);
     }
   } else {
-    localServer = await startDistServer(expectedBasePath);
+    const localPort = Number(flagValue('local-port', '0'));
+    if (!Number.isInteger(localPort) || localPort < 0 || localPort > 65535) {
+      throw new Error('--local-port must be an integer between 0 and 65535.');
+    }
+    localServer = await startDistServer(expectedBasePath, localPort);
   }
   const baseUrl = normalizeBaseUrl(suppliedBaseUrl || localServer.baseUrl);
   const requireAuthenticated = hasFlag('require-authenticated');
   const expectWriteEnabled = hasFlag('expect-write-enabled');
+  const screenshotDirFlag = flagValue('screenshot-dir');
+  const screenshotDir = screenshotDirFlag ? path.resolve(process.cwd(), screenshotDirFlag) : '';
   if (expectWriteEnabled && !requireAuthenticated) {
     throw new Error('--expect-write-enabled requires --require-authenticated.');
   }
@@ -545,6 +568,7 @@ async function main() {
           timeoutMs,
           auth,
           expectWriteEnabled,
+          screenshotDir,
         ));
       }
     }
