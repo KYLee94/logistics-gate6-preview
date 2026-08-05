@@ -333,6 +333,21 @@ function main() {
       return 'legacy human values, investment detail, and row ordering are projected without new sample data';
     });
 
+    check('legacy-rent-roll-repair-uses-real-columns', () => {
+      requirePattern(source, /LOGISTICS_DATA_PLATFORM_LEGACY_RENT_ROLL_REPAIR/iu, 'repair migration marker');
+      for (const key of [
+        'business_registration_no', 'recent_contract_date', 'first_contract_date', 'first_operation_date',
+        'rf_months', 'fo_months', 'ti_amount', 'e_noc',
+      ]) requirePattern(source, new RegExp(`\\b${key}\\b`, 'iu'), `verified legacy field ${key}`);
+      requirePattern(source, /legacy_current_snapshot/iu, 'current rent snapshot provenance');
+      requirePattern(source, /effective_date_status[\s\S]{0,900}not_provided/iu, 'missing effective date is explicit');
+      requirePattern(source, /invested_amount_krw/iu, 'beneficiary invested amount semantics');
+      requirePattern(source, /commitment_amount_krw[\s\S]{0,100}(?:null|not_provided)/iu, 'unavailable commitment is not invented');
+      assert.doesNotMatch(source, /'commitment_amount_krw'\s*,\s*tranche\.committed_amount_krw/iu, 'invested amount must not be duplicated as commitment');
+      assert.doesNotMatch(source, /e_noc[\s\S]{0,160}'effective_rent'/iu, 'legacy eNOC is current rent plus CAM per pyeong, not effective rent');
+      return 'verified legacy names repair the normalized projection without invented dates or commitments';
+    });
+
     check('auth-uid-and-asset-scope', () => [
       requirePattern(source, /auth\.uid\(\)\s+is\s+null/iu, 'explicit unauthenticated rejection'),
       requirePattern(source, /scope_mode\s+text\s+not null[\s\S]{0,180}(?:listed|all)/iu, 'listed/all managed scope'),

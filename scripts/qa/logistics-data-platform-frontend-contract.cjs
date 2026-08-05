@@ -49,6 +49,8 @@ for (const nav of [
     `missing left navigation path: ${nav[2]}`,
   );
 }
+assert.match(leftNav, /data-testid=["']data-platform-only-nav["']/u);
+assert.match(leftNav, /if \(isDataPlatformActive\)[\s\S]{0,1800}logisticsDataPlatformItems/u);
 
 for (const action of [
   'v2/home/read',
@@ -88,6 +90,7 @@ for (const bannedCopy of [
 }
 
 assert.match(rentRollSchema, /export const RENT_ROLL_COLUMNS/);
+assert.match(rentRollSchema, /export const RENT_ROLL_DETAIL_FIELDS/);
 for (const field of [
   'occupancy_status', 'tenant_name', 'business_registration_number', 'use_category', 'floor_label',
   'exclusive_area_sqm', 'common_area_sqm', 'leased_area_sqm', 'commencement_date', 'expiry_date',
@@ -104,6 +107,12 @@ assert.match(platformFeature, /data-testid=["']rent-roll-move-down["']/u);
 assert.match(platformFeature, /floor_label[\s\S]{0,160}desc/u);
 assert.match(platformFeature, /sticky[\s\S]{0,120}tenant_name/u);
 assert.doesNotMatch(platformFeature, />\s*\{\s*row\.tenant_key\s*\}\s*</u);
+assert.match(platformFeature, /data-testid=["']rent-roll-detail-toggle["']/u);
+for (const compactColumn of ['area_pair', 'deposit_pair', 'rent_pair', 'cam_pair', 'lease_period']) {
+  assert.ok(rentRollSchema.includes(compactColumn), `missing compact rent-roll column: ${compactColumn}`);
+}
+assert.match(rentRollSchema, /current_total_cost_per_py_krw/u);
+assert.ok(!rentRollSchema.match(/key:\s*['"]effective_rent['"][\s\S]{0,80}label:/u), 'legacy eNOC must not be labelled as effective rent');
 
 for (const homeCopy of [
   '자산 개요', '투자 현황', '펀드 정보', '대출 현황', 'Coupon 금리', 'All-in 금리',
@@ -111,9 +120,14 @@ for (const homeCopy of [
 ]) {
   assert.ok(platformFeature.includes(homeCopy), `missing home information surface: ${homeCopy}`);
 }
+assert.match(platformFeature, /formatAreaPair/u);
+assert.match(platformFeature, /data-testid=["']home-tenant-summary["']/u);
+assert.match(platformFeature, /contributed_amount_krw/u);
+assert.ok(platformFeature.includes('투입액'), 'home investment table must distinguish contributed amount');
 
 for (const financeToken of [
   'NOI_TABLE_ROWS', 'finance-comparison-asset', 'finance-aggregation', 'finance-trend',
+  'finance-kpi-strip', 'finance-primary-chart', 'finance-statement-table', 'finance-comparison-table',
   '순영업소득', '잠재총수입', '유효총수입', '운영비용',
 ]) {
   assert.ok(platformFeature.includes(financeToken), `missing NOI comparison surface: ${financeToken}`);
@@ -175,6 +189,18 @@ async function verifyFinanceMutationPayloadContract() {
   assert.equal(entry.scenario, 'actual');
 }
 
+async function verifyCompactRentRollContract() {
+  const modulePath = path.resolve(root, 'src', 'features', 'logistics-data-platform', 'rentRollSchema.js');
+  const rentRoll = await import(`${pathToFileURL(modulePath).href}?contract=${Date.now()}`);
+  assert.ok(rentRoll.RENT_ROLL_COLUMNS.length >= 12, 'rent-roll main grid is missing essential columns');
+  assert.ok(rentRoll.RENT_ROLL_COLUMNS.length <= 18, 'rent-roll main grid exceeds the reference workbook density');
+  assert.ok(rentRoll.RENT_ROLL_DETAIL_FIELDS.length >= 6, 'rent-roll detail disclosure is incomplete');
+  for (const hiddenKey of ['business_registration_number', 'zone_label', 'tenant_cost_terms', 'landlord_cost_terms']) {
+    assert.equal(rentRoll.RENT_ROLL_COLUMNS.some((column) => column.key === hiddenKey), false, `${hiddenKey} must not consume a main grid column`);
+    assert.equal(rentRoll.RENT_ROLL_DETAIL_FIELDS.some((column) => column.key === hiddenKey), true, `${hiddenKey} must remain available in the same-page detail`);
+  }
+}
+
 async function verifyRootRouteContract() {
   const modulePath = path.resolve(root, 'src', 'components', 'system', 'workspace', 'logisticsRoutes.js');
   const routeModule = await import(`${pathToFileURL(modulePath).href}?contract=${Date.now()}`);
@@ -185,7 +211,7 @@ async function verifyRootRouteContract() {
   assert.equal(routeModule.normalizeLogisticsPath('data-platform'), routeModule.LOGISTICS_DATA_PLATFORM_HOME);
 }
 
-Promise.all([verifyFinanceMutationPayloadContract(), verifyRootRouteContract()])
+Promise.all([verifyFinanceMutationPayloadContract(), verifyCompactRentRollContract(), verifyRootRouteContract()])
   .then(() => console.log('PASS logistics data platform frontend contract'))
   .catch((error) => {
     console.error(error);

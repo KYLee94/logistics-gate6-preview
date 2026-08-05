@@ -6,8 +6,17 @@ async function main() {
   const modulePath = path.resolve(__dirname, '..', '..', 'src', 'features', 'logistics-data-platform', 'rentRollSchema.js');
   const schema = await import(`${pathToFileURL(modulePath).href}?contract=${Date.now()}`);
 
-  assert.equal(Array.isArray(schema.RENT_ROLL_COLUMNS), true, 'flat rent-roll columns are required');
-  const allFields = new Set(schema.RENT_ROLL_COLUMNS.map((column) => column.key));
+  assert.equal(Array.isArray(schema.RENT_ROLL_COLUMNS), true, 'compact rent-roll columns are required');
+  assert.equal(Array.isArray(schema.RENT_ROLL_DETAIL_FIELDS), true, 'same-page rent-roll details are required');
+  const visibleFields = new Set([
+    ...schema.RENT_ROLL_COLUMNS.map((column) => column.key),
+    ...schema.RENT_ROLL_DETAIL_FIELDS.map((column) => column.key),
+  ]);
+  const allFields = new Set([
+    ...schema.RENT_ROLL_COLUMNS.map((column) => column.key),
+    ...schema.RENT_ROLL_DETAIL_FIELDS.map((column) => column.key),
+    ...Object.keys(schema.emptyRentRollRow('contract-fields')),
+  ]);
   for (const field of [
     'occupancy_status', 'tenant_name', 'business_registration_number', 'use_category',
     'floor_label', 'zone_label', 'exclusive_area_sqm', 'common_area_sqm', 'leased_area_sqm',
@@ -22,7 +31,7 @@ async function main() {
     assert.equal(allFields.has(field), true, `missing workbook-derived field: ${field}`);
   }
   for (const internalField of ['tenant_key', 'row_key', 'space_key', 'contract_key', 'rent_term_key']) {
-    assert.equal(allFields.has(internalField), false, `internal identifier must not be a visible column: ${internalField}`);
+    assert.equal(visibleFields.has(internalField), false, `internal identifier must not be a visible column: ${internalField}`);
   }
   assert.equal(schema.RENT_ROLL_COLUMNS.find((column) => column.key === 'tenant_name')?.kind, 'tenant');
   assert.equal(schema.RENT_ROLL_COLUMNS.every((column) => column.label && column.kind && column.width), true);

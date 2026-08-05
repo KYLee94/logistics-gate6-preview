@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gate 6 데이터 플랫폼 UI 리서치</title>
+  <style>
+    :root{color-scheme:dark;--bg:#171717;--panel:#222;--line:#363636;--muted:#9b9ba1;--blue:#70adff;--green:#7bd5a0}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:#eee;font:14px/1.55 Inter,system-ui,sans-serif}
+    main{max-width:1120px;margin:auto;padding:44px 28px 80px}h1{font-size:32px;margin:0 0 8px}h2{margin-top:40px;font-size:20px}h3{font-size:15px;color:#fff}
+    p{color:#c9c9ce}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:18px}
+    table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid var(--line);padding:10px;text-align:left}th{color:var(--muted);font-size:12px}.tag{display:inline-block;padding:3px 8px;border-radius:999px;background:#17314e;color:#9ad7ff}
+    pre{overflow:auto;border:1px solid var(--line);background:#111;padding:16px;border-radius:12px;color:#ddd}.good{color:var(--green)}.bad{color:#ffaaaa}a{color:var(--blue)}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}main{padding:28px 18px}}
+  </style>
+</head>
+<body><main>
+  <span class="tag">Design research · 2026-08-05</span>
+  <h1>Gate 6 데이터 플랫폼 정보밀도 재설계</h1>
+  <p class="muted">렌트롤 참고 엑셀 4종, 운영 primary API readback, 기업용 데이터 표와 부동산 손익 화면의 공식 가이드를 합쳐 구현 기준을 정리했습니다.</p>
+
+  <h2>TL;DR</h2>
+  <div class="grid">
+    <section class="card"><h3>렌트롤</h3><p>35개 독립 열을 유지하지 않습니다. 면적·보증금·임대료·관리비를 묶어 기본 그리드를 18개 이하로 줄이고, 긴 조건은 같은 행 아래에서 펼칩니다.</p></section>
+    <section class="card"><h3>수익·비용</h3><p>원장 중심 화면을 KPI → 추이 → 자산 비교 → NOI 손익표 입력 순으로 바꿉니다. 누락값을 0으로 보간하지 않습니다.</p></section>
+    <section class="card"><h3>홈</h3><p>㎡와 평, 임차인·공실·임대면적 요약, 펀드·수익증권·대출을 한 시선 흐름 안에 배치합니다.</p></section>
+    <section class="card"><h3>사이드바</h3><p>신규 세 URL에서는 홈·렌트롤·수익비용만 보이고, 기존 URL의 메뉴는 그대로 보존합니다.</p></section>
+  </div>
+
+  <h2>근거</h2>
+  <table>
+    <thead><tr><th>출처</th><th>적용한 원칙</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://carbondesignsystem.com/components/data-table/usage/">IBM Carbon Data Table</a></td><td>표 도구를 한곳에 모으고, 행 확장으로 많은 정보를 점진적으로 노출하며, 고밀도 표에 충분한 폭을 부여합니다.</td></tr>
+      <tr><td><a href="https://m2.material.io/design/components/data-tables.html">Material Data Tables</a></td><td>숫자 우측 정렬, 명확한 제목, 정렬 상태 표시를 적용합니다.</td></tr>
+      <tr><td><a href="https://learn.microsoft.com/en-us/power-bi/create-reports/service-dashboards-design-tips">Power BI dashboard guidance</a></td><td>중요 KPI를 먼저 보여주고 일관된 축·색으로 비교합니다.</td></tr>
+      <tr><td><a href="https://learn.microsoft.com/en-us/power-bi/visuals/power-bi-visualization-small-multiples">Power BI small multiples</a></td><td>비교 대상이 많아질 때 겹친 선 대신 동일 축의 분할 차트를 사용합니다.</td></tr>
+      <tr><td><a href="https://help.tableau.com/current/pro/desktop/en-us/visual_best_practices.htm">Tableau visual practices</a></td><td>색을 줄여 핵심 추세가 다른 요소에 묻히지 않게 합니다.</td></tr>
+      <tr><td><a href="https://docs.oracle.com/cd/E26401_01/doc.122/e48922/T221352T221363.htm">Oracle Property Manager</a></td><td>렌트롤과 임대차 만기 정보를 연결해 검토합니다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>현재 상태와 문제</h2>
+  <ul>
+    <li>운영 API는 자산 19개를 반환했고 첫 자산에 렌트롤 14행, 투자 3행, 대출 6행이 확인됐습니다.</li>
+    <li>참고 엑셀의 공통 열은 약 18개인데 현 렌트롤은 35개 독립 열이라 6,000px를 넘는 가로 폭을 만듭니다.</li>
+    <li>홈의 투자 원본에서 <code>투입금액</code>을 약정액처럼 표시해 원본 의미가 흐려졌습니다.</li>
+    <li>수익·비용은 표가 화면을 먼저 차지해 NOI, 추이, 비교 결과를 한눈에 파악하기 어렵습니다.</li>
+  </ul>
+
+  <h2>권장 화면 흐름</h2>
+  <pre>홈
+┌ 자산명·주소 ───────────────────────────────┐
+│ 취득가  평가액  연면적(㎡/평)  임대가능면적(㎡/평) │
+├ 자산 상세 8개 ─────────┬ 임차인·공실·만기 요약 ┤
+├ 펀드·수익증권 투자 ─────────────────────────┤
+└ 대출 tranche: 약정액 | 만기 | Coupon | All-in ┘
+
+렌트롤
+┌ 검색/행수/붙여넣기/추가/저장 ─────────────────┐
+│ 순서 | 상태 | 임차인 | 용도 | 층 | 면적(㎡/평) | 기간 … │
+│  ↳ 상세: 구역, 사업자번호, RF, 갱신·해지·원상복구 … │
+└──────────────────────────────────────────┘
+
+수익·비용
+┌ 기간 | 발생/현금 | 월/분기/연 | 비교 자산 ─────────┐
+│ PGI | EGI | 운영비 | NOI | NOI 마진                 │
+├ EGI·운영비 막대 + NOI 선 ─┬ 자산 비교 표 ─────────┤
+└ NOI 손익표: 수입 → 손실 → EGI → 운영비 → NOI ─────┘</pre>
+
+  <h2>패턴과 안티패턴</h2>
+  <div class="grid">
+    <section class="card"><h3 class="good">사용</h3><ul><li>같은 의미의 단위를 한 셀 2줄로 병합</li><li>숫자 우측 정렬과 tabular 숫자</li><li>계산행과 입력행의 명확한 시각 구분</li><li>실제 primary readback만 성공 처리</li></ul></section>
+    <section class="card"><h3 class="bad">금지</h3><ul><li>월별 원장 전체를 첫 화면에 노출</li><li>누락값을 임의로 0 처리</li><li>한 값을 약정액·투입액에 중복 표시</li><li>기존 URL까지 사이드바를 바꾸는 전역 변경</li></ul></section>
+  </div>
+
+  <h2>캡처 상태</h2>
+  <p>현재 화면은 기존 라이브 QA 캡처로 확인했고, 외부 공식 사례는 이 실행 환경에서 Lazyweb MCP가 제공되지 않아 페이지 링크와 공개 가이드의 구조를 근거로 사용했습니다. 최종 구현본은 별도의 실제 브라우저 스크린샷으로 비교합니다.</p>
+</main></body></html>

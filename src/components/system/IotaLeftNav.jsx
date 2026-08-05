@@ -937,6 +937,9 @@ export default function IotaLeftNav({ currentPath = '' }) {
 
     const normalizedCurrentPath = normalizeLogisticsPath(currentPath);
     const isLogisticsPath = normalizedCurrentPath.startsWith(LOGISTICS_INTERNAL_BASE);
+    const isDataPlatformActive = normalizedCurrentPath === LOGISTICS_DATA_PLATFORM_HOME
+        || normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/data-platform/`);
+    const isLegacyLogisticsPath = isLogisticsPath && !isDataPlatformActive;
     const canManageFeatureAccess = memberHasFeatureAccess('permission_admin', memberInfo);
     const loginHistoryRows = Array.isArray(loginHistoryData?.rows) ? loginHistoryData.rows : [];
     const recentLoginHistoryRows = loginHistoryRows.slice(0, 5);
@@ -1203,11 +1206,11 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setDismissedNotificationIds(readStoredNotificationIds(notificationDismissedStorageKey));
     }, [notificationStorageKey, notificationDismissedStorageKey]);
     useEffect(() => {
-        if (!isLogisticsPath) return;
+        if (!isLegacyLogisticsPath) return;
         loadNotifications({ silent: true });
-    }, [isLogisticsPath, loadNotifications]);
+    }, [isLegacyLogisticsPath, loadNotifications]);
     useEffect(() => {
-        if (!isLogisticsPath || permissionsLoading || !canManageFeatureAccess) return;
+        if (!isLegacyLogisticsPath || permissionsLoading || !canManageFeatureAccess) return;
         let cancelled = false;
         invokeWithTimeout('feature-access/get', {}, 22000).then(({ data, error }) => {
             if (cancelled || error || data?.ok === false) return;
@@ -1219,7 +1222,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         return () => {
             cancelled = true;
         };
-    }, [canManageFeatureAccess, isLogisticsPath, permissionsLoading]);
+    }, [canManageFeatureAccess, isLegacyLogisticsPath, permissionsLoading]);
     const loadFeatureAccess = async () => {
         setFeatureAccessLoading(true);
         setFeatureAccessError('');
@@ -1359,7 +1362,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         await loadLoginHistory();
     };
     useEffect(() => {
-        if (!isLogisticsPath || (!showFeatureAccessModal && !showLoginHistoryModal)) return undefined;
+        if (!isLegacyLogisticsPath || (!showFeatureAccessModal && !showLoginHistoryModal)) return undefined;
         let lastRefreshAt = 0;
         const refreshOpenModalData = () => {
             if (document.visibilityState && document.visibilityState !== 'visible') return;
@@ -1385,7 +1388,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
             window.removeEventListener('logistics-data-refresh', refreshOpenModalData);
             document.removeEventListener('visibilitychange', refreshOpenModalData);
         };
-    }, [isLogisticsPath, showFeatureAccessModal, showLoginHistoryModal, featureAccessDirty, featureAccessSaving, featureAccessLoading, loginHistoryLoading]);
+    }, [isLegacyLogisticsPath, showFeatureAccessModal, showLoginHistoryModal, featureAccessDirty, featureAccessSaving, featureAccessLoading, loginHistoryLoading]);
     const renderCollapsedTooltip = (label) => (
         isCollapsed ? (
             <span className="pointer-events-none absolute left-[58px] top-1/2 z-[9999] -translate-y-1/2 whitespace-nowrap rounded-[8px] border border-[#3A3A3C] bg-[#242424] px-2.5 py-1.5 text-[12px] font-semibold text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
@@ -1400,6 +1403,49 @@ export default function IotaLeftNav({ currentPath = '' }) {
         event.dataTransfer.effectAllowed = 'copy';
     };
 
+    if (isDataPlatformActive) {
+        return (
+            <div data-testid="logistics-left-nav" className={`${isCollapsed ? 'w-[72px]' : 'w-[275px]'} h-full overflow-hidden border-r border-[#2C2C2E] bg-transparent text-[14px] text-white transition-[width] duration-300 print:hidden`}>
+                <div className="flex h-full flex-col">
+                    <div className={`flex items-center ${isCollapsed ? 'justify-center px-[10px]' : 'justify-between px-[15px]'} pb-4 pt-[14px]`}>
+                        <span className={`ml-[5px] overflow-hidden whitespace-nowrap font-inter text-[18px] font-bold transition-[opacity,max-width,transform] duration-300 ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[230px] opacity-100'}`}>IGIS Logistics Platform</span>
+                        <button type="button" onClick={() => setIsCollapsed((value) => !value)} title={isCollapsed ? '사이드바 펼치기' : '사이드바 접기'} className="mt-[4px] pb-1 text-[#86868B] transition-colors hover:text-white">
+                            <svg className={`h-[18px] w-[22px] transition-transform ${isCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8"><rect x="2" y="4" width="20" height="16" rx="3" ry="3" /><line x1="8" y1="4" x2="8" y2="20" /></svg>
+                        </button>
+                    </div>
+                    <nav data-testid="data-platform-only-nav" aria-label="물류센터 데이터 플랫폼" className={`flex-1 ${isCollapsed ? 'px-[9px]' : 'px-[11px]'}`}>
+                        {!isCollapsed ? <div className="mb-2 px-[7px] text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">데이터 플랫폼</div> : null}
+                        {logisticsDataPlatformItems.map((item) => {
+                            const isActive = normalizedCurrentPath === item.path;
+                            return (
+                                <button
+                                    key={item.path}
+                                    type="button"
+                                    data-testid={item.testId}
+                                    onClick={() => handleNavigation(item.path)}
+                                    aria-current={isActive ? 'page' : undefined}
+                                    title={isCollapsed ? item.label : undefined}
+                                    className={`group relative mb-0.5 flex w-full items-center rounded-xl py-[9px] text-left transition-colors ${isCollapsed ? 'justify-center px-[7px]' : 'px-[9px]'} ${isActive ? 'bg-[#151515] text-white' : 'text-[#D1D1D6] hover:bg-[#151515] hover:text-white'}`}
+                                >
+                                    <span className={isCollapsed ? '[&>svg]:mr-0' : ''}>{item.icon}</span>
+                                    {!isCollapsed ? <span className="truncate font-medium">{item.label}</span> : null}
+                                    {renderCollapsedTooltip(item.label)}
+                                </button>
+                            );
+                        })}
+                    </nav>
+                    <div className={`relative border-t border-[#2C2C2E] ${isCollapsed ? 'px-3 py-3' : 'px-3 py-3'}`}>
+                        <button type="button" data-testid="logistics-profile-button" onClick={() => setShowProfileMenu((value) => !value)} className={`flex w-full min-w-0 items-center rounded-xl py-2 hover:bg-[#151515] ${isCollapsed ? 'justify-center px-0' : 'justify-start px-2'}`}>
+                            <UserAvatar memberInfo={memberInfo} name={memberInfo?.staff_name || memberInfo?.name} sizeClass="h-8 w-8" textClass="text-[11px]" className="bg-[#3c3c3c]" />
+                            {!isCollapsed ? <div className="ml-3 min-w-0 text-left"><div className="truncate text-[13px] font-semibold">{memberInfo?.staff_name || '로그인 사용자'}</div><div className="truncate text-[11px] text-[#86868B]">{memberInfo?.organization || memberInfo?.department || '조직 미확인'}</div></div> : null}
+                        </button>
+                        {showProfileMenu ? <><div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} /><div className="absolute bottom-full left-3 right-3 z-50 mb-2 rounded-[14px] border border-[#3A3A3C] bg-[#2C2C2E] py-2 shadow-xl"><button type="button" onClick={handleSignOutClick} className="w-full px-4 py-2.5 text-left text-[14px] font-medium text-[#FF6B61] hover:bg-red-500/10">로그아웃</button></div></> : null}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (isLogisticsPath) {
         const canDisplayItem = (item) => !item.requiredFeature || memberHasFeatureAccess(item.requiredFeature, memberInfo);
         const visibleDashboardItems = logisticsDashboardItems.filter(canDisplayItem);
@@ -1407,7 +1453,6 @@ export default function IotaLeftNav({ currentPath = '' }) {
         const visibleDataManagementItems = logisticsDataManagementItems.filter(canDisplayItem);
         const visibleStandaloneItems = logisticsStandaloneItems;
         const isWorkPlatformActive = normalizedCurrentPath === logisticsRootItem.path;
-        const isDataPlatformActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/data-platform/`);
         const isDashboardActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard`);
         const isMarketDataActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/market-data`);
         const isDataManagementActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/data-management`);

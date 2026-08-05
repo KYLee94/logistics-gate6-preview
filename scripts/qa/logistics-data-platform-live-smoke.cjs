@@ -190,6 +190,38 @@ async function main() {
     'rent-roll display order is missing',
   );
 
+  const allAssetRentRoll = [];
+  if (hasArg('all-rent-roll-readback')) {
+    for (const readableAsset of assets) {
+      const assetRentRoll = await invoke('v2/rent-roll/read', auth.token, { asset_key: readableAsset.asset_key });
+      const rows = Array.isArray(assetRentRoll.data.rows) ? assetRentRoll.data.rows : [];
+      allAssetRentRoll.push({ asset_key: readableAsset.asset_key, rows });
+    }
+  }
+  const allRentRows = allAssetRentRoll.flatMap((entry) => entry.rows);
+  const occupiedRentRows = allRentRows.filter((row) => row.occupancy_status !== 'vacant');
+  const allAssetReadback = allAssetRentRoll.length ? {
+    assets_checked: allAssetRentRoll.length,
+    assets_with_rows: allAssetRentRoll.filter((entry) => entry.rows.length > 0).length,
+    rows: allRentRows.length,
+    occupied_rows: occupiedRentRows.length,
+    vacant_rows: allRentRows.length - occupiedRentRows.length,
+    human_tenant_names: occupiedRentRows.filter((row) => row.tenant_name && row.tenant_name !== row.tenant_key).length,
+    business_registration_numbers: occupiedRentRows.filter((row) => row.business_registration_number).length,
+    use_values: allRentRows.filter((row) => row.use_category).length,
+    current_rent_or_cam_values: allRentRows.filter((row) => row.monthly_rent_total_krw != null || row.monthly_cam_total_krw != null).length,
+    current_total_cost_per_py_values: allRentRows.filter((row) => row.current_total_cost_per_py_krw != null).length,
+  } : null;
+  if (allAssetReadback) {
+    assert.equal(allAssetReadback.assets_checked, assets.length, 'not every readable asset was checked');
+    assert.ok(allAssetReadback.rows > 0, 'all-asset rent-roll readback returned no rows');
+    assert.equal(
+      allRentRows.some((row) => row.tenant_name && row.tenant_name === row.tenant_key),
+      false,
+      'all-asset readback exposes an internal tenant identifier as a visible name',
+    );
+  }
+
   const writeEvidence = [];
   if (validateSafeWrites) {
     assert.equal(expectedWriteState, 'enabled', 'Safe write validation requires --expect-write enabled');
@@ -250,6 +282,7 @@ async function main() {
       finance_rows: finance.data.entries?.length || 0,
       maturities: maturityRows.length,
     },
+    all_asset_rent_roll_readback: allAssetReadback,
     write_evidence: writeEvidence,
   }, null, 2)}\n`);
 }
