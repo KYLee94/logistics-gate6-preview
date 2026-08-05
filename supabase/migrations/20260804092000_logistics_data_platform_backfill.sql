@@ -12,6 +12,7 @@ declare
   v_critical_exception_count bigint := 0;
   v_source_row_count bigint := 0;
   v_target_row_count bigint := 0;
+  v_pilot_candidate_count bigint := 0;
   v_source_hash text;
   v_target_hash text;
 begin
@@ -53,7 +54,17 @@ begin
     nullif(coalesce(source_row->>'current_valuation', source_row->>'valuation_krw'), '')::numeric
   from (select to_jsonb(source) source_row from public.ll_assets source) source_rows
   where nullif(source_row->>'asset_id', '') is not null
-  on conflict (asset_key) do nothing;
+  on conflict (asset_key) do update set
+    public_key = excluded.public_key,
+    asset_code = excluded.asset_code,
+    name_ko = excluded.name_ko,
+    address_ko = excluded.address_ko,
+    gross_area_sqm = excluded.gross_area_sqm,
+    leasable_area_sqm = excluded.leasable_area_sqm,
+    acquisition_cost = excluded.acquisition_cost,
+    current_valuation = excluded.current_valuation,
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.funds (
     fund_key, fund_code, name_ko, inception_date, maturity_date, status
@@ -68,7 +79,14 @@ begin
       then lower(source_row->>'status') else 'active' end
   from (select to_jsonb(source) source_row from public.ll_funds source) source_rows
   where nullif(source_row->>'fund_id', '') is not null
-  on conflict (fund_key) do nothing;
+  on conflict (fund_key) do update set
+    fund_code = excluded.fund_code,
+    name_ko = excluded.name_ko,
+    inception_date = excluded.inception_date,
+    maturity_date = excluded.maturity_date,
+    status = excluded.status,
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.fund_asset_links (
     link_key, fund_id, asset_id, effective_from, effective_to, ownership_ratio
@@ -84,7 +102,14 @@ begin
   from (select to_jsonb(source) source_row from public.ll_fund_asset_links source) source_rows
   join logistics_core.funds fund on fund.fund_key = source_row->>'fund_id'
   join logistics_core.assets asset on asset.asset_key = source_row->>'asset_id'
-  on conflict (link_key) do nothing;
+  on conflict (link_key) do update set
+    fund_id = excluded.fund_id,
+    asset_id = excluded.asset_id,
+    effective_from = excluded.effective_from,
+    effective_to = excluded.effective_to,
+    ownership_ratio = excluded.ownership_ratio,
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.fund_beneficiary_tranches (
     beneficiary_key, fund_id, source_tranche_id, source_is_active, tranche_code,
@@ -102,7 +127,15 @@ begin
   from (select to_jsonb(source) source_row from public.ll_fund_capital_tranches source) source_rows
   join logistics_core.funds fund on fund.fund_key = source_row->>'fund_id'
   where source_row->>'tranche_type' = 'beneficiary'
-  on conflict (source_tranche_id) do nothing;
+  on conflict (source_tranche_id) do update set
+    fund_id = excluded.fund_id,
+    source_is_active = excluded.source_is_active,
+    tranche_code = excluded.tranche_code,
+    beneficiary_name = excluded.beneficiary_name,
+    committed_amount_krw = excluded.committed_amount_krw,
+    source_payload = excluded.source_payload,
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.lenders (
     lender_key, lender_code, name_ko
@@ -115,11 +148,15 @@ begin
   where source_row->>'tranche_type' = 'loan'
     and nullif(btrim(source_row->>'party_name'), '') is not null
   order by lower(btrim(source_row->>'party_name'))
-  on conflict (lender_key) do nothing;
+  on conflict (lender_key) do update set
+    lender_code = excluded.lender_code,
+    name_ko = excluded.name_ko,
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.loans (
     loan_key, loan_code, asset_id, fund_id, source_tranche_id, source_is_active, name_ko,
-    commitment_amount, outstanding_amount, interest_terms, repayment_terms,
+    commitment_amount, outstanding_amount, drawdown_date, interest_terms, repayment_terms,
     repayment_schedule_status
   )
   select
@@ -131,7 +168,8 @@ begin
     coalesce(nullif(source_row->>'is_active', '')::boolean, true),
     concat_ws(' ', nullif(source_row->>'loan_type', ''), nullif(source_row->>'tranche', ''), nullif(source_row->>'party_name', '')),
     nullif(source_row->>'committed_amount_krw', '')::numeric,
-    nullif(source_row->>'committed_amount_krw', '')::numeric,
+    null,
+    nullif(source_row->>'drawdown_date', '')::date,
     jsonb_build_object(
       'loan_period', source_row->>'loan_period',
       'loan_type', source_row->>'loan_type',
@@ -151,7 +189,21 @@ begin
   from (select to_jsonb(source) source_row from public.ll_fund_capital_tranches source) source_rows
   join logistics_core.funds fund on fund.fund_key = source_row->>'fund_id'
   where source_row->>'tranche_type' = 'loan'
-  on conflict (source_tranche_id) do nothing;
+  on conflict (source_tranche_id) do update set
+    loan_key = excluded.loan_key,
+    loan_code = excluded.loan_code,
+    asset_id = excluded.asset_id,
+    fund_id = excluded.fund_id,
+    source_is_active = excluded.source_is_active,
+    name_ko = excluded.name_ko,
+    commitment_amount = excluded.commitment_amount,
+    outstanding_amount = excluded.outstanding_amount,
+    drawdown_date = excluded.drawdown_date,
+    interest_terms = excluded.interest_terms,
+    repayment_terms = excluded.repayment_terms,
+    repayment_schedule_status = excluded.repayment_schedule_status,
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.loan_lenders (
     loan_lender_key, loan_id, lender_id, commitment_amount
@@ -167,7 +219,12 @@ begin
     on lender.lender_key = 'lender_' || substr(md5(lower(btrim(source_row->>'party_name'))), 1, 24)
   where source_row->>'tranche_type' = 'loan'
     and nullif(btrim(source_row->>'party_name'), '') is not null
-  on conflict (loan_lender_key) do nothing;
+  on conflict (loan_lender_key) do update set
+    loan_id = excluded.loan_id,
+    lender_id = excluded.lender_id,
+    commitment_amount = excluded.commitment_amount,
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.tenants (
     tenant_key, tenant_code, legal_name_ko, business_registration_number, status
@@ -180,7 +237,13 @@ begin
     case when coalesce(source_row->>'is_active', 'true')::boolean then 'active' else 'inactive' end
   from (select to_jsonb(source) source_row from public.ll_tenants source) source_rows
   where nullif(source_row->>'tenant_id', '') is not null
-  on conflict (tenant_key) do nothing;
+  on conflict (tenant_key) do update set
+    tenant_code = excluded.tenant_code,
+    legal_name_ko = excluded.legal_name_ko,
+    business_registration_number = excluded.business_registration_number,
+    status = excluded.status,
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.lease_contracts (
     contract_key, contract_code, asset_id, tenant_id, signed_date, commencement_date,
@@ -202,8 +265,20 @@ begin
   join logistics_core.assets asset on asset.asset_key = source_row->>'asset_id'
   join logistics_core.tenants tenant on tenant.tenant_key = source_row->>'tenant_id'
   where nullif(source_row->>'lease_id', '') is not null
-    and nullif(coalesce(source_row->>'commencement_date', source_row->>'current_start_date', source_row->>'start_date'), '') is not null
-  on conflict (contract_key) do nothing;
+  on conflict (contract_key) do update set
+    contract_code = excluded.contract_code,
+    asset_id = excluded.asset_id,
+    tenant_id = excluded.tenant_id,
+    signed_date = excluded.signed_date,
+    commencement_date = excluded.commencement_date,
+    expiry_date = excluded.expiry_date,
+    status = excluded.status,
+    deposit_amount = excluded.deposit_amount,
+    renewal_terms = excluded.renewal_terms,
+    termination_terms = excluded.termination_terms,
+    special_terms = excluded.special_terms,
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.spaces (
     space_key, asset_id, floor_label, zone_label, use_type, occupancy_status,
@@ -226,7 +301,20 @@ begin
   from (select to_jsonb(source) source_row from public.ll_lease_spaces source) source_rows
   join logistics_core.assets asset on asset.asset_key = source_row->>'asset_id'
   where nullif(source_row->>'lease_space_id', '') is not null
-  on conflict (space_key) do nothing;
+  on conflict (space_key) do update set
+    asset_id = excluded.asset_id,
+    floor_label = excluded.floor_label,
+    zone_label = excluded.zone_label,
+    use_type = excluded.use_type,
+    occupancy_status = excluded.occupancy_status,
+    use_category = excluded.use_category,
+    leasable_area_sqm = excluded.leasable_area_sqm,
+    exclusive_area_sqm = excluded.exclusive_area_sqm,
+    common_area_sqm = excluded.common_area_sqm,
+    leased_area_sqm = excluded.leased_area_sqm,
+    efficiency_ratio = excluded.efficiency_ratio,
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.contract_spaces (
     contract_space_key, contract_id, space_id, allocated_leasable_area_sqm,
@@ -243,7 +331,15 @@ begin
   from (select to_jsonb(source) source_row from public.ll_lease_spaces source) source_rows
   join logistics_core.lease_contracts contract on contract.contract_key = source_row->>'lease_id'
   join logistics_core.spaces space on space.space_key = source_row->>'lease_space_id'
-  on conflict (contract_space_key) do nothing;
+  on conflict (contract_space_key) do update set
+    contract_id = excluded.contract_id,
+    space_id = excluded.space_id,
+    allocated_leasable_area_sqm = excluded.allocated_leasable_area_sqm,
+    allocated_exclusive_area_sqm = excluded.allocated_exclusive_area_sqm,
+    effective_from = excluded.effective_from,
+    effective_to = excluded.effective_to,
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.rent_terms (
     rent_term_key, contract_space_id, effective_from_month, effective_to_month,
@@ -265,8 +361,95 @@ begin
   from (select to_jsonb(source) source_row from public.ll_rent_history source) source_rows
   join logistics_core.contract_spaces allocation
     on allocation.contract_space_key = 'contract_space_' || (source_row->>'lease_space_id')
-  where nullif(coalesce(source_row->>'effective_date', source_row->>'period_start'), '') is not null
-  on conflict (rent_term_key) do nothing;
+  on conflict (rent_term_key) do update set
+    contract_space_id = excluded.contract_space_id,
+    effective_from_month = excluded.effective_from_month,
+    effective_to_month = excluded.effective_to_month,
+    base_monthly_rent = excluded.base_monthly_rent,
+    base_monthly_management_fee = excluded.base_monthly_management_fee,
+    rent_per_pyeong = excluded.rent_per_pyeong,
+    management_fee_per_pyeong = excluded.management_fee_per_pyeong,
+    rent_free_months = excluded.rent_free_months,
+    calculation_method = excluded.calculation_method,
+    deleted_at = null,
+    deleted_by = null;
+
+  insert into logistics_core.lease_attributes (
+    source_attribute_id, attribute_type, asset_id, tenant_id, contract_id, space_id,
+    attribute_key, attribute_label, value_text, value_numeric, value_sqm, value_py,
+    unit_label, basis, provenance, source_payload, source_row_hash,
+    review_status, review_note
+  )
+  select
+    (source_row->>'id')::uuid,
+    source_row->>'attribute_type',
+    asset.id,
+    tenant.id,
+    contract.id,
+    space.id,
+    coalesce(nullif(source_row->>'attribute_key', ''), 'attribute:' || (source_row->>'id')),
+    source_row->>'attribute_label',
+    source_row->>'value_text',
+    nullif(source_row->>'value_numeric', '')::numeric,
+    nullif(source_row->>'value_sqm', '')::numeric,
+    nullif(source_row->>'value_py', '')::numeric,
+    source_row->>'unit_label',
+    source_row->>'basis',
+    jsonb_strip_nulls(jsonb_build_object(
+      'source_table', source_row->>'source_table',
+      'source_legacy_id', source_row->>'source_legacy_id',
+      'source_sheet_row_id', source_row->>'source_sheet_row_id',
+      'source_cell_id', source_row->>'source_cell_id',
+      'legacy_asset_id', source_row->>'asset_id',
+      'legacy_tenant_id', source_row->>'tenant_id',
+      'legacy_lease_id', source_row->>'lease_id',
+      'legacy_lease_space_id', source_row->>'lease_space_id'
+    )),
+    source_row,
+    encode(extensions.digest(convert_to(source_row::text, 'UTF8'), 'sha256'), 'hex'),
+    source_row->>'review_status',
+    source_row->>'review_note'
+  from (select to_jsonb(source) source_row from public.ll_lease_attributes source) source_rows
+  left join logistics_core.assets asset on asset.asset_key = source_row->>'asset_id'
+  left join logistics_core.tenants tenant on tenant.tenant_key = source_row->>'tenant_id'
+  left join logistics_core.lease_contracts contract on contract.contract_key = source_row->>'lease_id'
+  left join logistics_core.spaces space on space.space_key = source_row->>'lease_space_id'
+  where source_row->>'attribute_type' in ('area_breakdown', 'space_spec', 'special_term')
+  on conflict (source_attribute_id) do update set
+    attribute_type = excluded.attribute_type,
+    asset_id = excluded.asset_id,
+    tenant_id = excluded.tenant_id,
+    contract_id = excluded.contract_id,
+    space_id = excluded.space_id,
+    attribute_key = excluded.attribute_key,
+    attribute_label = excluded.attribute_label,
+    value_text = excluded.value_text,
+    value_numeric = excluded.value_numeric,
+    value_sqm = excluded.value_sqm,
+    value_py = excluded.value_py,
+    unit_label = excluded.unit_label,
+    basis = excluded.basis,
+    provenance = excluded.provenance,
+    source_payload = excluded.source_payload,
+    source_row_hash = excluded.source_row_hash,
+    review_status = excluded.review_status,
+    review_note = excluded.review_note,
+    deleted_at = null,
+    deleted_by = null;
+
+  insert into logistics_core.migration_exceptions (
+    run_id, severity, source_table, source_pk, target_entity, reason
+  )
+  select
+    v_run_id,
+    'critical',
+    'public.ll_lease_attributes',
+    jsonb_build_object('id', source.id),
+    'lease_attributes',
+    'UNSUPPORTED_LEASE_ATTRIBUTE_TYPE:' || coalesce(source.attribute_type, '<null>')
+  from public.ll_lease_attributes source
+  where source.attribute_type is null
+     or source.attribute_type not in ('area_breakdown', 'space_spec', 'special_term');
 
   insert into logistics_core.maturities (
     maturity_key, maturity_type, asset_id, lease_contract_id, target_name_ko, official_date
@@ -276,7 +459,17 @@ begin
     'lease', contract.asset_id, contract.id, contract.contract_code, contract.expiry_date
   from logistics_core.lease_contracts contract
   where contract.expiry_date is not null
-  on conflict (maturity_key) do nothing;
+  on conflict (maturity_key) do update set
+    maturity_type = excluded.maturity_type,
+    asset_id = excluded.asset_id,
+    lease_contract_id = excluded.lease_contract_id,
+    fund_id = null,
+    loan_id = null,
+    target_name_ko = excluded.target_name_ko,
+    official_date = excluded.official_date,
+    status = 'active',
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.maturities (
     maturity_key, maturity_type, asset_id, fund_id, target_name_ko, official_date
@@ -286,7 +479,17 @@ begin
     'fund', null, fund.id, fund.name_ko, fund.maturity_date
   from logistics_core.funds fund
   where fund.maturity_date is not null and fund.deleted_at is null
-  on conflict (maturity_key) do nothing;
+  on conflict (maturity_key) do update set
+    maturity_type = excluded.maturity_type,
+    asset_id = null,
+    lease_contract_id = null,
+    fund_id = excluded.fund_id,
+    loan_id = null,
+    target_name_ko = excluded.target_name_ko,
+    official_date = excluded.official_date,
+    status = 'active',
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.maturities (
     maturity_key, maturity_type, asset_id, fund_id, loan_id,
@@ -301,7 +504,17 @@ begin
   where source_row->>'tranche_type' = 'loan'
     and coalesce(nullif(source_row->>'is_active', '')::boolean, true)
     and nullif(source_row->>'maturity_date', '') is not null
-  on conflict (maturity_key) do nothing;
+  on conflict (maturity_key) do update set
+    maturity_type = excluded.maturity_type,
+    asset_id = null,
+    lease_contract_id = null,
+    fund_id = null,
+    loan_id = excluded.loan_id,
+    target_name_ko = excluded.target_name_ko,
+    official_date = excluded.official_date,
+    status = 'active',
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.maturity_asset_scopes (maturity_id, asset_id)
   select distinct maturity.id, link.asset_id
@@ -342,7 +555,83 @@ begin
     coalesce((permission.other_asset_permissions->>'delete')::boolean, false)
   from public.ll_user_permissions permission
   join auth.users actor on actor.id = permission.user_id
-  on conflict (user_id) do nothing;
+  on conflict (user_id) do update set
+    scope_mode = excluded.scope_mode,
+    managed_read = excluded.managed_read,
+    managed_create = excluded.managed_create,
+    managed_update = excluded.managed_update,
+    managed_delete = excluded.managed_delete,
+    other_read = excluded.other_read,
+    other_create = excluded.other_create,
+    other_update = excluded.other_update,
+    other_delete = excluded.other_delete,
+    deleted_at = null,
+    deleted_by = null;
+
+  select count(distinct permission.user_id)
+  into v_pilot_candidate_count
+  from public.ll_user_permissions permission
+  join auth.users actor on actor.id = permission.user_id
+  where permission.account_status = 'active'
+    and coalesce((permission.feature_permissions->>'permission_admin')::boolean, false)
+    and coalesce((permission.managed_asset_permissions->>'read')::boolean, false)
+    and coalesce((permission.managed_asset_permissions->>'create')::boolean, false)
+    and coalesce((permission.managed_asset_permissions->>'update')::boolean, false)
+    and coalesce((permission.managed_asset_permissions->>'delete')::boolean, false)
+    and coalesce((permission.other_asset_permissions->>'read')::boolean, false)
+    and coalesce((permission.other_asset_permissions->>'create')::boolean, false)
+    and coalesce((permission.other_asset_permissions->>'update')::boolean, false)
+    and coalesce((permission.other_asset_permissions->>'delete')::boolean, false);
+
+  if v_pilot_candidate_count <> 3 then
+    raise exception 'PILOT_CANDIDATE_COUNT expected=3 actual=%', v_pilot_candidate_count;
+  end if;
+
+  insert into logistics_core.platform_pilot_users (
+    user_id, is_active, selection_source, selection_reason
+  )
+  select distinct
+    permission.user_id,
+    true,
+    'public.ll_user_permissions',
+    'active permission_admin principal with all eight asset CRUD permissions'
+  from public.ll_user_permissions permission
+  join auth.users actor on actor.id = permission.user_id
+  where permission.account_status = 'active'
+    and coalesce((permission.feature_permissions->>'permission_admin')::boolean, false)
+    and coalesce((permission.managed_asset_permissions->>'read')::boolean, false)
+    and coalesce((permission.managed_asset_permissions->>'create')::boolean, false)
+    and coalesce((permission.managed_asset_permissions->>'update')::boolean, false)
+    and coalesce((permission.managed_asset_permissions->>'delete')::boolean, false)
+    and coalesce((permission.other_asset_permissions->>'read')::boolean, false)
+    and coalesce((permission.other_asset_permissions->>'create')::boolean, false)
+    and coalesce((permission.other_asset_permissions->>'update')::boolean, false)
+    and coalesce((permission.other_asset_permissions->>'delete')::boolean, false)
+  on conflict (user_id) do update set
+    is_active = excluded.is_active,
+    selection_source = excluded.selection_source,
+    selection_reason = excluded.selection_reason;
+
+  update logistics_core.platform_pilot_users pilot
+  set is_active = false,
+      selection_reason = 'No longer satisfies the dynamic pilot permission predicate'
+  where pilot.is_active
+    and not exists (
+      select 1
+      from public.ll_user_permissions permission
+      join auth.users actor on actor.id = permission.user_id
+      where permission.user_id = pilot.user_id
+        and permission.account_status = 'active'
+        and coalesce((permission.feature_permissions->>'permission_admin')::boolean, false)
+        and coalesce((permission.managed_asset_permissions->>'read')::boolean, false)
+        and coalesce((permission.managed_asset_permissions->>'create')::boolean, false)
+        and coalesce((permission.managed_asset_permissions->>'update')::boolean, false)
+        and coalesce((permission.managed_asset_permissions->>'delete')::boolean, false)
+        and coalesce((permission.other_asset_permissions->>'read')::boolean, false)
+        and coalesce((permission.other_asset_permissions->>'create')::boolean, false)
+        and coalesce((permission.other_asset_permissions->>'update')::boolean, false)
+        and coalesce((permission.other_asset_permissions->>'delete')::boolean, false)
+    );
 
   insert into logistics_core.user_asset_assignments(user_id, asset_id)
   select distinct permission.user_id, asset.id
@@ -352,7 +641,9 @@ begin
   join logistics_core.assets asset
     on asset.asset_code = managed_asset_code or asset.asset_key = managed_asset_code
   where managed_asset_code <> '*'
-  on conflict (user_id, asset_id) do nothing;
+  on conflict (user_id, asset_id) do update set
+    deleted_at = null,
+    deleted_by = null;
 
   insert into logistics_core.migration_exceptions (
     run_id, severity, source_table, source_pk, target_entity, reason
@@ -411,6 +702,20 @@ begin
   join logistics_core.lease_contracts target on target.contract_key = source.lease_id
   on conflict do nothing;
 
+  insert into logistics_core.migration_row_mappings (
+    run_id, mapping_version, source_table, source_pk, source_row_hash,
+    target_entity, target_id, target_row_hash
+  )
+  select
+    v_run_id, v_mapping_version, 'public.ll_lease_attributes',
+    jsonb_build_object('id', source.id),
+    encode(extensions.digest(convert_to(to_jsonb(source)::text, 'UTF8'), 'sha256'), 'hex'),
+    'lease_attributes', target.id,
+    encode(extensions.digest(convert_to(to_jsonb(target)::text, 'UTF8'), 'sha256'), 'hex')
+  from public.ll_lease_attributes source
+  join logistics_core.lease_attributes target on target.source_attribute_id = source.id
+  on conflict do nothing;
+
   insert into logistics_core.legacy_projection_state (
     target_entity, target_id, legacy_table, legacy_pk, projection_version,
     last_success_revision, target_hash, legacy_hash, readback_status, verified_at
@@ -420,7 +725,13 @@ begin
     mapping.mapping_version, 1, mapping.target_row_hash, mapping.source_row_hash, 'verified', now()
   from logistics_core.migration_row_mappings mapping
   where mapping.run_id = v_run_id
-  on conflict (target_entity, target_id, legacy_table, legacy_pk) do nothing;
+  on conflict (target_entity, target_id, legacy_table, legacy_pk) do update set
+    projection_version = excluded.projection_version,
+    last_success_revision = excluded.last_success_revision,
+    target_hash = excluded.target_hash,
+    legacy_hash = excluded.legacy_hash,
+    readback_status = excluded.readback_status,
+    verified_at = excluded.verified_at;
 
   select count(*) into v_critical_exception_count
   from logistics_core.migration_exceptions exception

@@ -60,6 +60,11 @@ function apiMigrationSource() {
   );
 }
 
+function requirePattern(source, pattern, description) {
+  assert.match(source, pattern, description);
+  return description;
+}
+
 async function importModule(name) {
   const filePath = path.join(V2_DIR, name);
   assert.ok(fs.existsSync(filePath), `missing v2 module: ${name}`);
@@ -354,10 +359,15 @@ async function main() {
 
   await check('home-bootstrap-and-month-editor-contract', () => {
     const source = migrationSource();
+    const apiSource = apiMigrationSource();
+    const homeRead = apiSource.match(
+      /create or replace function logistics_core\.home_read_entry[\s\S]*?\$body\$;/iu,
+    )?.[0] || '';
+    assert.ok(homeRead, 'home read function is missing');
     assert.match(source, /nullif\(btrim\(p_asset_key\),\s*''\)\s+is\s+null[\s\S]{0,700}'assets'/iu);
     assert.match(source, /'selected_asset',\s*null/iu);
     assert.match(source, /'asset_key',\s*asset\.asset_key/iu);
-    assert.doesNotMatch(source, /jsonb_build_object\([\s\S]{0,100}'asset_id'/iu, 'home must not expose internal UUID');
+    assert.doesNotMatch(homeRead, /jsonb_build_object\([\s\S]{0,100}'asset_id'/iu, 'home must not expose internal UUID');
     assert.match(source, /create or replace function logistics_core\.normalize_month/iu);
     assert.match(source, /\^\[0-9\]\{4\}-\(0\[1-9\]\|1\[0-2\]\)\$/u);
     assert.match(source, /return \(p_value \|\| '-01'\)::date/iu);
@@ -372,7 +382,7 @@ async function main() {
     assert.match(source, /public\.ll_notifications/iu);
     for (const field of [
       'accounts', 'loans', 'finance_write_enabled', 'data_status',
-      'formula_status', 'formula_version', 'waterfall',
+      'formula_status', 'formula_version', 'waterfall', 'write_enabled', 'write_reason',
     ]) {
       assert.match(apiSource, new RegExp(`'${field}'`, 'iu'), `missing finance response field ${field}`);
     }
@@ -404,7 +414,67 @@ async function main() {
     assert.match(financeMutation, /entry\.entry_key\s*=\s*v_entry_key/iu);
     assert.doesNotMatch(financeMutation, /account\.account_code\s*=\s*account_code\b/iu);
     assert.doesNotMatch(financeMutation, /entry\.entry_key\s*=\s*entry_key\b/iu);
+    requirePattern(
+      financeMutation,
+      /record'\s*\?\s*'source_ref'[\s\S]{0,220}CLIENT_SOURCE_METADATA_FORBIDDEN/iu,
+      'client source_ref is rejected',
+    );
+    requirePattern(
+      financeMutation,
+      /record'\s*\?\s*'source_kind'[\s\S]{0,220}CLIENT_SOURCE_METADATA_FORBIDDEN/iu,
+      'client source_kind is rejected',
+    );
+    requirePattern(
+      financeMutation,
+      /record'\s*\?\s*'data_status'[\s\S]{0,220}CLIENT_SOURCE_METADATA_FORBIDDEN/iu,
+      'client data_status is rejected',
+    );
+    assert.match(financeMutation, /'manual_input'/iu, 'server creates source_kind');
+    assert.match(financeMutation, /'provided'/iu, 'server creates data_status');
+    assert.match(financeMutation, /'v2\/finance\/batch-save:'\s*\|\|\s*p_request_id::text/iu, 'server creates source_ref');
+    assert.match(financeMutation, /rollback_export_state/iu, 'finance write records rollback export');
+    assert.match(financeMutation, /retained_in_core/iu, 'finance rollback remains retained in core');
+    assert.match(financeMutation, /READBACK_MISMATCH/iu, 'finance rollback export readback is verified');
     return 'actual-only manual account policy with finite amount and mandatory reason';
+  });
+
+  await check('actor-specific-write-state-is-returned-by-read-rpcs', () => {
+    const source = migrationSource();
+    const apiSource = apiMigrationSource();
+    requirePattern(source, /create or replace function logistics_core\.actor_write_status/iu, 'central actor write status');
+    requirePattern(source, /platform_pilot_users/iu, 'pilot-aware actor write status');
+    requirePattern(source, /'write_enabled'/iu, 'generic write enabled field');
+    requirePattern(source, /'write_reason'/iu, 'generic write reason field');
+    const rentRead = apiSource.match(/create or replace function logistics_core\.rent_roll_read_entry[\s\S]*?\$body\$;/iu)?.[0] || '';
+    const financeRead = apiSource.match(/create or replace function logistics_core\.finance_read_entry[\s\S]*?\$body\$;/iu)?.[0] || '';
+    assert.match(rentRead, /actor_write_status\(actor_id,\s*resolved_asset_id\)/iu);
+    assert.match(rentRead, /'rent_roll_write_enabled'/iu);
+    assert.match(rentRead, /'write_reason'/iu);
+    assert.match(financeRead, /actor_write_status\(actor_id,\s*resolved_asset_id\)/iu);
+    assert.match(financeRead, /'finance_write_enabled'/iu);
+    assert.match(financeRead, /'write_reason'/iu);
+    return 'rent-roll and finance reads return actor-specific server write state';
+  });
+
+  await check('rent-roll-legacy-projection-is-atomic-and-read-back', () => {
+    const apiSource = apiMigrationSource();
+    const projection = apiSource.match(
+      /create or replace function logistics_core\.project_rent_roll_to_legacy[\s\S]*?\$body\$;/iu,
+    )?.[0] || '';
+    assert.ok(projection, 'rent-roll legacy projection function is missing');
+    for (const table of ['ll_leases', 'll_lease_spaces', 'll_rent_history']) {
+      assert.match(projection, new RegExp(`insert into public\\.${table}`, 'iu'));
+      assert.match(projection, new RegExp(`public\\.${table}[\\s\\S]{0,1800}on conflict`, 'iu'));
+    }
+    assert.match(projection, /legacy_projection_state/iu);
+    assert.match(projection, /readback_status/iu);
+    assert.match(projection, /READBACK_MISMATCH/iu);
+    const mutation = apiSource.match(
+      /create or replace function logistics_core\.rent_roll_batch_save_entry[\s\S]*?\$body\$;/iu,
+    )?.[0] || '';
+    assert.match(mutation, /project_rent_roll_to_legacy\(resolved_asset_id,\s*actor_id,\s*p_request_id\)/iu);
+    assert.match(mutation, /legacy_projection_count/iu);
+    return 'canonical and public legacy rent-roll rows commit in the same database transaction';
   });
 
   await check('edge-index-dispatches-v2-with-user-jwt-client', () => {

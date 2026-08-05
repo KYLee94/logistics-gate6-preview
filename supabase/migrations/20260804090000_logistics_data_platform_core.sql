@@ -9,6 +9,11 @@ create extension if not exists pgcrypto with schema extensions;
 create schema if not exists logistics_core;
 create schema if not exists logistics_api;
 
+-- Keep the two existing Data API schemas and expose only the RPC schema added by
+-- this platform. The private logistics_core schema must never be in this list.
+alter role authenticator set pgrst.db_schemas = 'public, graphql_public, logistics_api';
+notify pgrst, 'reload config';
+
 comment on schema logistics_core is
   'Private canonical data model for the Gate 6 logistics data platform. Never expose through PostgREST.';
 comment on schema logistics_api is
@@ -135,6 +140,7 @@ create table logistics_core.loans (
   name_ko text not null,
   commitment_amount numeric(24, 4),
   outstanding_amount numeric(24, 4),
+  drawdown_date date,
   currency_code text not null default 'KRW',
   interest_terms jsonb not null default '{}'::jsonb,
   repayment_terms jsonb not null default '{"repayment_schedule_status":"not_provided","rows":[]}'::jsonb,
@@ -192,7 +198,7 @@ create table logistics_core.lease_contracts (
   asset_id uuid not null references logistics_core.assets(id) on delete restrict,
   tenant_id uuid not null references logistics_core.tenants(id) on delete restrict,
   signed_date date,
-  commencement_date date not null,
+  commencement_date date,
   expiry_date date,
   status text not null check (status in ('planned', 'active', 'ended', 'terminated')),
   deposit_amount numeric(24, 4),
@@ -243,7 +249,7 @@ create table logistics_core.contract_spaces (
   space_id uuid not null references logistics_core.spaces(id) on delete restrict,
   allocated_leasable_area_sqm numeric(20, 6),
   allocated_exclusive_area_sqm numeric(20, 6),
-  effective_from date not null,
+  effective_from date,
   effective_to date,
   created_at timestamptz not null default now(),
   created_by uuid references auth.users(id) on delete set null,
@@ -259,7 +265,7 @@ create table logistics_core.rent_terms (
   id uuid primary key default gen_random_uuid(),
   rent_term_key text not null unique,
   contract_space_id uuid not null references logistics_core.contract_spaces(id) on delete restrict,
-  effective_from_month date not null,
+  effective_from_month date,
   effective_to_month date,
   base_monthly_rent numeric(24, 4),
   base_monthly_management_fee numeric(24, 4),
@@ -291,9 +297,9 @@ create table logistics_core.rent_terms (
   deleted_at timestamptz,
   deleted_by uuid references auth.users(id) on delete set null,
   constraint rent_term_month_check check (
-    extract(day from effective_from_month) = 1
+    (effective_from_month is null or extract(day from effective_from_month) = 1)
     and (effective_to_month is null or extract(day from effective_to_month) = 1)
-    and (effective_to_month is null or effective_to_month >= effective_from_month)
+    and (effective_to_month is null or effective_from_month is null or effective_to_month >= effective_from_month)
   )
 );
 
@@ -308,6 +314,37 @@ create table logistics_core.rent_term_history (
   source_reference jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   created_by uuid references auth.users(id) on delete set null
+);
+
+create table logistics_core.lease_attributes (
+  id uuid primary key default gen_random_uuid(),
+  source_attribute_id uuid not null unique,
+  attribute_type text not null check (attribute_type in ('area_breakdown', 'space_spec', 'special_term')),
+  asset_id uuid references logistics_core.assets(id) on delete restrict,
+  tenant_id uuid references logistics_core.tenants(id) on delete restrict,
+  contract_id uuid references logistics_core.lease_contracts(id) on delete restrict,
+  space_id uuid references logistics_core.spaces(id) on delete restrict,
+  attribute_key text not null,
+  attribute_label text,
+  value_text text,
+  value_numeric numeric,
+  value_sqm numeric,
+  value_py numeric,
+  unit_label text,
+  basis text,
+  provenance jsonb not null default '{}'::jsonb,
+  source_payload jsonb not null default '{}'::jsonb,
+  source_row_hash text not null,
+  review_status text,
+  review_note text,
+  created_at timestamptz not null default now(),
+  created_by uuid references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id) on delete set null,
+  revision bigint not null default 1 check (revision > 0),
+  deleted_at timestamptz,
+  deleted_by uuid references auth.users(id) on delete set null,
+  constraint lease_attributes_soft_delete_check check (deleted_at is not null or deleted_by is null)
 );
 
 create table logistics_core.cashflow_accounts (
@@ -458,6 +495,18 @@ create table logistics_core.platform_feature_flags (
   reason text not null,
   changed_at timestamptz not null default now(),
   changed_by uuid references auth.users(id) on delete set null,
+  revision bigint not null default 1 check (revision > 0)
+);
+
+create table logistics_core.platform_pilot_users (
+  user_id uuid primary key references auth.users(id) on update cascade on delete cascade,
+  is_active boolean not null default true,
+  selection_source text not null,
+  selection_reason text not null,
+  created_at timestamptz not null default now(),
+  created_by uuid references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id) on delete set null,
   revision bigint not null default 1 check (revision > 0)
 );
 
@@ -624,6 +673,26 @@ create table logistics_core.legacy_projection_state (
   unique (target_entity, target_id, legacy_table, legacy_pk)
 );
 
+create table logistics_core.rollback_export_state (
+  id uuid primary key default gen_random_uuid(),
+  entity_type text not null,
+  entity_id uuid not null,
+  asset_id uuid not null references logistics_core.assets(id) on delete restrict,
+  export_key text not null,
+  export_payload jsonb not null,
+  export_hash text not null,
+  retained_in_core boolean not null default true,
+  readback_status text not null check (readback_status in ('verified', 'mismatch', 'blocked')),
+  client_request_id uuid not null,
+  verified_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  created_by uuid references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id) on delete set null,
+  revision bigint not null default 1 check (revision > 0),
+  unique (entity_type, entity_id)
+);
+
 create index assets_active_key_idx on logistics_core.assets(asset_key) where deleted_at is null;
 create index fund_asset_links_asset_idx on logistics_core.fund_asset_links(asset_id, effective_from) where deleted_at is null;
 create index loans_asset_idx on logistics_core.loans(asset_id) where deleted_at is null;
@@ -631,6 +700,7 @@ create index lease_contracts_asset_idx on logistics_core.lease_contracts(asset_i
 create index spaces_asset_idx on logistics_core.spaces(asset_id) where deleted_at is null;
 create index contract_spaces_contract_idx on logistics_core.contract_spaces(contract_id, effective_from) where deleted_at is null;
 create index rent_terms_contract_space_idx on logistics_core.rent_terms(contract_space_id, effective_from_month) where deleted_at is null;
+create index lease_attributes_scope_idx on logistics_core.lease_attributes(asset_id, contract_id, space_id, attribute_type) where deleted_at is null;
 create index monthly_ledger_asset_month_idx on logistics_core.monthly_ledger_entries(asset_id, month, scenario, accounting_basis) where deleted_at is null;
 create index user_asset_assignments_user_idx on logistics_core.user_asset_assignments(user_id, asset_id) where deleted_at is null;
 create index maturities_asset_date_idx on logistics_core.maturities(asset_id, official_date) where deleted_at is null and status = 'active';
@@ -714,9 +784,9 @@ declare
 begin
   foreach table_name in array array[
     'assets', 'funds', 'fund_asset_links', 'fund_beneficiary_tranches', 'lenders', 'loans', 'loan_lenders',
-    'tenants', 'lease_contracts', 'spaces', 'contract_spaces', 'rent_terms',
+    'tenants', 'lease_contracts', 'spaces', 'contract_spaces', 'rent_terms', 'lease_attributes',
     'cashflow_accounts', 'monthly_ledger_entries', 'ledger_adjustments',
-    'user_permission_profiles', 'user_asset_assignments'
+    'user_permission_profiles', 'user_asset_assignments', 'platform_pilot_users', 'rollback_export_state'
   ]
   loop
     execute format(
@@ -834,9 +904,22 @@ security definer
 set search_path = pg_catalog, logistics_core
 as $body$
 declare
+  actor_id uuid := auth.uid();
   route_mode text;
   writes_enabled boolean;
 begin
+  if actor_id is null then
+    raise exception using errcode = 'PT401', message = 'AUTH_REQUIRED';
+  end if;
+
+  if not exists (
+    select 1
+    from logistics_core.platform_pilot_users pilot
+    where pilot.user_id = actor_id and pilot.is_active = true
+  ) then
+    raise exception using errcode = 'PT403', message = 'PILOT_ACCESS_REQUIRED';
+  end if;
+
   select flag.v2_write_enabled
   into writes_enabled
   from logistics_core.platform_feature_flags flag
@@ -854,6 +937,83 @@ begin
   if route_mode is distinct from 'v2' then
     raise exception using errcode = 'PT503', message = 'MAINTENANCE_MODE';
   end if;
+end;
+$body$;
+
+create or replace function logistics_core.actor_write_status(
+  p_actor_user_id uuid,
+  p_asset_id uuid
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = pg_catalog, logistics_core
+as $body$
+declare
+  v_enabled boolean;
+  v_route text;
+  v_is_pilot boolean;
+  v_permission logistics_core.user_permission_profiles%rowtype;
+  v_managed boolean;
+  v_create boolean := false;
+  v_update boolean := false;
+  v_delete boolean := false;
+  v_reason text;
+begin
+  select coalesce(flag.v2_write_enabled, false)
+  into v_enabled
+  from logistics_core.platform_feature_flags flag
+  where flag.flag_key = 'data_platform_v2';
+
+  select route.writer_mode into v_route
+  from logistics_core.asset_writer_routes route
+  where route.asset_id = p_asset_id;
+
+  select exists (
+    select 1 from logistics_core.platform_pilot_users pilot
+    where pilot.user_id = p_actor_user_id and pilot.is_active = true
+  ) into v_is_pilot;
+
+  select profile.* into v_permission
+  from logistics_core.user_permission_profiles profile
+  where profile.user_id = p_actor_user_id and profile.deleted_at is null;
+
+  v_managed := coalesce(v_permission.scope_mode = 'all', false) or exists (
+    select 1 from logistics_core.user_asset_assignments assignment
+    where assignment.user_id = p_actor_user_id
+      and assignment.asset_id = p_asset_id
+      and assignment.deleted_at is null
+  );
+
+  if v_permission.user_id is not null then
+    if v_managed then
+      v_create := v_permission.managed_read and v_permission.managed_create;
+      v_update := v_permission.managed_read and v_permission.managed_update;
+      v_delete := v_permission.managed_read and v_permission.managed_delete;
+    else
+      v_create := v_permission.other_read and v_permission.other_create;
+      v_update := v_permission.other_read and v_permission.other_update;
+      v_delete := v_permission.other_read and v_permission.other_delete;
+    end if;
+  end if;
+
+  v_reason := case
+    when p_actor_user_id is null then 'AUTH_REQUIRED'
+    when not coalesce(v_is_pilot, false) then 'PILOT_ACCESS_REQUIRED'
+    when not coalesce(v_enabled, false) then 'PLATFORM_WRITE_DISABLED'
+    when v_route is distinct from 'v2' then 'ASSET_WRITER_ROUTE_NOT_V2'
+    when not (v_create and v_update and v_delete) then 'CRUD_PERMISSION_REQUIRED'
+    else 'ENABLED'
+  end;
+
+  return jsonb_build_object(
+    'write_enabled', v_reason = 'ENABLED',
+    'write_reason', v_reason,
+    'create_enabled', v_create,
+    'update_enabled', v_update,
+    'delete_enabled', v_delete
+  );
 end;
 $body$;
 
@@ -1032,6 +1192,7 @@ alter table logistics_core.spaces enable row level security;
 alter table logistics_core.contract_spaces enable row level security;
 alter table logistics_core.rent_terms enable row level security;
 alter table logistics_core.rent_term_history enable row level security;
+alter table logistics_core.lease_attributes enable row level security;
 alter table logistics_core.cashflow_accounts enable row level security;
 alter table logistics_core.monthly_ledger_entries enable row level security;
 alter table logistics_core.ledger_adjustments enable row level security;
@@ -1039,6 +1200,7 @@ alter table logistics_core.user_permission_profiles enable row level security;
 alter table logistics_core.user_asset_assignments enable row level security;
 alter table logistics_core.asset_writer_routes enable row level security;
 alter table logistics_core.platform_feature_flags enable row level security;
+alter table logistics_core.platform_pilot_users enable row level security;
 alter table logistics_core.maturities enable row level security;
 alter table logistics_core.maturity_schedules enable row level security;
 alter table logistics_core.maturity_asset_scopes enable row level security;
@@ -1050,6 +1212,7 @@ alter table logistics_core.migration_field_mappings enable row level security;
 alter table logistics_core.migration_row_mappings enable row level security;
 alter table logistics_core.migration_exceptions enable row level security;
 alter table logistics_core.legacy_projection_state enable row level security;
+alter table logistics_core.rollback_export_state enable row level security;
 
 revoke all on all tables in schema logistics_core from public, anon, authenticated;
 revoke all on all sequences in schema logistics_core from public, anon, authenticated;

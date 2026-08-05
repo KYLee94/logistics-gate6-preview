@@ -10,9 +10,21 @@ export function emptyManualFinanceEntry({ draftId, month, accountingBasis = 'acc
     scenario: 'actual',
     accounting_basis: accountingBasis,
     reason: '',
-    source_kind: 'manual_input',
-    source_ref: 'server-generated-from-mutation-id',
-    source_line_key: draftId,
+  };
+}
+
+const SERVER_OWNED_FINANCE_FIELDS = new Set([
+  '_draft_id',
+  'source_kind',
+  'source_ref',
+  'source_line_key',
+  'data_status',
+]);
+
+export function financeEntryForSave(row) {
+  return {
+    ...Object.fromEntries(Object.entries(row).filter(([key]) => !SERVER_OWNED_FINANCE_FIELDS.has(key))),
+    scenario: 'actual',
   };
 }
 

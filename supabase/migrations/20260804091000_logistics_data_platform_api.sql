@@ -254,8 +254,10 @@ declare
   resolved_asset_id uuid := logistics_core.resolve_asset_id(p_asset_key);
   rows jsonb;
   latest_revision bigint;
+  write_status jsonb;
 begin
   perform logistics_core.assert_asset_permission(actor_id, resolved_asset_id, 'read');
+  write_status := logistics_core.actor_write_status(actor_id, resolved_asset_id);
 
   select coalesce(jsonb_agg(jsonb_build_object(
     'row_key', coalesce(term.rent_term_key, allocation.contract_space_key, space.space_key),
@@ -336,8 +338,258 @@ begin
   return logistics_core.primary_response(
     p_request_id,
     latest_revision,
-    jsonb_build_object('rows', rows)
+    jsonb_build_object(
+      'rows', rows,
+      'rent_roll_write_enabled', coalesce((write_status->>'write_enabled')::boolean, false),
+      'write_enabled', coalesce((write_status->>'write_enabled')::boolean, false),
+      'write_reason', write_status->>'write_reason'
+    )
   );
+end;
+$body$;
+
+create or replace function logistics_core.project_rent_roll_to_legacy(
+  p_asset_id uuid,
+  p_actor_id uuid,
+  p_request_id uuid
+)
+returns integer
+language plpgsql
+security definer
+set search_path = pg_catalog, logistics_core, public, extensions
+as $body$
+declare
+  v_row record;
+  v_expected jsonb;
+  v_actual jsonb;
+  v_count integer := 0;
+begin
+  -- Keep the legacy projection additive and recoverable. Soft-deleted core rows
+  -- remain present with an archived marker so a frontend rollback cannot hide
+  -- data written by the new platform.
+  insert into public.ll_leases (
+    lease_id, asset_id, tenant_id, lease_status, recent_contract_date,
+    current_start_date, current_end_date, deposit_amount,
+    early_termination_right, renewal_option, special_terms,
+    source_payload, review_status, updated_at
+  )
+  select c.contract_key, a.public_key, t.tenant_key,
+    case when c.deleted_at is null then c.status else 'archived' end,
+    c.signed_date, c.commencement_date, c.expiry_date, c.deposit_amount,
+    c.termination_terms, c.renewal_terms, c.special_terms,
+    jsonb_build_object('v2_projection', true, 'core_id', c.id,
+      'core_revision', c.revision, 'deleted_at', c.deleted_at,
+      'client_request_id', p_request_id, 'actor_id', p_actor_id),
+    'v2_projected', now()
+  from logistics_core.lease_contracts c
+  join logistics_core.assets a on a.id = c.asset_id
+  join logistics_core.tenants t on t.id = c.tenant_id
+  where c.asset_id = p_asset_id
+  on conflict (lease_id) do update set
+    asset_id = excluded.asset_id, tenant_id = excluded.tenant_id,
+    lease_status = excluded.lease_status, recent_contract_date = excluded.recent_contract_date,
+    current_start_date = excluded.current_start_date, current_end_date = excluded.current_end_date,
+    deposit_amount = excluded.deposit_amount, early_termination_right = excluded.early_termination_right,
+    renewal_option = excluded.renewal_option, special_terms = excluded.special_terms,
+    source_payload = coalesce(public.ll_leases.source_payload, '{}'::jsonb) || excluded.source_payload,
+    review_status = excluded.review_status, updated_at = excluded.updated_at;
+
+  insert into public.ll_lease_spaces (
+    lease_space_id, lease_id, asset_id, tenant_id, floor_label, detail_area_label,
+    leased_area_sqm, exclusive_area_sqm, exclusive_ratio,
+    current_monthly_rent_total, current_monthly_mf_total,
+    contract_status, source_payload, review_status, updated_at
+  )
+  select s.space_key, c.contract_key, a.public_key, t.tenant_key,
+    s.floor_label, s.zone_label, coalesce(s.leased_area_sqm, cs.allocated_leasable_area_sqm),
+    coalesce(s.exclusive_area_sqm, cs.allocated_exclusive_area_sqm), s.efficiency_ratio,
+    rt.base_monthly_rent, rt.base_monthly_management_fee,
+    case when s.deleted_at is not null or cs.deleted_at is not null then 'archived'
+      when c.id is null then 'vacant' else c.status end,
+    jsonb_build_object('v2_projection', true, 'core_id', s.id,
+      'core_revision', s.revision, 'deleted_at', s.deleted_at,
+      'client_request_id', p_request_id, 'actor_id', p_actor_id),
+    'v2_projected', now()
+  from logistics_core.spaces s
+  join logistics_core.assets a on a.id = s.asset_id
+  left join lateral (select x.* from logistics_core.contract_spaces x
+    where x.space_id = s.id order by (x.deleted_at is null) desc,
+      x.effective_from desc nulls last, x.revision desc limit 1) cs on true
+  left join logistics_core.lease_contracts c on c.id = cs.contract_id
+  left join logistics_core.tenants t on t.id = c.tenant_id
+  left join lateral (select x.* from logistics_core.rent_terms x
+    where x.contract_space_id = cs.id order by (x.deleted_at is null) desc,
+      x.effective_from_month desc nulls last, x.revision desc limit 1) rt on true
+  where s.asset_id = p_asset_id
+  on conflict (lease_space_id) do update set
+    lease_id = excluded.lease_id, asset_id = excluded.asset_id, tenant_id = excluded.tenant_id,
+    floor_label = excluded.floor_label, detail_area_label = excluded.detail_area_label,
+    leased_area_sqm = excluded.leased_area_sqm, exclusive_area_sqm = excluded.exclusive_area_sqm,
+    exclusive_ratio = excluded.exclusive_ratio,
+    current_monthly_rent_total = excluded.current_monthly_rent_total,
+    current_monthly_mf_total = excluded.current_monthly_mf_total,
+    contract_status = excluded.contract_status,
+    source_payload = coalesce(public.ll_lease_spaces.source_payload, '{}'::jsonb) || excluded.source_payload,
+    review_status = excluded.review_status, updated_at = excluded.updated_at;
+
+  insert into public.ll_rent_history (
+    rent_history_id, lease_space_id, lease_id, asset_id, tenant_id,
+    effective_date, change_reason, leased_area_sqm, exclusive_area_sqm,
+    monthly_rent_total, monthly_mf_total, rent_per_py, mf_per_py, is_latest,
+    match_status, source_payload, review_status, updated_at, floor_label, detail_area_label
+  )
+  select rt.rent_term_key, s.space_key, c.contract_key, a.public_key, t.tenant_key,
+    rt.effective_from_month, 'v2 rent-roll projection',
+    coalesce(s.leased_area_sqm, cs.allocated_leasable_area_sqm),
+    coalesce(s.exclusive_area_sqm, cs.allocated_exclusive_area_sqm),
+    rt.base_monthly_rent, rt.base_monthly_management_fee,
+    rt.rent_per_pyeong, rt.management_fee_per_pyeong,
+    rt.deleted_at is null and not exists (select 1 from logistics_core.rent_terms newer
+      where newer.contract_space_id = rt.contract_space_id and newer.deleted_at is null
+        and (coalesce(newer.effective_from_month, date '0001-01-01'), newer.revision)
+          > (coalesce(rt.effective_from_month, date '0001-01-01'), rt.revision)),
+    'matched', jsonb_build_object('v2_projection', true, 'core_id', rt.id,
+      'core_revision', rt.revision, 'deleted_at', rt.deleted_at,
+      'client_request_id', p_request_id, 'actor_id', p_actor_id),
+    'v2_projected', now(), s.floor_label, s.zone_label
+  from logistics_core.rent_terms rt
+  join logistics_core.contract_spaces cs on cs.id = rt.contract_space_id
+  join logistics_core.spaces s on s.id = cs.space_id
+  join logistics_core.lease_contracts c on c.id = cs.contract_id
+  join logistics_core.assets a on a.id = c.asset_id
+  join logistics_core.tenants t on t.id = c.tenant_id
+  where c.asset_id = p_asset_id
+  on conflict (rent_history_id) do update set
+    lease_space_id = excluded.lease_space_id, lease_id = excluded.lease_id,
+    asset_id = excluded.asset_id, tenant_id = excluded.tenant_id,
+    effective_date = excluded.effective_date, change_reason = excluded.change_reason,
+    leased_area_sqm = excluded.leased_area_sqm, exclusive_area_sqm = excluded.exclusive_area_sqm,
+    monthly_rent_total = excluded.monthly_rent_total, monthly_mf_total = excluded.monthly_mf_total,
+    rent_per_py = excluded.rent_per_py, mf_per_py = excluded.mf_per_py,
+    is_latest = excluded.is_latest, match_status = excluded.match_status,
+    source_payload = coalesce(public.ll_rent_history.source_payload, '{}'::jsonb) || excluded.source_payload,
+    review_status = excluded.review_status, updated_at = excluded.updated_at,
+    floor_label = excluded.floor_label, detail_area_label = excluded.detail_area_label;
+
+  for v_row in
+    select c.id, c.revision, c.contract_key, a.public_key asset_key, t.tenant_key,
+      case when c.deleted_at is null then c.status else 'archived' end projected_status,
+      c.signed_date, c.commencement_date, c.expiry_date, c.deposit_amount
+    from logistics_core.lease_contracts c
+    join logistics_core.assets a on a.id = c.asset_id
+    join logistics_core.tenants t on t.id = c.tenant_id
+    where c.asset_id = p_asset_id
+  loop
+    v_expected := jsonb_build_object('lease_id', v_row.contract_key, 'asset_id', v_row.asset_key,
+      'tenant_id', v_row.tenant_key, 'lease_status', v_row.projected_status,
+      'recent_contract_date', v_row.signed_date, 'current_start_date', v_row.commencement_date,
+      'current_end_date', v_row.expiry_date, 'deposit_amount', v_row.deposit_amount);
+    select jsonb_build_object('lease_id', l.lease_id, 'asset_id', l.asset_id,
+      'tenant_id', l.tenant_id, 'lease_status', l.lease_status,
+      'recent_contract_date', l.recent_contract_date, 'current_start_date', l.current_start_date,
+      'current_end_date', l.current_end_date, 'deposit_amount', l.deposit_amount)
+    into v_actual from public.ll_leases l where l.lease_id = v_row.contract_key;
+    if v_actual is null or logistics_core.json_sha256(v_actual) <> logistics_core.json_sha256(v_expected) then
+      raise exception using errcode = 'PT500', message = 'READBACK_MISMATCH';
+    end if;
+    insert into logistics_core.legacy_projection_state (
+      target_entity, target_id, legacy_table, legacy_pk, projection_version,
+      last_success_revision, target_hash, legacy_hash, readback_status, verified_at
+    ) values ('lease_contracts', v_row.id, 'public.ll_leases', jsonb_build_object('lease_id', v_row.contract_key),
+      'gate6-data-platform-1', v_row.revision, logistics_core.json_sha256(v_expected),
+      logistics_core.json_sha256(v_actual), 'verified', now())
+    on conflict (target_entity, target_id, legacy_table, legacy_pk) do update set
+      last_success_revision = excluded.last_success_revision, target_hash = excluded.target_hash,
+      legacy_hash = excluded.legacy_hash, readback_status = excluded.readback_status,
+      verified_at = excluded.verified_at;
+    v_count := v_count + 1;
+  end loop;
+
+  for v_row in
+    select s.id, s.revision, s.space_key, a.public_key asset_key, s.floor_label,
+      s.zone_label, coalesce(s.leased_area_sqm, cs.allocated_leasable_area_sqm) leased_area_sqm,
+      coalesce(s.exclusive_area_sqm, cs.allocated_exclusive_area_sqm) exclusive_area_sqm,
+      c.contract_key, t.tenant_key
+    from logistics_core.spaces s
+    join logistics_core.assets a on a.id = s.asset_id
+    left join lateral (select x.* from logistics_core.contract_spaces x where x.space_id = s.id
+      order by (x.deleted_at is null) desc, x.effective_from desc nulls last, x.revision desc limit 1) cs on true
+    left join logistics_core.lease_contracts c on c.id = cs.contract_id
+    left join logistics_core.tenants t on t.id = c.tenant_id
+    where s.asset_id = p_asset_id
+  loop
+    v_expected := jsonb_build_object('lease_space_id', v_row.space_key, 'lease_id', v_row.contract_key,
+      'asset_id', v_row.asset_key, 'tenant_id', v_row.tenant_key, 'floor_label', v_row.floor_label,
+      'detail_area_label', v_row.zone_label, 'leased_area_sqm', v_row.leased_area_sqm,
+      'exclusive_area_sqm', v_row.exclusive_area_sqm);
+    select jsonb_build_object('lease_space_id', s.lease_space_id, 'lease_id', s.lease_id,
+      'asset_id', s.asset_id, 'tenant_id', s.tenant_id, 'floor_label', s.floor_label,
+      'detail_area_label', s.detail_area_label, 'leased_area_sqm', s.leased_area_sqm,
+      'exclusive_area_sqm', s.exclusive_area_sqm)
+    into v_actual from public.ll_lease_spaces s where s.lease_space_id = v_row.space_key;
+    if v_actual is null or logistics_core.json_sha256(v_actual) <> logistics_core.json_sha256(v_expected) then
+      raise exception using errcode = 'PT500', message = 'READBACK_MISMATCH';
+    end if;
+    insert into logistics_core.legacy_projection_state (
+      target_entity, target_id, legacy_table, legacy_pk, projection_version,
+      last_success_revision, target_hash, legacy_hash, readback_status, verified_at
+    ) values ('spaces', v_row.id, 'public.ll_lease_spaces', jsonb_build_object('lease_space_id', v_row.space_key),
+      'gate6-data-platform-1', v_row.revision, logistics_core.json_sha256(v_expected),
+      logistics_core.json_sha256(v_actual), 'verified', now())
+    on conflict (target_entity, target_id, legacy_table, legacy_pk) do update set
+      last_success_revision = excluded.last_success_revision, target_hash = excluded.target_hash,
+      legacy_hash = excluded.legacy_hash, readback_status = excluded.readback_status,
+      verified_at = excluded.verified_at;
+    v_count := v_count + 1;
+  end loop;
+
+  for v_row in
+    select rt.id, rt.revision, rt.rent_term_key, s.space_key, c.contract_key,
+      a.public_key asset_key, t.tenant_key, rt.effective_from_month,
+      rt.base_monthly_rent, rt.base_monthly_management_fee, rt.rent_per_pyeong,
+      rt.management_fee_per_pyeong,
+      rt.deleted_at is null and not exists (select 1 from logistics_core.rent_terms newer
+        where newer.contract_space_id = rt.contract_space_id and newer.deleted_at is null
+          and (coalesce(newer.effective_from_month, date '0001-01-01'), newer.revision)
+            > (coalesce(rt.effective_from_month, date '0001-01-01'), rt.revision)) is_latest
+    from logistics_core.rent_terms rt
+    join logistics_core.contract_spaces cs on cs.id = rt.contract_space_id
+    join logistics_core.spaces s on s.id = cs.space_id
+    join logistics_core.lease_contracts c on c.id = cs.contract_id
+    join logistics_core.assets a on a.id = c.asset_id
+    join logistics_core.tenants t on t.id = c.tenant_id
+    where c.asset_id = p_asset_id
+  loop
+    v_expected := jsonb_build_object('rent_history_id', v_row.rent_term_key,
+      'lease_space_id', v_row.space_key, 'lease_id', v_row.contract_key,
+      'asset_id', v_row.asset_key, 'tenant_id', v_row.tenant_key,
+      'effective_date', v_row.effective_from_month, 'monthly_rent_total', v_row.base_monthly_rent,
+      'monthly_mf_total', v_row.base_monthly_management_fee, 'rent_per_py', v_row.rent_per_pyeong,
+      'mf_per_py', v_row.management_fee_per_pyeong, 'is_latest', v_row.is_latest);
+    select jsonb_build_object('rent_history_id', r.rent_history_id,
+      'lease_space_id', r.lease_space_id, 'lease_id', r.lease_id,
+      'asset_id', r.asset_id, 'tenant_id', r.tenant_id,
+      'effective_date', r.effective_date, 'monthly_rent_total', r.monthly_rent_total,
+      'monthly_mf_total', r.monthly_mf_total, 'rent_per_py', r.rent_per_py,
+      'mf_per_py', r.mf_per_py, 'is_latest', r.is_latest)
+    into v_actual from public.ll_rent_history r where r.rent_history_id = v_row.rent_term_key;
+    if v_actual is null or logistics_core.json_sha256(v_actual) <> logistics_core.json_sha256(v_expected) then
+      raise exception using errcode = 'PT500', message = 'READBACK_MISMATCH';
+    end if;
+    insert into logistics_core.legacy_projection_state (
+      target_entity, target_id, legacy_table, legacy_pk, projection_version,
+      last_success_revision, target_hash, legacy_hash, readback_status, verified_at
+    ) values ('rent_terms', v_row.id, 'public.ll_rent_history', jsonb_build_object('rent_history_id', v_row.rent_term_key),
+      'gate6-data-platform-1', v_row.revision, logistics_core.json_sha256(v_expected),
+      logistics_core.json_sha256(v_actual), 'verified', now())
+    on conflict (target_entity, target_id, legacy_table, legacy_pk) do update set
+      last_success_revision = excluded.last_success_revision, target_hash = excluded.target_hash,
+      legacy_hash = excluded.legacy_hash, readback_status = excluded.readback_status,
+      verified_at = excluded.verified_at;
+    v_count := v_count + 1;
+  end loop;
+
+  return v_count;
 end;
 $body$;
 
@@ -379,6 +631,7 @@ declare
   before_row jsonb;
   after_row jsonb;
   changed_count integer := 0;
+  legacy_projection_count integer := 0;
   final_revision bigint := 0;
   response jsonb;
 begin
@@ -801,10 +1054,16 @@ begin
     raise exception using errcode = 'PT500', message = 'READBACK_MISMATCH';
   end if;
 
+  legacy_projection_count := logistics_core.project_rent_roll_to_legacy(resolved_asset_id, actor_id, p_request_id);
+
   response := logistics_core.primary_response(
     p_request_id,
     final_revision,
-    jsonb_build_object('changed_count', changed_count, 'readback', 'verified')
+    jsonb_build_object(
+      'changed_count', changed_count,
+      'legacy_projection_count', legacy_projection_count,
+      'readback', 'verified'
+    )
   );
   perform logistics_core.complete_idempotency(actor_id, 'v2/rent-roll/batch-save', p_request_id, response);
   return response;
@@ -843,11 +1102,12 @@ declare
   waterfall jsonb;
   formula_status text;
   formula_version integer;
-  finance_write_enabled boolean := false;
+  write_status jsonb;
   entry_count bigint := 0;
   latest_revision bigint;
 begin
   perform logistics_core.assert_asset_permission(actor_id, resolved_asset_id, 'read');
+  write_status := logistics_core.actor_write_status(actor_id, resolved_asset_id);
   select asset.public_key into legacy_asset_id
   from logistics_core.assets asset where asset.id = resolved_asset_id;
   if extract(day from from_month) <> 1 or extract(day from to_month) <> 1 or from_month > to_month then
@@ -959,12 +1219,6 @@ begin
   order by definition.version desc
   limit 1;
 
-  select coalesce(flag.v2_write_enabled, false) and route.writer_mode = 'v2'
-  into finance_write_enabled
-  from logistics_core.platform_feature_flags flag
-  left join logistics_core.asset_writer_routes route on route.asset_id = resolved_asset_id
-  where flag.flag_key = 'data_platform_v2';
-
   return logistics_core.primary_response(
     p_request_id,
     latest_revision,
@@ -978,7 +1232,9 @@ begin
       'accounts', accounts,
       'loans', loans,
       'entries', entries,
-      'finance_write_enabled', coalesce(finance_write_enabled, false),
+      'finance_write_enabled', coalesce((write_status->>'write_enabled')::boolean, false),
+      'write_enabled', coalesce((write_status->>'write_enabled')::boolean, false),
+      'write_reason', write_status->>'write_reason',
       'data_status', case when entry_count = 0 then 'not_entered' else 'provided' end,
       'formula_status', coalesce(formula_status, 'draft'),
       'formula_version', coalesce(formula_version, 1),
@@ -1023,6 +1279,8 @@ declare
   v_reason text;
   v_before_row jsonb;
   v_after_row jsonb;
+  v_export_payload jsonb;
+  v_export_readback jsonb;
   v_changed_count integer := 0;
   v_final_revision bigint := 0;
   v_response jsonb;
@@ -1052,6 +1310,16 @@ begin
     end if;
 
     if v_operation_name in ('create', 'update') then
+      if v_operation->'record' ? 'source_ref' then
+        raise exception using errcode = 'PT422', message = 'CLIENT_SOURCE_METADATA_FORBIDDEN';
+      end if;
+      if v_operation->'record' ? 'source_kind' then
+        raise exception using errcode = 'PT422', message = 'CLIENT_SOURCE_METADATA_FORBIDDEN';
+      end if;
+      if v_operation->'record' ? 'data_status' then
+        raise exception using errcode = 'PT422', message = 'CLIENT_SOURCE_METADATA_FORBIDDEN';
+      end if;
+
       v_scenario := nullif(btrim(v_operation->'record'->>'scenario'), '');
       if v_scenario is distinct from 'actual' then
         raise exception using errcode = 'PT422', message = 'FINANCE_ACTUAL_SCENARIO_REQUIRED';
@@ -1101,9 +1369,9 @@ begin
         v_amount,
         coalesce(nullif(v_operation->'record'->>'currency_code', ''), 'KRW'),
         'manual_input',
-        coalesce(nullif(v_operation->'record'->>'source_ref', ''), 'web:' || p_request_id::text),
+        'v2/finance/batch-save:' || p_request_id::text,
         coalesce(nullif(v_operation->'record'->>'source_line_key', ''), v_entry_key),
-        coalesce(nullif(v_operation->'record'->>'data_status', ''), 'provided'),
+        'provided',
         v_actor_id,
         v_actor_id
       ) returning id, revision into v_entity_id, v_current_revision;
@@ -1138,7 +1406,9 @@ begin
             accounting_basis = v_accounting_basis,
             amount = v_amount,
             currency_code = coalesce(nullif(v_operation->'record'->>'currency_code', ''), currency_code),
-            data_status = coalesce(nullif(v_operation->'record'->>'data_status', ''), data_status),
+            source_kind = 'manual_input',
+            source_ref = 'v2/finance/batch-save:' || p_request_id::text,
+            data_status = 'provided',
             updated_by = v_actor_id
         where id = v_entity_id returning revision into v_current_revision;
       end if;
@@ -1147,6 +1417,39 @@ begin
     select to_jsonb(entry) into v_after_row
     from logistics_core.monthly_ledger_entries entry where entry.id = v_entity_id;
     if v_after_row is null then raise exception using errcode = 'PT500', message = 'READBACK_MISMATCH'; end if;
+
+    v_export_payload := jsonb_build_object(
+      'rollback_mode', 'core_retained',
+      'entry', v_after_row,
+      'account_code', coalesce(v_account_code, v_existing_account_code),
+      'client_request_id', p_request_id
+    );
+    insert into logistics_core.rollback_export_state (
+      entity_type, entity_id, asset_id, export_key, export_payload, export_hash,
+      retained_in_core, readback_status, client_request_id, verified_at,
+      created_by, updated_by
+    ) values (
+      'monthly_ledger_entry', v_entity_id, v_asset_id, v_entry_key, v_export_payload,
+      logistics_core.json_sha256(v_export_payload), true, 'verified', p_request_id, now(),
+      v_actor_id, v_actor_id
+    ) on conflict (entity_type, entity_id) do update set
+      asset_id = excluded.asset_id,
+      export_key = excluded.export_key,
+      export_payload = excluded.export_payload,
+      export_hash = excluded.export_hash,
+      retained_in_core = excluded.retained_in_core,
+      readback_status = excluded.readback_status,
+      client_request_id = excluded.client_request_id,
+      verified_at = excluded.verified_at,
+      updated_by = excluded.updated_by;
+
+    select state.export_payload into v_export_readback
+    from logistics_core.rollback_export_state state
+    where state.entity_type = 'monthly_ledger_entry' and state.entity_id = v_entity_id;
+    if v_export_readback is null
+       or logistics_core.json_sha256(v_export_readback) <> logistics_core.json_sha256(v_export_payload) then
+      raise exception using errcode = 'PT500', message = 'READBACK_MISMATCH';
+    end if;
 
     insert into logistics_core.audit_events (
       actor_user_id, action, entity_type, entity_id, asset_id, entity_revision,
@@ -1181,7 +1484,12 @@ begin
   v_response := logistics_core.primary_response(
     p_request_id,
     v_final_revision,
-    jsonb_build_object('changed_count', v_changed_count, 'readback', 'verified', 'derived_subtotals_stored', false)
+    jsonb_build_object(
+      'changed_count', v_changed_count,
+      'readback', 'verified',
+      'rollback_export', 'verified',
+      'derived_subtotals_stored', false
+    )
   );
   perform logistics_core.complete_idempotency(v_actor_id, 'v2/finance/batch-save', p_request_id, v_response);
   return v_response;

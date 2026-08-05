@@ -1,15 +1,18 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
 const routes = read('src/components/system/workspace/logisticsRoutes.js');
 const workspace = read('src/components/system/workspace/WorkspaceLogistics.jsx');
+const platformFeature = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
+const financeSchema = read('src/features/logistics-data-platform/financeSchema.js');
 const feature = [
-  read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx'),
-  read('src/features/logistics-data-platform/financeSchema.js'),
+  platformFeature,
+  financeSchema,
   read('src/features/logistics-data-platform/rentRollSchema.js'),
 ].join('\n');
 const api = read('src/features/logistics-data-platform/api.js');
@@ -50,8 +53,7 @@ assert.match(feature, /다중 붙여넣기/);
 assert.match(feature, /readback/i);
 assert.match(feature, /sessionStorage/);
 assert.doesNotMatch(feature, /(?:localStorage|sessionStorage)[\s\S]{0,120}scenario/iu);
-assert.match(feature, /finance_write_enabled/iu);
-assert.match(feature, /manual_input/iu);
+assert.match(feature, /write_enabled/iu);
 assert.match(feature, /from_month:\s*startMonth/iu);
 assert.match(feature, /to_month:\s*endMonth/iu);
 assert.doesNotMatch(feature, /(?:^|\n)\s*start_month:\s*startMonth/iu);
@@ -110,4 +112,63 @@ for (const label of [
 }
 assert.doesNotMatch(feature, /fallback|stale/i);
 
-console.log('PASS logistics data platform frontend contract');
+assert.match(platformFeature, /function WriteLockNotice/iu);
+assert.match(platformFeature, /resource\.data\?\.write_enabled\s*===\s*true/iu);
+assert.match(platformFeature, /resource\.data\?\.reason/iu);
+assert.match(platformFeature, /testId=["']rent-roll-write-lock["']/iu);
+assert.match(platformFeature, /testId=["']finance-write-lock["']/iu);
+
+for (const testId of [
+  'rent-roll-add',
+  'rent-roll-paste-input',
+  'rent-roll-paste',
+  'rent-roll-save',
+  'rent-roll-archive',
+]) {
+  assert.match(
+    platformFeature,
+    new RegExp(`data-testid=["']${testId}["'][\\s\\S]{0,320}disabled=\\{[^}]*rentRollWriteEnabled`, 'iu'),
+    `${testId} must be disabled by the server rent-roll write policy`,
+  );
+}
+assert.match(
+  platformFeature,
+  /data-testid=["']finance-save["'][\s\S]{0,320}disabled=\{[^}]*financeWriteEnabled/iu,
+  'finance save must be disabled by the server finance write policy',
+);
+
+async function verifyFinanceMutationPayloadContract() {
+  const modulePath = path.resolve(root, 'src', 'features', 'logistics-data-platform', 'financeSchema.js');
+  const finance = await import(`${pathToFileURL(modulePath).href}?contract=${Date.now()}`);
+  assert.equal(typeof finance.financeEntryForSave, 'function', 'financeEntryForSave must sanitize the mutation payload');
+  const entry = finance.financeEntryForSave({
+    _draft_id: 'draft-1',
+    entry_key: 'entry-1',
+    operation: 'update',
+    month: '2026-08',
+    account_code: 'RENT_INCOME',
+    amount: 100,
+    scenario: 'forecast',
+    accounting_basis: 'accrual',
+    reason: 'manual readback row',
+    source_ref: 'server-owned-reference',
+    source_kind: 'manual_input',
+    source_line_key: 'server-owned-line',
+    data_status: 'verified',
+  });
+  for (const serverOwnedField of ['source_ref', 'source_kind', 'source_line_key', 'data_status']) {
+    assert.equal(
+      Object.hasOwn(entry, serverOwnedField),
+      false,
+      `finance mutation must not send server-owned ${serverOwnedField}`,
+    );
+  }
+  assert.equal(entry.scenario, 'actual', 'finance mutation must remain actual-only');
+}
+
+verifyFinanceMutationPayloadContract()
+  .then(() => console.log('PASS logistics data platform frontend contract'))
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

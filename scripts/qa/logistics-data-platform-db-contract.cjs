@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const MIGRATIONS_DIR = path.join(ROOT, 'supabase', 'migrations');
-const MIGRATION_PATTERN = /^20260804\d{6}_logistics_data_platform.*\.sql$/u;
+const MIGRATION_PATTERN = /^2026080[45]\d{6}_logistics_data_platform.*\.sql$/u;
 
 const CORE_TABLES = Object.freeze([
   'assets',
@@ -20,6 +20,7 @@ const CORE_TABLES = Object.freeze([
   'contract_spaces',
   'rent_terms',
   'rent_term_history',
+  'lease_attributes',
   'cashflow_accounts',
   'monthly_ledger_entries',
   'ledger_adjustments',
@@ -38,6 +39,8 @@ const CORE_TABLES = Object.freeze([
   'legacy_projection_state',
   'asset_writer_routes',
   'platform_feature_flags',
+  'platform_pilot_users',
+  'rollback_export_state',
 ]);
 
 const PERMISSION_COLUMNS = Object.freeze([
@@ -96,6 +99,17 @@ function main() {
         /\b(?:drop|truncate)\s+table\s+(?:if\s+exists\s+)?public\.ll_|\balter\s+table\s+public\.ll_|\brename\s+(?:table|column)[\s\S]{0,120}public\.ll_/iu,
         'public.ll_* must never be dropped, truncated, renamed, or altered',
       );
+      requirePattern(
+        source,
+        /alter role authenticator set pgrst\.db_schemas\s*=\s*'public, graphql_public, logistics_api'/iu,
+        'Data API exposes logistics_api while preserving existing schemas',
+      );
+      assert.doesNotMatch(
+        source,
+        /pgrst\.db_schemas\s*=\s*'[^']*logistics_core/iu,
+        'logistics_core must never be exposed through PostgREST',
+      );
+      requirePattern(source, /notify pgrst,\s*'reload config'/iu, 'PostgREST config reload');
       return 'schemas are additive and public.ll_* DDL is absent';
     });
 
@@ -112,6 +126,20 @@ function main() {
       requirePattern(source, /source_tranche_id,\s*source_is_active,\s*name_ko/iu, 'loan active state backfill column');
       requirePattern(source, /nullif\(source_row->>'is_active',\s*''\)::boolean/iu, 'loan active state backfill value');
       requirePattern(source, /repayment_schedule_status[\s\S]{0,80}not_provided/iu, 'missing repayment schedule is explicit');
+      requirePattern(source, /drawdown_date\s+date/iu, 'loan drawdown date');
+      requirePattern(source, /nullif\(source_row->>'drawdown_date',\s*''\)::date/iu, 'loan drawdown source value');
+      const loanBackfill = source.match(/insert into logistics_core\.loans\s*\([\s\S]*?on conflict \(source_tranche_id\)[\s\S]*?;/iu)?.[0] || '';
+      assert.ok(loanBackfill, 'loan backfill block is missing');
+      assert.match(
+        loanBackfill,
+        /nullif\(source_row->>'committed_amount_krw',\s*''\)::numeric,\s*null,\s*nullif\(source_row->>'drawdown_date',\s*''\)::date/iu,
+        'commitment is followed by an explicit unknown outstanding balance and the source drawdown date',
+      );
+      assert.doesNotMatch(
+        loanBackfill,
+        /nullif\(source_row->>'committed_amount_krw',\s*''\)::numeric,\s*nullif\(source_row->>'committed_amount_krw',\s*''\)::numeric/iu,
+        'outstanding must not copy commitment when the source has no outstanding balance',
+      );
       assert.doesNotMatch(source, /create table(?: if not exists)? logistics_core\.loan_repayment/iu);
       assert.doesNotMatch(source, /insert into logistics_core\.monthly_ledger_entries[\s\S]{0,600}(?:loan_schedule|repayment)/iu);
       return 'public.ll_* remains canonical and loan schedules are not synthesized';
@@ -151,6 +179,136 @@ function main() {
       new RegExp(`\\b${column}\\s+boolean\\s+not null`, 'iu'),
       column,
     )));
+
+    check('exactly-three-dynamic-auth-uid-pilots', () => {
+      requirePattern(source, /create table logistics_core\.platform_pilot_users\b/iu, 'pilot allowlist table');
+      requirePattern(source, /user_id\s+uuid\s+primary key\s+references auth\.users\(id\)/iu, 'Auth UUID pilot key');
+      requirePattern(source, /is_active\s+boolean\s+not null/iu, 'active pilot flag');
+      requirePattern(source, /feature_permissions->>'permission_admin'/iu, 'permission_admin candidate source');
+      for (const column of PERMISSION_COLUMNS) {
+        const [scope, operation] = column.split('_');
+        const jsonColumn = scope === 'managed' ? 'managed_asset_permissions' : 'other_asset_permissions';
+        requirePattern(
+          source,
+          new RegExp(`${jsonColumn}->>'${operation}'`, 'iu'),
+          `${column} pilot candidate condition`,
+        );
+      }
+      requirePattern(source, /v_pilot_candidate_count\s*<>\s*3/iu, 'exactly three pilots or migration fails');
+      requirePattern(source, /raise exception[\s\S]{0,180}PILOT_CANDIDATE_COUNT/iu, 'pilot count failure');
+      const pilotBackfill = source.match(/insert into logistics_core\.platform_pilot_users[\s\S]*?on conflict \(user_id\)[\s\S]*?;/iu)?.[0] || '';
+      assert.ok(pilotBackfill, 'pilot backfill block is missing');
+      assert.doesNotMatch(pilotBackfill, /\b(?:email|staff_name)\b/iu, 'pilot selection must not use names or emails');
+      assert.doesNotMatch(pilotBackfill, /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/iu, 'pilot UUIDs must not be hardcoded');
+      const writerGuard = source.match(/create or replace function logistics_core\.assert_v2_writer_route[\s\S]*?\$body\$;/iu)?.[0] || '';
+      assert.match(writerGuard, /auth\.uid\(\)/iu);
+      assert.match(writerGuard, /platform_pilot_users/iu);
+      assert.match(writerGuard, /pilot\.user_id\s*=\s*actor_id[\s\S]{0,120}pilot\.is_active/iu);
+      return 'exactly three active Auth UUID pilots selected from server permissions';
+    });
+
+    check('lease-attributes-lossless-generic-backfill', () => {
+      for (const field of [
+        'source_attribute_id', 'attribute_type', 'attribute_key', 'attribute_label',
+        'value_text', 'value_numeric', 'value_sqm', 'value_py', 'unit_label', 'basis',
+        'provenance', 'source_payload', 'source_row_hash',
+      ]) {
+        requirePattern(source, new RegExp(`\\b${field}\\b`, 'iu'), `generic lease attribute ${field}`);
+      }
+      for (const type of ['area_breakdown', 'space_spec', 'special_term']) {
+        requirePattern(source, new RegExp(`'${type}'`, 'iu'), `supported attribute type ${type}`);
+      }
+      requirePattern(source, /public\.ll_lease_attributes[\s\S]{0,1200}attribute_type\s+not in/iu, 'unsupported attribute type detection');
+      requirePattern(source, /'critical'[\s\S]{0,220}UNSUPPORTED_LEASE_ATTRIBUTE_TYPE/iu, 'unsupported type is critical');
+      requirePattern(source, /on conflict \(source_attribute_id\) do update set/iu, 'attribute source changes update target');
+      assert.doesNotMatch(source, /where[\s\S]{0,180}commencement_date[\s\S]{0,100}is not null[\s\S]{0,300}on conflict \(contract_key\)/iu);
+      requirePattern(source, /commencement_date\s+date[,\n]/iu, 'contract start date is nullable');
+      requirePattern(source, /effective_from\s+date[,\n]/iu, 'contract-space start date is nullable');
+      return 'all legacy attribute values and provenance are retained without date-based contract exclusion';
+    });
+
+    check('invalid-legacy-rent-rows-are-quarantined-not-invented', () => {
+      requirePattern(
+        source,
+        /LEGACY_RENT_ROW_QUARANTINED_MISSING_CONTRACT_SPACE/iu,
+        'invalid legacy rent rows are recorded in the migration exception manifest',
+      );
+      requirePattern(
+        source,
+        /severity[\s\S]{0,240}'warning'/iu,
+        'invalid source rows are explicit non-critical warnings',
+      );
+      requirePattern(
+        source,
+        /source_pk[\s\S]{0,600}'source_row'/iu,
+        'original invalid source payload is retained for review',
+      );
+      requirePattern(
+        source,
+        /actionable rent parity failed/iu,
+        'all source rows with a real contract space must match a core rent term',
+      );
+      return 'unlinked spreadsheet error rows are preserved as warnings without synthetic rent data';
+    });
+
+    check('production-sql-lint-hotfix-is-reproducible', () => {
+      requirePattern(
+        source,
+        /RENT_ROLL_SPACE_PERMISSION_AMBIGUITY_HOTFIX/iu,
+        'rent-roll space permission ambiguity hotfix marker',
+      );
+      requirePattern(
+        source,
+        /existing\.space_key = \(operation->>''space_key''\)/iu,
+        'rent-roll permission lookup uses the operation value explicitly',
+      );
+      requirePattern(
+        source,
+        /alter function logistics_core\.normalize_month\(text\) stable/iu,
+        'normalize_month volatility matches date parsing semantics',
+      );
+      requirePattern(
+        source,
+        /RENT_ROLL_ALLOCATION_SPACE_AMBIGUITY_HOTFIX/iu,
+        'contract-space archive lookup ambiguity hotfix marker',
+      );
+      requirePattern(
+        source,
+        /allocation\.space_id = \(select matched_space\.id[\s\S]{0,360}row_record->>''space_key''/iu,
+        'contract-space archive lookup resolves the saved row by its explicit operation key',
+      );
+      requirePattern(
+        source,
+        /RENT_ROLL_VARIABLE_CONFLICT_POLICY_HOTFIX/iu,
+        'function-local variable conflict policy hotfix marker',
+      );
+      requirePattern(
+        source,
+        /#variable_conflict use_variable/iu,
+        'rent-roll function resolves remaining ambiguous data expressions as local values',
+      );
+      requirePattern(
+        source,
+        /on conflict on constraint lease_contracts_contract_key_key do update/iu,
+        'contract upsert conflict target uses the concrete unique constraint',
+      );
+      return 'production lint findings are repaired by an additive migration';
+    });
+
+    check('major-backfills-update-source-changes', () => {
+      for (const key of [
+        'asset_key', 'fund_key', 'link_key', 'source_tranche_id', 'lender_key',
+        'loan_lender_key', 'tenant_key', 'contract_key', 'space_key',
+        'contract_space_key', 'rent_term_key', 'user_id',
+      ]) {
+        requirePattern(
+          source,
+          new RegExp(`on conflict \\(${key}\\) do update set`, 'iu'),
+          `${key} source change update`,
+        );
+      }
+      return 'rerunning backfill refreshes major source projections';
+    });
 
     check('auth-uid-and-asset-scope', () => [
       requirePattern(source, /auth\.uid\(\)\s+is\s+null/iu, 'explicit unauthenticated rejection'),
@@ -219,6 +377,13 @@ function main() {
       requirePattern(source, /assert_v2_writer_route/iu, 'v2 writer route guard'),
       requirePattern(source, /MAINTENANCE_MODE/iu, 'locked writer error'),
       assert.doesNotMatch(source, /WRITER_ROUTE_LOCKED|WRITER_LOCKED/iu),
+    ]);
+
+    check('finance-rollback-export-is-core-retained', () => [
+      requirePattern(source, /create table logistics_core\.rollback_export_state\b/iu, 'rollback export table'),
+      requirePattern(source, /retained_in_core\s+boolean\s+not null\s+default\s+true/iu, 'core retention flag'),
+      requirePattern(source, /export_payload\s+jsonb\s+not null/iu, 'rollback export payload'),
+      requirePattern(source, /readback_status[\s\S]{0,120}'verified'[\s\S]{0,80}'mismatch'/iu, 'rollback export readback state'),
     ]);
 
     check('base-migration-does-not-expose-core-entry-functions', () => {

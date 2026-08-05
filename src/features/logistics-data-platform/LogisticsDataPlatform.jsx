@@ -16,6 +16,7 @@ import {
 } from './formulas';
 import {
   emptyManualFinanceEntry,
+  financeEntryForSave,
   validateManualFinanceEntries,
 } from './financeSchema';
 import {
@@ -82,6 +83,16 @@ function ErrorNotice({ error }) {
     <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">
       <strong className="font-semibold">운영 데이터 조회 실패</strong>
       <p className="mt-1">{error.message || '요청을 완료하지 못했습니다.'}</p>
+    </div>
+  );
+}
+
+function WriteLockNotice({ visible, reason, testId }) {
+  if (!visible) return null;
+  return (
+    <div data-testid={testId} className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+      <strong className="font-semibold">현재 편집이 잠겨 있습니다.</strong>
+      <p className="mt-1">{String(reason || '서버에서 쓰기 기능을 열기 전까지 조회만 가능합니다.')}</p>
     </div>
   );
 }
@@ -230,6 +241,8 @@ function RentRollPanel({ assetKey }) {
   const [message, setMessage] = useState('');
   const [saveError, setSaveError] = useState(null);
   const [activeColumnGroup, setActiveColumnGroup] = useState('core');
+  const rentRollWriteEnabled = resource.data?.write_enabled === true;
+  const rentRollWriteLockReason = resource.data?.reason;
 
   useEffect(() => {
     const rows = Array.isArray(resource.data?.rows) ? resource.data.rows : [];
@@ -239,21 +252,31 @@ function RentRollPanel({ assetKey }) {
   const validationErrors = useMemo(() => validateUniversalRentRoll(draftRows), [draftRows]);
   const visibleGroup = RENT_ROLL_COLUMN_GROUPS.find((group) => group.key === activeColumnGroup)
     || RENT_ROLL_COLUMN_GROUPS[0];
-  const updateCell = (index, key, value) => setDraftRows((rows) => rows.map((row, rowIndex) => (
-    rowIndex === index ? { ...row, [key]: value } : row
-  )));
-  const addRow = () => setDraftRows((rows) => [...rows, emptyRentRollRow(`new-${Date.now()}`)]);
-  const archiveRow = (index) => setDraftRows((rows) => rows.map((row, rowIndex) => (
-    rowIndex === index ? { ...row, operation: 'delete' } : row
-  )));
+  const updateCell = (index, key, value) => {
+    if (!rentRollWriteEnabled) return;
+    setDraftRows((rows) => rows.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, [key]: value } : row
+    )));
+  };
+  const addRow = () => {
+    if (!rentRollWriteEnabled) return;
+    setDraftRows((rows) => [...rows, emptyRentRollRow(`new-${Date.now()}`)]);
+  };
+  const archiveRow = (index) => {
+    if (!rentRollWriteEnabled) return;
+    setDraftRows((rows) => rows.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, operation: 'delete' } : row
+    )));
+  };
   const pasteRows = () => {
+    if (!rentRollWriteEnabled) return;
     const parsed = parseRentRollClipboard(clipboard);
     if (!parsed.length) return;
     setDraftRows((rows) => [...rows, ...parsed]);
     setClipboard('');
   };
   const save = async () => {
-    if (!assetKey || validationErrors.length) return;
+    if (!assetKey || !rentRollWriteEnabled || validationErrors.length) return;
     setSaving(true);
     setMessage('');
     setSaveError(null);
@@ -281,13 +304,18 @@ function RentRollPanel({ assetKey }) {
     <div className="space-y-5">
       <LoadingLine visible={resource.loading} />
       <ErrorNotice error={resource.error || saveError} />
+      <WriteLockNotice
+        visible={Boolean(resource.data) && !rentRollWriteEnabled}
+        reason={rentRollWriteLockReason}
+        testId="rent-roll-write-lock"
+      />
       <SectionCard
         title="렌트롤 편집"
         description="한 번의 저장 요청은 전체가 함께 반영되거나, 오류가 있으면 전부 취소됩니다. 삭제는 복구 가능한 아카이브로 처리됩니다."
         action={(
           <div className="flex gap-2">
-            <button type="button" onClick={addRow} className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">행 추가</button>
-            <button type="button" onClick={save} disabled={saving || validationErrors.length > 0} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">
+            <button data-testid="rent-roll-add" type="button" onClick={addRow} disabled={!rentRollWriteEnabled} className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">행 추가</button>
+            <button data-testid="rent-roll-save" type="button" onClick={save} disabled={saving || !rentRollWriteEnabled || validationErrors.length > 0} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">
               {saving ? '저장 중' : '변경 저장'}
             </button>
           </div>
@@ -310,14 +338,16 @@ function RentRollPanel({ assetKey }) {
         <p className="mb-4 text-xs leading-5 text-slate-500">{visibleGroup.description}</p>
         <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto]">
           <textarea
+            data-testid="rent-roll-paste-input"
             value={clipboard}
             onChange={(event) => setClipboard(event.target.value)}
+            disabled={!rentRollWriteEnabled}
             rows={2}
             className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-600"
             placeholder="임대상태, 임차인, 용도, 층, 구역, 전용·공용·임대면적, 계약개시·만기, 보증금, 월 임대료, 월 관리비 순서로 붙여넣으세요."
             aria-label="다중 붙여넣기 입력"
           />
-          <button type="button" onClick={pasteRows} className="rounded-xl border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">다중 붙여넣기</button>
+          <button data-testid="rent-roll-paste" type="button" onClick={pasteRows} disabled={!rentRollWriteEnabled} className="rounded-xl border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40">다중 붙여넣기</button>
         </div>
         {validationErrors.length ? (
           <div className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">
@@ -335,18 +365,18 @@ function RentRollPanel({ assetKey }) {
                     {visibleGroup.columns.map((column) => (
                       <td key={column.key} className="border-b border-slate-100 px-2 py-2 align-top">
                         {column.kind === 'select' ? (
-                          <select value={row[column.key] ?? ''} onChange={(event) => updateCell(index, column.key, event.target.value)} disabled={row.operation === 'delete'} className="w-full min-w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 outline-none focus:border-emerald-600">
+                          <select value={row[column.key] ?? ''} onChange={(event) => updateCell(index, column.key, event.target.value)} disabled={!rentRollWriteEnabled || row.operation === 'delete'} className="w-full min-w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 outline-none focus:border-emerald-600 disabled:opacity-60">
                             {column.options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                           </select>
                         ) : column.kind === 'textarea' ? (
-                          <textarea rows={2} value={row[column.key] ?? ''} onChange={(event) => updateCell(index, column.key, event.target.value)} disabled={row.operation === 'delete'} className="w-full min-w-52 resize-y rounded-lg border border-slate-200 bg-white px-2 py-1.5 outline-none focus:border-emerald-600" />
+                          <textarea rows={2} value={row[column.key] ?? ''} onChange={(event) => updateCell(index, column.key, event.target.value)} disabled={!rentRollWriteEnabled || row.operation === 'delete'} className="w-full min-w-52 resize-y rounded-lg border border-slate-200 bg-white px-2 py-1.5 outline-none focus:border-emerald-600 disabled:opacity-60" />
                         ) : (
-                          <input type={column.kind === 'number' ? 'number' : column.kind} step={column.kind === 'number' ? 'any' : undefined} value={row[column.key] ?? ''} onChange={(event) => updateCell(index, column.key, event.target.value)} disabled={row.operation === 'delete'} className="w-full min-w-32 rounded-lg border border-transparent bg-transparent px-2 py-1.5 outline-none hover:border-slate-200 focus:border-emerald-600" />
+                          <input type={column.kind === 'number' ? 'number' : column.kind} step={column.kind === 'number' ? 'any' : undefined} value={row[column.key] ?? ''} onChange={(event) => updateCell(index, column.key, event.target.value)} disabled={!rentRollWriteEnabled || row.operation === 'delete'} className="w-full min-w-32 rounded-lg border border-transparent bg-transparent px-2 py-1.5 outline-none hover:border-slate-200 focus:border-emerald-600 disabled:opacity-60" />
                         )}
                       </td>
                     ))}
                     <td className="sticky right-0 border-b border-slate-100 bg-white px-3 py-2">
-                      {row.operation === 'delete' ? <span className="text-xs font-medium text-rose-700">아카이브 예정</span> : <button type="button" onClick={() => archiveRow(index)} className="text-xs font-medium text-slate-500 hover:text-rose-700">아카이브</button>}
+                      {row.operation === 'delete' ? <span className="text-xs font-medium text-rose-700">아카이브 예정</span> : <button data-testid="rent-roll-archive" type="button" onClick={() => archiveRow(index)} disabled={!rentRollWriteEnabled} className="text-xs font-medium text-slate-500 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-40">아카이브</button>}
                     </td>
                   </tr>
                 ))}
@@ -377,7 +407,8 @@ function FinancePanel({ assetKey }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [message, setMessage] = useState('');
-  const financeWriteEnabled = resource.data?.finance_write_enabled === true;
+  const financeWriteEnabled = resource.data?.write_enabled === true;
+  const financeWriteLockReason = resource.data?.reason;
   const dataStatus = resource.data?.data_status || 'not_entered';
   const formulaStatus = resource.data?.formula_status || 'draft';
   const accounts = useMemo(
@@ -410,11 +441,14 @@ function FinancePanel({ assetKey }) {
   const updateEntry = (index, key, value) => setEntries((rows) => rows.map((row, rowIndex) => (
     rowIndex === index ? { ...row, [key]: value } : row
   )));
-  const addEntry = () => setEntries((rows) => [...rows, emptyManualFinanceEntry({
-    draftId: `finance-${Date.now()}`,
-    month: endMonth,
-    accountingBasis: basis,
-  })]);
+  const addEntry = () => {
+    if (!financeWriteEnabled) return;
+    setEntries((rows) => [...rows, emptyManualFinanceEntry({
+      draftId: `finance-${Date.now()}`,
+      month: endMonth,
+      accountingBasis: basis,
+    })]);
+  };
   const save = async () => {
     if (!financeWriteEnabled || entryErrors.length) return;
     setSaving(true);
@@ -428,13 +462,7 @@ function FinancePanel({ assetKey }) {
         expected_revisions: Object.fromEntries(entries
           .filter((row) => row.entry_key && row.revision)
           .map((row) => [row.entry_key, row.revision])),
-        entries: entries.map((row) => {
-          const { source_kind, source_ref, source_line_key, ...entry } = withoutDraftId(row);
-          void source_kind;
-          void source_ref;
-          void source_line_key;
-          return { ...entry, scenario: 'actual' };
-        }),
+        entries: entries.map(financeEntryForSave),
       });
       setMessage(`저장 후 readback 확인 완료 · revision ${response.revision}`);
       resource.reload();
@@ -450,6 +478,11 @@ function FinancePanel({ assetKey }) {
     <div className="space-y-5">
       <LoadingLine visible={resource.loading} />
       <ErrorNotice error={resource.error || calculationResource.error || saveError} />
+      <WriteLockNotice
+        visible={Boolean(resource.data) && !financeWriteEnabled}
+        reason={financeWriteLockReason}
+        testId="finance-write-lock"
+      />
       <span className="sr-only">{CALCULATION_AUTHORITY}</span>
       {['not_entered', 'not_provided'].includes(dataStatus) ? (
         <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
@@ -468,7 +501,7 @@ function FinancePanel({ assetKey }) {
         <label className="text-xs font-medium text-slate-600">회계 기준<select value={basis} onChange={(event) => setBasis(event.target.value)} className="mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"><option value="accrual">발생</option><option value="cash">현금</option></select></label>
       </div>
       <div className="grid gap-5 xl:grid-cols-[1.45fr_0.75fr]">
-        <SectionCard title="월별 수익·비용·수납 원장" description="담당자가 웹에서 직접 입력한 월별 원자행만 저장합니다. 분기·연도 합계는 저장하지 않고 조회할 때 계산합니다." action={<div className="flex gap-2"><button type="button" onClick={addEntry} disabled={!financeWriteEnabled} className="rounded-xl border border-slate-300 px-3 py-2 text-sm disabled:opacity-40">행 추가</button><button type="button" onClick={save} disabled={saving || !financeWriteEnabled || entryErrors.length > 0} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{saving ? '저장 중' : '변경 저장'}</button></div>}>
+        <SectionCard title="월별 수익·비용·수납 원장" description="담당자가 웹에서 직접 입력한 월별 원자행만 저장합니다. 분기·연도 합계는 저장하지 않고 조회할 때 계산합니다." action={<div className="flex gap-2"><button data-testid="finance-add" type="button" onClick={addEntry} disabled={!financeWriteEnabled} className="rounded-xl border border-slate-300 px-3 py-2 text-sm disabled:opacity-40">행 추가</button><button data-testid="finance-save" type="button" onClick={save} disabled={saving || !financeWriteEnabled || entryErrors.length > 0} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{saving ? '저장 중' : '변경 저장'}</button></div>}>
           {message ? <p className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</p> : null}
           {entryErrors.length ? <div className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">{entryErrors.slice(0, 8).map((error) => <p key={error}>{error}</p>)}</div> : null}
           {entries.length ? (
@@ -480,19 +513,19 @@ function FinancePanel({ assetKey }) {
                     {FINANCE_COLUMNS.map(([key]) => (
                       <td key={key} className="border-b border-slate-100 px-2 py-2">
                         {key === 'account_code' && accounts.length ? (
-                          <select value={row[key] ?? ''} onChange={(event) => updateEntry(index, key, event.target.value)} className="w-full min-w-44 rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-emerald-600">
+                          <select value={row[key] ?? ''} onChange={(event) => updateEntry(index, key, event.target.value)} disabled={!financeWriteEnabled} className="w-full min-w-44 rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-emerald-600 disabled:opacity-60">
                             <option value="">계정 선택</option>
                             {accounts.map((account) => <option key={account.account_code} value={account.account_code}>{account.name_ko}</option>)}
                           </select>
                         ) : key === 'scenario' ? (
                           <input value="actual" disabled className="w-full min-w-24 rounded-lg bg-slate-100 px-2 py-1.5 text-slate-500" />
                         ) : key === 'accounting_basis' ? (
-                          <select value={row[key] || basis} onChange={(event) => updateEntry(index, key, event.target.value)} className="w-full min-w-24 rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-emerald-600">
+                          <select value={row[key] || basis} onChange={(event) => updateEntry(index, key, event.target.value)} disabled={!financeWriteEnabled} className="w-full min-w-24 rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-emerald-600 disabled:opacity-60">
                             <option value="accrual">발생</option>
                             <option value="cash">현금·수납</option>
                           </select>
                         ) : (
-                          <input type={key === 'month' ? 'month' : key === 'amount' ? 'number' : 'text'} value={row[key] ?? ''} onChange={(event) => updateEntry(index, key, event.target.value)} className="w-full min-w-24 rounded-lg border border-transparent px-2 py-1.5 outline-none hover:border-slate-200 focus:border-emerald-600" />
+                          <input type={key === 'month' ? 'month' : key === 'amount' ? 'number' : 'text'} value={row[key] ?? ''} onChange={(event) => updateEntry(index, key, event.target.value)} disabled={!financeWriteEnabled} className="w-full min-w-24 rounded-lg border border-transparent px-2 py-1.5 outline-none hover:border-slate-200 focus:border-emerald-600 disabled:opacity-60" />
                         )}
                       </td>
                     ))}

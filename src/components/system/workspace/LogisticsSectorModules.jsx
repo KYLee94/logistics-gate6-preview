@@ -3641,7 +3641,7 @@ function MarketMapPanel({
       await mountLeafletMap();
       switchingToOsm = false;
     };
-    const startNaverHealthMonitor = (map) => {
+    const startNaverHealthMonitor = () => {
       clearNaverHealthMonitor();
       if (naverHealthVerifiedRef.current && !hasNaverMapAuthFailure(mapCanvasRef.current)) {
         setMapStatus({ status: 'ready', message: mapMessage('Naver Maps') });
@@ -3809,7 +3809,7 @@ function MarketMapPanel({
           if (!cancelled && Number.isFinite(nextZoom)) setMapZoom(nextZoom);
         });
         setMapStatus({ status: 'ready', message: mapMessage('Naver Maps') });
-        startNaverHealthMonitor(map);
+        startNaverHealthMonitor();
         if (createdNaverMap) {
           [80, 260].forEach((delay) => window.setTimeout(() => {
             if (!cancelled && mapProviderRef.current === 'naver' && !forceOsm) {
@@ -3827,7 +3827,7 @@ function MarketMapPanel({
       cancelled = true;
       clearNaverHealthMonitor();
     };
-  }, [markerSignature, selectedMapRegion, forceOsm, isRegionMode, clusterIconHtml, clampRegionClusterMarkers, scheduleRegionClusterClamp]);
+  }, [markerRows, markerSignature, selectedMapRegion, forceOsm, isRegionMode, clusterIconHtml, clampRegionClusterMarkers, scheduleRegionClusterClamp]);
 
   useEffect(() => {
     applyMapDisplayType(mapInstanceRef.current, mapDisplayType);
