@@ -11,7 +11,7 @@
     "check:edge": "npx -y deno@2.8.1 check --node-modules-dir=auto --no-lock supabase/functions/ll-dashboard-api/index.ts supabase/functions/ll-push-notifications/index.ts",
     "qa:v2:release-gate": "node scripts/qa/logistics-data-platform-release-gate.cjs",
     "preview": "vite preview",
-    "predeploy": "npm run build:preview && node -e \"require('fs').rmSync('dist/CNAME',{force:true})\"",
+    "predeploy": "npm run qa:release-env && npm run build:preview && node scripts/qa/logistics-data-platform-preview-env-contract.cjs && node -e \"require('fs').rmSync('dist/CNAME',{force:true})\"",
     "deploy": "gh-pages -d dist -b gh-pages --repo https://github.com/KYLee94/logistics-gate6-preview.git",
     "qa:logistics-jwt-smoke": "node scripts/qa/logistics-dashboard-jwt-smoke.cjs",
     "qa:logistics-primary-parity": "node scripts/qa/logistics-dashboard-primary-parity.cjs",

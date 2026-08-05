@@ -33,7 +33,8 @@ const scripts = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf
 const checks = [
   {
     name: 'VITE_SUPABASE_URL',
-    ok: /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/iu.test(envValue('VITE_SUPABASE_URL', 'LOGISTICS_SUPABASE_URL')),
+    ok: !isPlaceholder(envValue('VITE_SUPABASE_URL', 'LOGISTICS_SUPABASE_URL'))
+      && /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/iu.test(envValue('VITE_SUPABASE_URL', 'LOGISTICS_SUPABASE_URL')),
     detail: 'Supabase URL must be the deployed project URL, not the dummy fallback.',
   },
   {

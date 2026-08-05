@@ -16,6 +16,12 @@ const requiredPackageScripts = Object.freeze({
   'qa:v2:release-gate': 'node scripts/qa/logistics-data-platform-release-gate.cjs',
 });
 
+const requiredPredeployParts = Object.freeze([
+  'npm run qa:release-env',
+  'npm run build:preview',
+  'node scripts/qa/logistics-data-platform-preview-env-contract.cjs',
+]);
+
 const releaseSteps = Object.freeze([
   { id: 'db-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-db-contract.cjs' },
   { id: 'cutover-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-cutover-contract.cjs' },
@@ -85,6 +91,11 @@ function validateReleaseContract() {
     if (expectedCommand && normalizeCommand(scripts[scriptName]) !== normalizeCommand(expectedCommand)) {
       failures.push(`INVALID_PACKAGE_SCRIPT:${scriptName}`);
     }
+  }
+
+  const predeploy = normalizeCommand(scripts.predeploy);
+  for (const requiredPart of requiredPredeployParts) {
+    if (!predeploy.includes(requiredPart)) failures.push(`INVALID_PREDEPLOY_MISSING:${requiredPart}`);
   }
 
   for (const step of releaseSteps) {

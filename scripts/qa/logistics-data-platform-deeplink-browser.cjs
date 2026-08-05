@@ -325,6 +325,12 @@ async function anonymousAuthProbe(browser, baseUrl, route, timeoutMs) {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
+  page.on('requestfailed', (request) => {
+    const errorText = request.failure()?.errorText || 'unknown';
+    if (errorText !== 'net::ERR_ABORTED' && /supabase\.co\/(?:auth|functions)\/v1\//u.test(request.url())) {
+      errors.push(`requestfailed ${errorText} ${request.url().replace(/[?#].*$/u, '')}`);
+    }
+  });
   let report;
   try {
     const directResponse = await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
@@ -382,6 +388,12 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
   page.on('response', (response) => {
     if (response.url().includes('/functions/v1/ll-dashboard-api') && response.status() >= 400) {
       errors.push(`edge ${response.status()} ${response.url()}`);
+    }
+  });
+  page.on('requestfailed', (request) => {
+    const errorText = request.failure()?.errorText || 'unknown';
+    if (errorText !== 'net::ERR_ABORTED' && /supabase\.co\/(?:auth|functions)\/v1\//u.test(request.url())) {
+      errors.push(`requestfailed ${errorText} ${request.url().replace(/[?#].*$/u, '')}`);
     }
   });
   let report;
@@ -442,6 +454,13 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       await page.waitForFunction(() => Boolean(document.querySelector('header select')?.value), null, {
         timeout: timeoutMs,
       });
+      if (route.internalPath.endsWith('/home')) {
+        await page.waitForFunction(() => {
+          const main = document.querySelector('[data-testid="logistics-data-platform"]');
+          const text = main?.innerText || '';
+          return text.includes('자산명') && !text.includes('표시할 데이터가 없습니다.');
+        }, null, { timeout: timeoutMs });
+      }
     }
     const assetSelected = isDataPlatform
       ? Boolean(await dataPlatformMain.locator('[data-testid="data-platform-asset-select"]').inputValue().catch(() => ''))
