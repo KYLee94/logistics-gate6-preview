@@ -232,7 +232,7 @@ function HomePanel({ assetKey, homeResource, maturities }) {
                       ['취득가', asset.acquisition_cost == null ? '—' : `${formatAmount(asset.acquisition_cost)} 원`],
                       ['현재 평가액', asset.current_valuation == null ? '—' : `${formatAmount(asset.current_valuation)} 원`],
                       ...assetFields,
-                    ].map(([label, value]) => <div key={label} className="min-w-0 bg-[#222221] px-3 py-2.5"><dt className="text-[11px] text-[#86868B]">{label}</dt><dd className="mt-1 truncate text-[13px] font-medium text-white" title={valueOrDash(value)}>{valueOrDash(value)}</dd></div>)}
+                    ].map(([label, value], index) => <div key={label} className={`min-w-0 bg-[#222221] px-3 py-2.5 ${index >= 8 ? 'lg:col-span-2' : ''}`}><dt className="text-[11px] text-[#86868B]">{label}</dt><dd className="mt-1 truncate text-[13px] font-medium text-white" title={valueOrDash(value)}>{valueOrDash(value)}</dd></div>)}
                   </dl>
                 </div>
                 <aside data-testid="home-tenant-summary" className="col-span-12 rounded-[12px] border border-[#333333] bg-[#202020] p-4 xl:col-span-4">
@@ -598,6 +598,10 @@ function buildFinanceTableRows(accounts) {
   return rows;
 }
 
+function isPlottableFinanceValue(value) {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
+}
+
 function FinanceTrend({ primaryName, comparisonName, primarySeries, comparisonSeries }) {
   const points = primarySeries.map((item, index) => ({
     period: item.period,
@@ -606,7 +610,7 @@ function FinanceTrend({ primaryName, comparisonName, primarySeries, comparisonSe
     noi: item.net_operating_income,
     comparisonNoi: comparisonSeries[index]?.period === item.period ? comparisonSeries[index]?.net_operating_income : null,
   }));
-  const values = points.flatMap((item) => [item.income, item.expense, item.noi, item.comparisonNoi]).filter((value) => Number.isFinite(Number(value)));
+  const values = points.flatMap((item) => [item.income, item.expense, item.noi, item.comparisonNoi]).filter(isPlottableFinanceValue);
   if (!values.length) return <div data-testid="finance-primary-chart" data-chart="finance-trend"><EmptyText>선택한 기간에 표시할 수익·비용 값이 없습니다.</EmptyText></div>;
   const min = Math.min(0, ...values);
   const max = Math.max(0, ...values);
@@ -618,7 +622,7 @@ function FinanceTrend({ primaryName, comparisonName, primarySeries, comparisonSe
   const x = (index) => plotLeft + ((index + 0.5) * ((plotRight - plotLeft) / Math.max(1, points.length)));
   const y = (value) => plotBottom - (((Number(value) - min) / range) * (plotBottom - plotTop));
   const barWidth = Math.max(4, Math.min(18, ((plotRight - plotLeft) / Math.max(1, points.length)) * 0.28));
-  const pathFor = (key) => points.map((point, index) => Number.isFinite(Number(point[key])) ? `${index === 0 ? 'M' : 'L'} ${x(index)} ${y(point[key])}` : '').filter(Boolean).join(' ');
+  const pathFor = (key) => points.map((point, index) => isPlottableFinanceValue(point[key]) ? `${index === 0 ? 'M' : 'L'} ${x(index)} ${y(point[key])}` : '').filter(Boolean).join(' ');
   const labelStep = Math.max(1, Math.ceil(points.length / 8));
   const ticks = [max, (max + min) / 2, min];
   return (
@@ -628,10 +632,10 @@ function FinanceTrend({ primaryName, comparisonName, primarySeries, comparisonSe
         {ticks.map((tick) => <g key={tick}><line x1={plotLeft} y1={y(tick)} x2={plotRight} y2={y(tick)} stroke="#303033" strokeWidth="1" /><text x={plotLeft - 8} y={y(tick) + 4} textAnchor="end" fill="#77777D" fontSize="10">{formatAmount(tick)}</text></g>)}
         <text x="10" y="14" fill="#77777D" fontSize="10">원</text>
         <line x1={plotLeft} y1={y(0)} x2={plotRight} y2={y(0)} stroke="#4A4A4D" strokeWidth="1" />
-        {points.map((point, index) => <g key={point.period}>{Number.isFinite(Number(point.income)) ? <rect x={x(index) - barWidth - 1} y={y(Math.max(0, point.income))} width={barWidth} height={Math.abs(y(point.income) - y(0))} rx="2" fill="#477CBF"><title>{point.period} · 유효총수입 {formatAmount(point.income)}원</title></rect> : null}{Number.isFinite(Number(point.expense)) ? <rect x={x(index) + 1} y={y(Math.max(0, point.expense))} width={barWidth} height={Math.abs(y(point.expense) - y(0))} rx="2" fill="#56565B"><title>{point.period} · 운영비용 {formatAmount(point.expense)}원</title></rect> : null}{index % labelStep === 0 || index === points.length - 1 ? <text x={x(index)} y="213" textAnchor="middle" fill="#86868B" fontSize="10">{point.period}</text> : null}</g>)}
+        {points.map((point, index) => <g key={point.period}>{isPlottableFinanceValue(point.income) ? <rect x={x(index) - barWidth - 1} y={y(Math.max(0, point.income))} width={barWidth} height={Math.abs(y(point.income) - y(0))} rx="2" fill="#477CBF"><title>{point.period} · 유효총수입 {formatAmount(point.income)}원</title></rect> : null}{isPlottableFinanceValue(point.expense) ? <rect x={x(index) + 1} y={y(Math.max(0, point.expense))} width={barWidth} height={Math.abs(y(point.expense) - y(0))} rx="2" fill="#56565B"><title>{point.period} · 운영비용 {formatAmount(point.expense)}원</title></rect> : null}{index % labelStep === 0 || index === points.length - 1 ? <text x={x(index)} y="213" textAnchor="middle" fill="#86868B" fontSize="10">{point.period}</text> : null}</g>)}
         <path d={pathFor('noi')} fill="none" stroke="#7BD5A0" strokeWidth="2.5" />
         {comparisonName ? <path d={pathFor('comparisonNoi')} fill="none" stroke="#FFB86B" strokeDasharray="7 5" strokeWidth="2" /> : null}
-        {points.map((point, index) => Number.isFinite(Number(point.noi)) ? <circle key={`${point.period}-noi`} cx={x(index)} cy={y(point.noi)} r="3" fill="#7BD5A0"><title>{primaryName} · {point.period} · NOI {formatAmount(point.noi)}원</title></circle> : null)}
+        {points.map((point, index) => isPlottableFinanceValue(point.noi) ? <circle key={`${point.period}-noi`} cx={x(index)} cy={y(point.noi)} r="3" fill="#7BD5A0"><title>{primaryName} · {point.period} · NOI {formatAmount(point.noi)}원</title></circle> : null)}
       </svg>
     </div>
   );

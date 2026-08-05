@@ -458,7 +458,9 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
         await page.waitForFunction(() => {
           const main = document.querySelector('[data-testid="logistics-data-platform"]');
           const text = main?.innerText || '';
-          return text.includes('자산명') && !text.includes('표시할 데이터가 없습니다.');
+          const tenantSummary = main?.querySelector('[data-testid="home-tenant-summary"]');
+          return Boolean(tenantSummary && text.includes('자산 개요') && text.includes('임차인 현황'))
+            && !text.includes('표시할 데이터가 없습니다.');
         }, null, { timeout: timeoutMs });
       }
     }
@@ -474,6 +476,9 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
     const dataPlatformNavVisible = isDataPlatform
       ? await page.locator(`[data-testid="${route.navTestId}"]`).isVisible().catch(() => false)
       : true;
+    const dataPlatformNavItemCount = isDataPlatform
+      ? await page.locator('[data-testid="data-platform-only-nav"] > [data-testid^="data-platform-"]').count().catch(() => 0)
+      : 0;
     const dataPlatformBodyText = isDataPlatform ? await dataPlatformMain.innerText() : '';
     const bannedCopyVisible = isDataPlatform && [
       '물류센터 데이터 관리 플랫폼',
@@ -514,7 +519,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       };
     }
     const darkStyle = isDataPlatform ? await dataPlatformMain.evaluate((main) => {
-      const card = main.querySelector('section');
+      const card = main.querySelector('section:not([data-testid="finance-kpi-strip"])');
       return {
         main_background: getComputedStyle(main).backgroundColor,
         card_background: card ? getComputedStyle(card).backgroundColor : '',
@@ -550,6 +555,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       data_platform_visible: dataPlatformVisible,
       left_nav_visible: leftNavVisible,
       data_platform_nav_visible: dataPlatformNavVisible,
+      data_platform_nav_item_count: dataPlatformNavItemCount,
       banned_copy_visible: bannedCopyVisible,
       header_control_contract: headerControlContract,
       dark_style: darkStyle,
@@ -565,6 +571,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       && report.session_user_preserved
       && leftNavVisible
       && dataPlatformNavVisible
+      && (!isDataPlatform || dataPlatformNavItemCount === 3)
       && !bannedCopyVisible
       && (!isDataPlatform || (!expectWriteEnabled || assetSelected))
       && (isDataPlatform ? !legacyWorkPlatformVisible && dataPlatformVisible : !dataPlatformVisible)

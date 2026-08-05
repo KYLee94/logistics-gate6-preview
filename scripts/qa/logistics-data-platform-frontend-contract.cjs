@@ -132,6 +132,8 @@ for (const financeToken of [
 ]) {
   assert.ok(platformFeature.includes(financeToken), `missing NOI comparison surface: ${financeToken}`);
 }
+assert.match(platformFeature, /function isPlottableFinanceValue/u);
+assert.match(platformFeature, /value\s*!==\s*null[\s\S]{0,120}Number\.isFinite\(Number\(value\)\)/u);
 assert.match(platformFeature, /resource\.reload\(\)/u);
 assert.match(feature, /sessionStorage/);
 assert.doesNotMatch(feature, /(?:localStorage|sessionStorage)[\s\S]{0,120}scenario/iu);
