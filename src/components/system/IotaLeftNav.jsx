@@ -583,11 +583,26 @@ const logisticsRootItem = {
     path: LOGISTICS_INTERNAL_BASE,
     icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 7h18M5 7v10a2 2 0 002 2h10a2 2 0 002-2V7M8 11h8M8 15h5M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2" /></svg>,
 };
-const logisticsDataPlatformItem = {
-    label: '물류센터 데이터 플랫폼',
-    path: LOGISTICS_DATA_PLATFORM_HOME,
-    icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 6c0-1.1 3.6-2 8-2s8 .9 8 2-3.6 2-8 2-8-.9-8-2zm0 0v6c0 1.1 3.6 2 8 2s8-.9 8-2V6m-16 6v6c0 1.1 3.6 2 8 2s8-.9 8-2v-6" /></svg>,
-};
+const logisticsDataPlatformItems = [
+    {
+        label: '홈',
+        path: LOGISTICS_DATA_PLATFORM_HOME,
+        testId: 'data-platform-home-nav',
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 12l9-9 9 9M5 10v10h14V10M9 20v-6h6v6" /></svg>,
+    },
+    {
+        label: '렌트롤',
+        path: `${LOGISTICS_INTERNAL_BASE}/data-platform/rent-roll`,
+        testId: 'data-platform-rent-roll-nav',
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 5h16v14H4zM4 10h16M9 5v14" /></svg>,
+    },
+    {
+        label: '수익·비용',
+        path: `${LOGISTICS_INTERNAL_BASE}/data-platform/income-expense`,
+        testId: 'data-platform-income-expense-nav',
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8V6" /></svg>,
+    },
+];
 const logisticsDashboardItems = [
     {
         label: '대시보드 홈',
@@ -1421,19 +1436,35 @@ export default function IotaLeftNav({ currentPath = '' }) {
                             {renderCollapsedTooltip(logisticsRootItem.label)}
                         </div>
 
-                        <div
-                            data-testid="logistics-data-platform-nav"
-                            title={isCollapsed ? logisticsDataPlatformItem.label : undefined}
-                            draggable={!isCollapsed}
-                            onDragStart={(event) => startQuickTabDrag(event, logisticsDataPlatformItem)}
-                            onClick={() => handleNavigation(logisticsDataPlatformItem.path)}
-                            className={`group relative mt-1 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} rounded-xl py-[7px] cursor-pointer transition-colors duration-200 outline-none select-none ${isDataPlatformActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}
-                        >
-                            <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : ''}`}>
-                                <span className={`text-white ${isCollapsed ? '[&>svg]:mr-0' : ''}`}>{logisticsDataPlatformItem.icon}</span>
-                                <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>{logisticsDataPlatformItem.label}</span>
+                        <div data-testid="logistics-data-platform-nav" className="mt-1">
+                            {!isCollapsed ? (
+                                <div className="px-[7px] pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                                    물류센터 데이터 플랫폼
+                                </div>
+                            ) : null}
+                            <div className="flex flex-col gap-0">
+                                {logisticsDataPlatformItems.map((item) => {
+                                    const isActive = normalizedCurrentPath === item.path;
+                                    return (
+                                        <div
+                                            key={item.path}
+                                            data-testid={item.testId}
+                                            title={isCollapsed ? item.label : undefined}
+                                            draggable={!isCollapsed}
+                                            onDragStart={(event) => startQuickTabDrag(event, item)}
+                                            onClick={() => handleNavigation(item.path)}
+                                            aria-current={isActive ? 'page' : undefined}
+                                            className={`group relative flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} rounded-xl py-[7px] cursor-pointer transition-colors duration-200 outline-none select-none ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : isDataPlatformActive ? 'px-[7px] hover:bg-[#151515]' : 'px-[7px] hover:bg-[#151515]'}`}
+                                        >
+                                            <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : ''}`}>
+                                                <span className={`text-white ${isCollapsed ? '[&>svg]:mr-0' : ''}`}>{item.icon}</span>
+                                                <span className={`overflow-hidden whitespace-nowrap text-[14px] font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isActive ? 'text-white' : 'text-[#D1D1D6]'} ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>{item.label}</span>
+                                            </div>
+                                            {renderCollapsedTooltip(item.label)}
+                                        </div>
+                                    );
+                                })}
                             </div>
-                            {renderCollapsedTooltip(logisticsDataPlatformItem.label)}
                         </div>
 
                         <div

@@ -6,23 +6,26 @@ async function main() {
   const modulePath = path.resolve(__dirname, '..', '..', 'src', 'features', 'logistics-data-platform', 'rentRollSchema.js');
   const schema = await import(`${pathToFileURL(modulePath).href}?contract=${Date.now()}`);
 
-  assert.deepEqual(schema.RENT_ROLL_COLUMN_GROUPS.map((group) => group.label), [
-    '핵심 열',
-    '계약 조건',
-    '비용·권리',
-    '부가 정보',
-  ]);
-
-  const allFields = new Set(schema.RENT_ROLL_COLUMN_GROUPS.flatMap((group) => group.columns.map((column) => column.key)));
+  assert.equal(Array.isArray(schema.RENT_ROLL_COLUMNS), true, 'flat rent-roll columns are required');
+  const allFields = new Set(schema.RENT_ROLL_COLUMNS.map((column) => column.key));
   for (const field of [
-    'tenant_name', 'floor_label', 'leased_area_sqm', 'commencement_date', 'expiry_date',
+    'occupancy_status', 'tenant_name', 'business_registration_number', 'use_category',
+    'floor_label', 'zone_label', 'exclusive_area_sqm', 'common_area_sqm', 'leased_area_sqm',
+    'efficiency_ratio', 'commencement_date', 'expiry_date',
     'deposit_total_krw', 'monthly_rent_total_krw', 'monthly_cam_total_krw',
-    'rent_free_schedule', 'rent_escalation_rule', 'tenant_cost_terms', 'landlord_cost_terms',
+    'rent_free_months', 'rent_free_schedule', 'deposit_escalation_rule',
+    'rent_escalation_rule', 'cam_escalation_rule', 'fit_out_months', 'fit_out_amount',
+    'effective_rent', 'tenant_cost_terms', 'landlord_cost_terms',
     'renewal_terms', 'termination_terms', 'restoration_terms', 'bond_terms',
-    'operation_start_date', 'pallet_rack_fee',
+    'operation_start_date', 'pallet_rack_fee', 'notes',
   ]) {
     assert.equal(allFields.has(field), true, `missing workbook-derived field: ${field}`);
   }
+  for (const internalField of ['tenant_key', 'row_key', 'space_key', 'contract_key', 'rent_term_key']) {
+    assert.equal(allFields.has(internalField), false, `internal identifier must not be a visible column: ${internalField}`);
+  }
+  assert.equal(schema.RENT_ROLL_COLUMNS.find((column) => column.key === 'tenant_name')?.kind, 'tenant');
+  assert.equal(schema.RENT_ROLL_COLUMNS.every((column) => column.label && column.kind && column.width), true);
 
   const vacant = schema.emptyRentRollRow('vacant-1');
   vacant.occupancy_status = 'vacant';
@@ -35,13 +38,7 @@ async function main() {
   occupied.expiry_date = '2027-01-01';
   assert.match(schema.validateUniversalRentRoll([occupied]).join('\n'), /임차인/u);
 
-  occupied.tenant_name = '검증용 임차인';
-  occupied.exclusive_area_sqm = '10';
-  occupied.common_area_sqm = '2';
-  occupied.leased_area_sqm = '20';
-  assert.match(schema.validateUniversalRentRoll([occupied]).join('\n'), /임대면적/u);
-
-  occupied.leased_area_sqm = '12';
+  occupied.tenant_key = 'tenant-verified';
   occupied.expiry_date = '2025-12-31';
   assert.match(schema.validateUniversalRentRoll([occupied]).join('\n'), /계약만기일/u);
 

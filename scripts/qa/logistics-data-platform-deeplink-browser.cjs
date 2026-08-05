@@ -35,24 +35,32 @@ const ROUTES = Object.freeze([
     expectedPublicPath: 'data-platform/home',
     internalPath: 'platform/iotaseoul/workspace/logistics/data-platform/home',
     surface: 'data-platform',
+    expectedTitle: '홈',
+    navTestId: 'data-platform-home-nav',
   },
   {
     key: 'data-platform-home',
     publicPath: 'data-platform/home',
     internalPath: 'platform/iotaseoul/workspace/logistics/data-platform/home',
     surface: 'data-platform',
+    expectedTitle: '홈',
+    navTestId: 'data-platform-home-nav',
   },
   {
     key: 'data-platform-rent-roll',
     publicPath: 'data-platform/rent-roll',
     internalPath: 'platform/iotaseoul/workspace/logistics/data-platform/rent-roll',
     surface: 'data-platform',
+    expectedTitle: '렌트롤',
+    navTestId: 'data-platform-rent-roll-nav',
   },
   {
     key: 'data-platform-income-expense',
     publicPath: 'data-platform/income-expense',
     internalPath: 'platform/iotaseoul/workspace/logistics/data-platform/income-expense',
     surface: 'data-platform',
+    expectedTitle: '수익·비용',
+    navTestId: 'data-platform-income-expense-nav',
   },
 ]);
 
@@ -79,6 +87,12 @@ function flagValue(name, fallback = '') {
 
 function hasFlag(name) {
   return process.argv.includes(`--${name}`);
+}
+
+function routesForScope(dataPlatformOnly = false) {
+  return dataPlatformOnly
+    ? ROUTES.filter((route) => route.surface === 'data-platform')
+    : ROUTES;
 }
 
 function readEnvFile(filePath) {
@@ -385,7 +399,8 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
     await leftNav.waitFor({ state: 'visible', timeout: timeoutMs });
     await expectedSurface.waitFor({ state: 'visible', timeout: timeoutMs });
     if (isDataPlatform) {
-      await page.locator('nav button[aria-current="page"]').waitFor({ state: 'visible', timeout: timeoutMs });
+      await page.locator(`[data-testid="${route.navTestId}"][aria-current="page"]`).waitFor({ state: 'visible', timeout: timeoutMs });
+      await dataPlatformMain.locator('h1').filter({ hasText: route.expectedTitle }).waitFor({ state: 'visible', timeout: timeoutMs });
     }
     const sessionAdoption = await page.evaluate(async ({ accessToken, refreshToken }) => {
       const authClient = window.__SUPABASE_CLIENT__?.auth;
@@ -414,13 +429,13 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
     }
     const directPath = normalizedPathname(page.url());
     const directSelectedTab = isDataPlatform
-      ? await page.locator('nav button[aria-current="page"]').count()
+      ? await page.locator('[data-testid^="data-platform-"][aria-current="page"]').count()
       : 0;
     const refreshResponse = await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
     await leftNav.waitFor({ state: 'visible', timeout: timeoutMs });
     await expectedSurface.waitFor({ state: 'visible', timeout: timeoutMs });
     if (isDataPlatform) {
-      await page.locator('nav button[aria-current="page"]').waitFor({ state: 'visible', timeout: timeoutMs });
+      await page.locator(`[data-testid="${route.navTestId}"][aria-current="page"]`).waitFor({ state: 'visible', timeout: timeoutMs });
     }
     const refreshPath = normalizedPathname(page.url());
     if (expectWriteEnabled && isDataPlatform) {
@@ -429,36 +444,54 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       });
     }
     const assetSelected = isDataPlatform
-      ? Boolean(await dataPlatformMain.locator('header select').inputValue().catch(() => ''))
+      ? Boolean(await dataPlatformMain.locator('[data-testid="data-platform-asset-select"]').inputValue().catch(() => ''))
       : false;
     const assetOptionCount = isDataPlatform
-      ? await dataPlatformMain.locator('header select option').count().catch(() => 0)
+      ? await dataPlatformMain.locator('[data-testid="data-platform-asset-select"] option').count().catch(() => 0)
       : 0;
     const legacyWorkPlatformVisible = await page.locator('[data-work-platform-quick-tabs="true"]').isVisible().catch(() => false);
     const dataPlatformVisible = await dataPlatformMain.isVisible().catch(() => false);
     const leftNavVisible = await leftNav.isVisible().catch(() => false);
-    const dataPlatformNavVisible = await page.locator('[data-testid="logistics-data-platform-nav"]').isVisible().catch(() => false);
+    const dataPlatformNavVisible = isDataPlatform
+      ? await page.locator(`[data-testid="${route.navTestId}"]`).isVisible().catch(() => false)
+      : true;
+    const dataPlatformBodyText = isDataPlatform ? await dataPlatformMain.innerText() : '';
+    const bannedCopyVisible = isDataPlatform && [
+      '물류센터 데이터 관리 플랫폼',
+      'Gate 6',
+      '아직 입력된 수익·비용·수납 자료가 없습니다.',
+      '계산식 승인 전에는 합계 계산만 잠겨 있습니다.',
+      '월별 수익·비용·수납 원장',
+      '기존 대출 원장',
+      '검증이 끝난 핵심 지표가 없습니다.',
+      '핵심 열',
+      '계약 조건',
+      '비용·권리',
+      '부가 정보',
+    ].some((copy) => dataPlatformBodyText.includes(copy));
+    const headerControlContract = isDataPlatform ? {
+      title: await dataPlatformMain.locator('header h1').innerText(),
+      asset_select_count: await dataPlatformMain.locator('header [data-testid="data-platform-asset-select"]').count(),
+      maturity_button_count: await dataPlatformMain.locator('header [data-testid="data-platform-maturity-button"]').count(),
+      top_tab_count: await dataPlatformMain.locator('header nav, header [role="tablist"]').count(),
+    } : null;
     let writeUi = { checked: false };
     if (expectWriteEnabled && isDataPlatform && !route.internalPath.endsWith('/home')) {
-      const addSelector = route.key.endsWith('rent-roll')
+      const writeSelector = route.key.endsWith('rent-roll')
         ? '[data-testid="rent-roll-add"]'
-        : '[data-testid="finance-add"]';
-      const lockSelector = route.key.endsWith('rent-roll')
-        ? '[data-testid="rent-roll-write-lock"]'
-        : '[data-testid="finance-write-lock"]';
-      await page.locator(addSelector).waitFor({ state: 'visible', timeout: timeoutMs });
+        : '[data-testid="finance-save"]';
+      await page.locator(writeSelector).waitFor({ state: 'visible', timeout: timeoutMs });
       await page.waitForFunction(
         (selector) => {
           const element = document.querySelector(selector);
           return Boolean(element && !element.disabled);
         },
-        addSelector,
+        writeSelector,
         { timeout: timeoutMs },
       );
       writeUi = {
         checked: true,
-        add_enabled: await page.locator(addSelector).isEnabled(),
-        lock_visible: await page.locator(lockSelector).isVisible().catch(() => false),
+        write_control_enabled: await page.locator(writeSelector).isEnabled(),
       };
     }
     const darkStyle = isDataPlatform ? await dataPlatformMain.evaluate((main) => {
@@ -498,6 +531,8 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       data_platform_visible: dataPlatformVisible,
       left_nav_visible: leftNavVisible,
       data_platform_nav_visible: dataPlatformNavVisible,
+      banned_copy_visible: bannedCopyVisible,
+      header_control_contract: headerControlContract,
       dark_style: darkStyle,
       write_ui: writeUi,
       screenshot_path: screenshotPath,
@@ -511,6 +546,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       && report.session_user_preserved
       && leftNavVisible
       && dataPlatformNavVisible
+      && !bannedCopyVisible
       && (!isDataPlatform || (!expectWriteEnabled || assetSelected))
       && (isDataPlatform ? !legacyWorkPlatformVisible && dataPlatformVisible : !dataPlatformVisible)
       && (route.surface !== 'legacy-work-platform' || legacyWorkPlatformVisible)
@@ -518,8 +554,12 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
         darkStyle?.main_background === 'rgb(31, 31, 30)'
         && darkStyle?.card_background === 'rgb(37, 37, 36)'
         && darkStyle?.card_border === 'rgb(51, 51, 51)'
+        && headerControlContract?.title === route.expectedTitle
+        && headerControlContract?.asset_select_count === 1
+        && headerControlContract?.maturity_button_count === 1
+        && headerControlContract?.top_tab_count === 0
       ))
-      && (!writeUi.checked || (writeUi.add_enabled && !writeUi.lock_visible))
+      && (!writeUi.checked || writeUi.write_control_enabled)
       && errors.length === 0;
   } catch (error) {
     errors.push(error?.message || String(error));
@@ -547,9 +587,10 @@ function runSelfTest() {
   assert.equal(joinRoute(DEFAULT_LIVE_BASE_URL, ''), DEFAULT_LIVE_BASE_URL);
   assert.equal(normalizedPathname(`${DEFAULT_LIVE_BASE_URL}home/`), '/logistics-gate6-preview/home');
   const legacyRoutes = ROUTES.filter((route) => route.surface !== 'data-platform');
-  const dataPlatformRoutes = ROUTES.filter((route) => route.surface === 'data-platform');
+  const dataPlatformRoutes = routesForScope(true);
   assert.deepEqual(legacyRoutes.map((route) => route.publicPath), ['', 'work-platform', 'home']);
   assert.equal(dataPlatformRoutes.length, 4);
+  assert.equal(routesForScope(false), ROUTES);
   for (const route of dataPlatformRoutes) {
     assert.match(route.internalPath, /\/data-platform\/(?:home|rent-roll|income-expense)$/u);
     assert.match(route.publicPath, /^data-platform(?:\/|$)/u);
@@ -587,6 +628,8 @@ async function main() {
   const baseUrl = normalizeBaseUrl(suppliedBaseUrl || localServer.baseUrl);
   const requireAuthenticated = hasFlag('require-authenticated');
   const expectWriteEnabled = hasFlag('expect-write-enabled');
+  const dataPlatformOnly = hasFlag('data-platform-only');
+  const routesUnderTest = routesForScope(dataPlatformOnly);
   const screenshotDirFlag = flagValue('screenshot-dir');
   const screenshotDir = screenshotDirFlag ? path.resolve(process.cwd(), screenshotDirFlag) : '';
   if (expectWriteEnabled && !requireAuthenticated) {
@@ -598,6 +641,7 @@ async function main() {
     mode,
     base_url: baseUrl,
     expected_base_path: expectedBasePath,
+    route_scope: dataPlatformOnly ? 'data-platform-only' : 'all',
     live_example: DEFAULT_LIVE_BASE_URL,
     authenticated: {
       required: requireAuthenticated,
@@ -620,7 +664,7 @@ async function main() {
       headless: !hasFlag('headed'),
       executablePath: chromeExecutablePath(),
     });
-    for (const route of ROUTES) {
+    for (const route of routesUnderTest) {
       const transport = await transportProbe(browser, baseUrl, expectedBasePath, route, timeoutMs);
       const anonymous = await anonymousAuthProbe(browser, baseUrl, route, timeoutMs);
       const routeReport = {

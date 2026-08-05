@@ -310,6 +310,29 @@ function main() {
       return 'rerunning backfill refreshes major source projections';
     });
 
+    check('ui-projection-uses-human-source-values', () => {
+      requirePattern(source, /LOGISTICS_DATA_PLATFORM_UI_PROJECTION_V2/iu, 'UI projection migration marker');
+      requirePattern(source, /add column if not exists display_order\s+integer/iu, 'rent-roll display order');
+      requirePattern(source, /tenant_master_name/iu, 'human tenant master name source');
+      requirePattern(source, /raw_tenant_name/iu, 'human tenant raw name fallback');
+      requirePattern(source, /missing_master_placeholder[\s\S]{0,360}status\s*=\s*'inactive'/iu, 'unresolved placeholder tenant exclusion');
+      requirePattern(source, /detail_area_label/iu, 'legacy detailed area label');
+      requirePattern(source, /temperature_type/iu, 'legacy temperature use');
+      requirePattern(source, /goods_type/iu, 'legacy goods use');
+      requirePattern(source, /exclusive_ratio/iu, 'legacy exclusive ratio');
+      requirePattern(source, /renewal_option/iu, 'legacy renewal option');
+      requirePattern(source, /early_termination_right/iu, 'legacy termination right');
+      requirePattern(source, /home_read_entry_v1/iu, 'home read compatibility wrapper');
+      requirePattern(source, /rent_roll_read_entry_v1/iu, 'rent-roll read compatibility wrapper');
+      requirePattern(source, /rent_roll_batch_save_entry_v1/iu, 'rent-roll save compatibility wrapper');
+      requirePattern(source, /grant execute on function logistics_api\.rent_roll_batch_save\(uuid, text, jsonb, jsonb\) to authenticated/iu, 'rent-roll authenticated write RPC');
+      requirePattern(source, /grant execute on function logistics_api\.finance_batch_save\(uuid, text, jsonb, jsonb\) to authenticated/iu, 'finance authenticated write RPC');
+      requirePattern(source, /fund_beneficiary_tranches/iu, 'existing investment projection');
+      requirePattern(source, /rent_free_months/iu, 'rent-free projection');
+      requirePattern(source, /jsonb_build_object\(\s*'tenant_key'[\s\S]{0,240}'tenant_name'/iu, 'tenant selector human label');
+      return 'legacy human values, investment detail, and row ordering are projected without new sample data';
+    });
+
     check('auth-uid-and-asset-scope', () => [
       requirePattern(source, /auth\.uid\(\)\s+is\s+null/iu, 'explicit unauthenticated rejection'),
       requirePattern(source, /scope_mode\s+text\s+not null[\s\S]{0,180}(?:listed|all)/iu, 'listed/all managed scope'),

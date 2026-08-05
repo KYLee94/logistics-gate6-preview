@@ -168,6 +168,27 @@ async function main() {
   const maturities = await invoke('v2/maturities/read', auth.token, { asset_key: assetKey });
   assertWriteState('v2/rent-roll/read', rentRoll);
   assertWriteState('v2/finance/read', finance);
+  const rentRows = Array.isArray(rentRoll.data.rows) ? rentRoll.data.rows : [];
+  const selectableTenants = Array.isArray(rentRoll.data.tenants) ? rentRoll.data.tenants : [];
+  const investments = Array.isArray(home.data.investments) ? home.data.investments : [];
+  const maturityRows = Array.isArray(maturities.data.maturities)
+    ? maturities.data.maturities
+    : (Array.isArray(maturities.data.items) ? maturities.data.items : []);
+  assert.equal(
+    rentRows.some((row) => row.tenant_name && row.tenant_name === row.tenant_key),
+    false,
+    'rent-roll exposes an internal tenant identifier as a visible name',
+  );
+  assert.equal(
+    selectableTenants.some((tenant) => tenant.tenant_name && tenant.tenant_name === tenant.tenant_key),
+    false,
+    'tenant selector exposes an unresolved placeholder identifier',
+  );
+  assert.equal(
+    rentRows.every((row) => Number.isFinite(Number(row.display_order))),
+    true,
+    'rent-roll display order is missing',
+  );
 
   const writeEvidence = [];
   if (validateSafeWrites) {
@@ -222,10 +243,12 @@ async function main() {
     counts: {
       readable_assets: assets.length,
       home_funds: home.data.funds?.length || 0,
+      home_investments: investments.length,
       home_loans: home.data.loans?.length || 0,
-      rent_roll_rows: rentRoll.data.rows?.length || 0,
+      rent_roll_rows: rentRows.length,
+      selectable_tenants: selectableTenants.length,
       finance_rows: finance.data.entries?.length || 0,
-      maturities: maturities.data.items?.length || 0,
+      maturities: maturityRows.length,
     },
     write_evidence: writeEvidence,
   }, null, 2)}\n`);
