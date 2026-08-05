@@ -64,9 +64,10 @@ function readEnvFile(filePath) {
     }));
 }
 
+const ENV_ROOT = path.resolve(flagValue('env-root', ROOT));
 const fileEnv = {
-  ...readEnvFile(path.join(ROOT, '.env')),
-  ...readEnvFile(path.join(ROOT, '.env.local')),
+  ...readEnvFile(path.join(ENV_ROOT, '.env')),
+  ...readEnvFile(path.join(ENV_ROOT, '.env.local')),
 };
 
 function envValue(...keys) {
@@ -91,7 +92,10 @@ function normalizeBaseUrl(value) {
 }
 
 function joinRoute(baseUrl, publicPath) {
-  return new URL(String(publicPath || '').replace(/^\//u, ''), normalizeBaseUrl(baseUrl)).toString();
+  const target = new URL(String(publicPath || '').replace(/^\//u, ''), normalizeBaseUrl(baseUrl));
+  const cacheBust = flagValue('cache-bust');
+  if (cacheBust) target.searchParams.set('qa_cache_bust', cacheBust);
+  return target.toString();
 }
 
 function normalizedPathname(value) {
@@ -253,7 +257,14 @@ async function transportProbe(browser, baseUrl, basePath, route, timeoutMs) {
       && String(report.module_source).startsWith(normalizeBasePath(basePath));
   } catch (error) {
     errors.push(error?.message || String(error));
-    report = { ok: false, target_url: targetUrl, errors };
+    report = {
+      ok: false,
+      target_url: targetUrl,
+      current_url: page.url(),
+      body_text: await page.locator('body').innerText().catch(() => ''),
+      asset_option_count: await page.locator('header select option').count().catch(() => 0),
+      errors,
+    };
   } finally {
     await context.close();
   }
@@ -310,7 +321,7 @@ async function anonymousAuthProbe(browser, baseUrl, route, timeoutMs) {
   return report;
 }
 
-async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth) {
+async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expectWriteEnabled) {
   const targetUrl = joinRoute(baseUrl, route.publicPath);
   const expectedPath = normalizedPathname(targetUrl);
   const context = await browser.newContext({
@@ -335,12 +346,67 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth) {
     const main = page.locator('main').first();
     await main.waitFor({ state: 'visible', timeout: timeoutMs });
     await page.locator('nav button[aria-current="page"]').waitFor({ state: 'visible', timeout: timeoutMs });
+    const sessionAdoption = await page.evaluate(async ({ accessToken, refreshToken }) => {
+      const authClient = window.__SUPABASE_CLIENT__?.auth;
+      if (!authClient) return { ok: false, reason: 'supabase_client_unavailable' };
+      if (!refreshToken) {
+        const result = await authClient.getSession();
+        return {
+          ok: Boolean(result?.data?.session?.access_token === accessToken),
+          reason: result?.error?.message || '',
+        };
+      }
+      const result = await authClient.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      return {
+        ok: Boolean(!result?.error && result?.data?.session?.user?.id),
+        reason: result?.error?.message || '',
+      };
+    }, {
+      accessToken: auth.session.access_token,
+      refreshToken: auth.session.refresh_token || '',
+    });
+    if (!sessionAdoption.ok) {
+      throw new Error(`Supabase browser session adoption failed: ${sessionAdoption.reason || 'unknown error'}`);
+    }
     const directPath = normalizedPathname(page.url());
     const directSelectedTab = await page.locator('nav button[aria-current="page"]').count();
     const refreshResponse = await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
     await main.waitFor({ state: 'visible', timeout: timeoutMs });
     await page.locator('nav button[aria-current="page"]').waitFor({ state: 'visible', timeout: timeoutMs });
     const refreshPath = normalizedPathname(page.url());
+    if (expectWriteEnabled) {
+      await page.waitForFunction(() => Boolean(document.querySelector('header select')?.value), null, {
+        timeout: timeoutMs,
+      });
+    }
+    const assetSelected = Boolean(await page.locator('header select').inputValue().catch(() => ''));
+    const assetOptionCount = await page.locator('header select option').count().catch(() => 0);
+    let writeUi = { checked: false };
+    if (expectWriteEnabled && route.key !== 'home') {
+      const addSelector = route.key === 'rent-roll'
+        ? '[data-testid="rent-roll-add"]'
+        : '[data-testid="finance-add"]';
+      const lockSelector = route.key === 'rent-roll'
+        ? '[data-testid="rent-roll-write-lock"]'
+        : '[data-testid="finance-write-lock"]';
+      await page.locator(addSelector).waitFor({ state: 'visible', timeout: timeoutMs });
+      await page.waitForFunction(
+        (selector) => {
+          const element = document.querySelector(selector);
+          return Boolean(element && !element.disabled);
+        },
+        addSelector,
+        { timeout: timeoutMs },
+      );
+      writeUi = {
+        checked: true,
+        add_enabled: await page.locator(addSelector).isEnabled(),
+        lock_visible: await page.locator(lockSelector).isVisible().catch(() => false),
+      };
+    }
     const storedSessionUserId = await page.evaluate(() => {
       try {
         return JSON.parse(sessionStorage.getItem('sb-iota-auth-token') || '{}')?.user?.id || '';
@@ -357,6 +423,10 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth) {
       refresh_status: refreshResponse?.status() || 0,
       refresh_path: refreshPath,
       session_user_preserved: storedSessionUserId === auth.session.user.id,
+      browser_session_adopted: sessionAdoption.ok,
+      asset_selected: assetSelected,
+      asset_option_count: assetOptionCount,
+      write_ui: writeUi,
       errors,
     };
     report.ok = report.direct_status === 200
@@ -365,10 +435,19 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth) {
       && report.refresh_path === expectedPath
       && report.direct_selected_tab_count === 1
       && report.session_user_preserved
+      && (!expectWriteEnabled || assetSelected)
+      && (!writeUi.checked || (writeUi.add_enabled && !writeUi.lock_visible))
       && errors.length === 0;
   } catch (error) {
     errors.push(error?.message || String(error));
-    report = { ok: false, target_url: targetUrl, errors };
+    report = {
+      ok: false,
+      target_url: targetUrl,
+      current_url: page.url(),
+      body_text: await page.locator('body').innerText().catch(() => ''),
+      asset_option_count: await page.locator('header select option').count().catch(() => 0),
+      errors,
+    };
   } finally {
     await context.close();
   }
@@ -414,6 +493,10 @@ async function main() {
   }
   const baseUrl = normalizeBaseUrl(suppliedBaseUrl || localServer.baseUrl);
   const requireAuthenticated = hasFlag('require-authenticated');
+  const expectWriteEnabled = hasFlag('expect-write-enabled');
+  if (expectWriteEnabled && !requireAuthenticated) {
+    throw new Error('--expect-write-enabled requires --require-authenticated.');
+  }
   const report = {
     ok: false,
     generated_at: new Date().toISOString(),
@@ -455,7 +538,14 @@ async function main() {
       };
       report.routes.push(routeReport);
       if (auth) {
-        report.authenticated.routes.push(await authenticatedProbe(browser, baseUrl, route, timeoutMs, auth));
+        report.authenticated.routes.push(await authenticatedProbe(
+          browser,
+          baseUrl,
+          route,
+          timeoutMs,
+          auth,
+          expectWriteEnabled,
+        ));
       }
     }
     if (auth) {

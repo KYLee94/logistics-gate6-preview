@@ -30,15 +30,22 @@ const releaseSteps = Object.freeze([
     target: 'scripts/qa/logistics-data-platform-deeplink-browser.cjs',
     args: ['--self-test'],
   },
+  { id: 'release-env-preflight', kind: 'node', target: 'scripts/qa/logistics-release-env-preflight.cjs' },
   { id: 'lint', kind: 'npm', target: 'lint' },
   { id: 'edge-type-check', kind: 'npm', target: 'check:edge' },
-  { id: 'preview-build', kind: 'npm', target: 'build:preview' },
+  { id: 'preview-build', kind: 'npm', target: 'build:preview', dependsOn: ['release-env-preflight'] },
+  {
+    id: 'preview-env-contract',
+    kind: 'node',
+    target: 'scripts/qa/logistics-data-platform-preview-env-contract.cjs',
+    dependsOn: ['preview-build'],
+  },
   {
     id: 'deeplink-browser-local',
     kind: 'node',
     target: 'scripts/qa/logistics-data-platform-deeplink-browser.cjs',
     args: [],
-    dependsOn: ['preview-build'],
+    dependsOn: ['preview-env-contract'],
   },
 ]);
 
@@ -54,7 +61,7 @@ const requiredLocalBrowserSteps = Object.freeze([
     kind: 'node',
     target: 'scripts/qa/logistics-data-platform-deeplink-browser.cjs',
     args: [],
-    dependsOn: ['preview-build'],
+    dependsOn: ['preview-env-contract'],
   },
 ]);
 
@@ -104,8 +111,12 @@ function validateReleaseContract() {
   }
 
   const previewBuildIndex = releaseSteps.findIndex((step) => step.id === 'preview-build');
+  const previewEnvIndex = releaseSteps.findIndex((step) => step.id === 'preview-env-contract');
   const localBrowserIndex = releaseSteps.findIndex((step) => step.id === 'deeplink-browser-local');
-  if (localBrowserIndex !== -1 && localBrowserIndex <= previewBuildIndex) {
+  if (previewEnvIndex !== -1 && previewEnvIndex <= previewBuildIndex) {
+    failures.push('INVALID_PREVIEW_ENV_ORDER:preview-env-contract');
+  }
+  if (localBrowserIndex !== -1 && localBrowserIndex <= previewEnvIndex) {
     failures.push('INVALID_LOCAL_BROWSER_ORDER:deeplink-browser-local');
   }
 
