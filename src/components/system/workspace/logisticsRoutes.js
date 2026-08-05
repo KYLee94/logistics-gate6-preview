@@ -3,10 +3,12 @@ export const LOGISTICS_DEPLOY_BASE = 'logistics-gate6-preview';
 export const LOGISTICS_DATA_PLATFORM_HOME = `${LOGISTICS_INTERNAL_BASE}/data-platform/home`;
 
 export const LOGISTICS_ROUTE_BY_KEY = {
-  'work-platform': LOGISTICS_DATA_PLATFORM_HOME,
-  home: LOGISTICS_DATA_PLATFORM_HOME,
-  'rent-roll': `${LOGISTICS_INTERNAL_BASE}/data-platform/rent-roll`,
-  'income-expense': `${LOGISTICS_INTERNAL_BASE}/data-platform/income-expense`,
+  'work-platform': LOGISTICS_INTERNAL_BASE,
+  home: `${LOGISTICS_INTERNAL_BASE}/dashboard/home`,
+  'data-platform': LOGISTICS_DATA_PLATFORM_HOME,
+  'data-platform/home': LOGISTICS_DATA_PLATFORM_HOME,
+  'data-platform/rent-roll': `${LOGISTICS_INTERNAL_BASE}/data-platform/rent-roll`,
+  'data-platform/income-expense': `${LOGISTICS_INTERNAL_BASE}/data-platform/income-expense`,
   'legacy-dashboard-home': `${LOGISTICS_INTERNAL_BASE}/dashboard/home`,
   asset: `${LOGISTICS_INTERNAL_BASE}/dashboard/asset`,
   company: `${LOGISTICS_INTERNAL_BASE}/dashboard/company`,
@@ -38,19 +40,20 @@ export const LOGISTICS_ROUTE_KEY_BY_INTERNAL = Object.fromEntries(
   Object.entries(LOGISTICS_ROUTE_BY_KEY).map(([key, value]) => [value, key]),
 );
 LOGISTICS_ROUTE_KEY_BY_INTERNAL[LOGISTICS_ROUTE_BY_KEY['market-data/source-update']] = 'market-data/source-update';
+LOGISTICS_ROUTE_KEY_BY_INTERNAL[LOGISTICS_ROUTE_BY_KEY.home] = 'home';
 
 export function normalizeLogisticsPath(path = '') {
   let clean = String(path || '').replace(/^\/+|\/+$/g, '');
-  if (clean === LOGISTICS_DEPLOY_BASE) return LOGISTICS_DATA_PLATFORM_HOME;
+  if (clean === LOGISTICS_DEPLOY_BASE) return LOGISTICS_INTERNAL_BASE;
   if (clean.startsWith(`${LOGISTICS_DEPLOY_BASE}/`)) {
     clean = clean.slice(LOGISTICS_DEPLOY_BASE.length + 1);
   }
-  if (!clean || clean === LOGISTICS_INTERNAL_BASE) return LOGISTICS_DATA_PLATFORM_HOME;
+  if (!clean || clean === LOGISTICS_INTERNAL_BASE) return LOGISTICS_INTERNAL_BASE;
   if (clean === 'work-platform/archive' || clean === `${LOGISTICS_INTERNAL_BASE}/archive`) {
     return LOGISTICS_INTERNAL_BASE;
   }
   if (LOGISTICS_ROUTE_BY_KEY[clean]) return LOGISTICS_ROUTE_BY_KEY[clean];
-  if (clean === 'logistics-gate6-preview') return LOGISTICS_DATA_PLATFORM_HOME;
+  if (clean === 'logistics-gate6-preview') return LOGISTICS_INTERNAL_BASE;
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/weekly`)) return LOGISTICS_ROUTE_BY_KEY['legacy-dashboard-home'];
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/contracts`)) return LOGISTICS_ROUTE_BY_KEY['contract-data'];
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/data-playground`)) return LOGISTICS_ROUTE_BY_KEY['data-playground'];

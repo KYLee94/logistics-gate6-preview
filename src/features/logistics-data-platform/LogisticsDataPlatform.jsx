@@ -81,7 +81,7 @@ function withoutDraftId(row) {
 function ErrorNotice({ error }) {
   if (!error) return null;
   return (
-    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">
+    <div className="rounded-[14px] border border-[#6B3A3A] bg-[#351F1F] px-4 py-3 text-sm text-[#FFB4B4]" role="alert">
       <strong className="font-semibold">운영 데이터 조회 실패</strong>
       <p className="mt-1">{error.message || '요청을 완료하지 못했습니다.'}</p>
     </div>
@@ -91,7 +91,7 @@ function ErrorNotice({ error }) {
 function WriteLockNotice({ visible, reason, testId }) {
   if (!visible) return null;
   return (
-    <div data-testid={testId} className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+    <div data-testid={testId} className="rounded-[14px] border border-[#66552D] bg-[#332B19] px-4 py-3 text-sm text-[#FFD166]" role="status">
       <strong className="font-semibold">현재 편집이 잠겨 있습니다.</strong>
       <p className="mt-1">{String(reason || '서버에서 쓰기 기능을 열기 전까지 조회만 가능합니다.')}</p>
     </div>
@@ -100,12 +100,12 @@ function WriteLockNotice({ visible, reason, testId }) {
 
 function LoadingLine({ visible }) {
   if (!visible) return null;
-  return <div className="h-1 w-full animate-pulse rounded-full bg-emerald-500" aria-label="데이터를 불러오는 중" />;
+  return <div className="h-1 w-full animate-pulse rounded-full bg-[#5E9EFF]" aria-label="데이터를 불러오는 중" />;
 }
 
 function EmptyState({ children }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">
+    <div className="rounded-[14px] border border-dashed border-[#3A3A3C] bg-[#1F1F1E] px-6 py-12 text-center text-sm text-[#86868B]">
       {children}
     </div>
   );
@@ -113,11 +113,11 @@ function EmptyState({ children }) {
 
 function SectionCard({ title, description, children, action = null }) {
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-slate-950">{title}</h2>
-          {description ? <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p> : null}
+          <h2 className="text-base font-semibold text-white">{title}</h2>
+          {description ? <p className="mt-1 text-xs leading-5 text-[#A1A1AA]">{description}</p> : null}
         </div>
         {action}
       </div>
@@ -142,9 +142,9 @@ function HomePanel({ assetKey, homeResource, maturities }) {
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {kpis.length ? kpis.map((kpi) => (
-              <div key={kpi.key || kpi.label} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p className="text-xs font-medium text-slate-500">{valueOrDash(kpi.label)}</p>
-                <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+              <div key={kpi.key || kpi.label} className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+                <p className="text-xs font-medium text-[#A1A1AA]">{valueOrDash(kpi.label)}</p>
+                <p className="mt-3 text-2xl font-semibold tracking-tight text-white">
                   {valueOrDash(kpi.display_value ?? kpi.value)}
                 </p>
                 <p className="mt-2 text-xs text-slate-400">출처: {valueOrDash(kpi.source_label)}</p>
@@ -596,18 +596,18 @@ export default function LogisticsDataPlatform({ currentPath = '' }) {
   };
 
   return (
-    <main data-testid="logistics-data-platform" className="min-h-screen bg-slate-100 text-slate-950">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-[1680px] px-5 py-5 lg:px-8">
+    <main data-testid="logistics-data-platform" className="logistics-data-platform min-h-full bg-[#1F1F1E] text-[#E5E5E5]">
+      <header className="border-b border-[#333333] bg-[#1F1F1E]">
+        <div className="mx-auto max-w-[1480px] px-8 py-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Gate 6</p>
-              <h1 className="mt-1 text-xl font-semibold tracking-tight">물류센터 데이터 관리 플랫폼</h1>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5E9EFF]">Gate 6</p>
+              <h1 className="mt-1 text-[28px] font-semibold tracking-tight text-white">물류센터 데이터 관리 플랫폼</h1>
             </div>
             <div className="relative flex flex-wrap items-end justify-end gap-2">
-              <label className="flex min-w-64 flex-col gap-1 text-xs font-medium text-slate-500">
+              <label className="flex min-w-64 flex-col gap-1 text-xs font-medium text-[#A1A1AA]">
                 담당 자산
-                <select value={assetKey} onChange={(event) => setAssetKey(event.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none focus:border-emerald-600">
+                <select value={assetKey} onChange={(event) => setAssetKey(event.target.value)} className="rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 py-2 text-sm font-medium text-white outline-none focus:border-[#5E9EFF]">
                   {!assets.length ? <option value="">조회 가능한 자산 없음</option> : null}
                   {assets.map((asset) => <option key={asset.asset_key} value={asset.asset_key}>{asset.name_ko || asset.asset_code}</option>)}
                 </select>
@@ -616,7 +616,7 @@ export default function LogisticsDataPlatform({ currentPath = '' }) {
                 data-testid="data-platform-maturity-button"
                 type="button"
                 onClick={() => setOpenUtility((current) => (current === 'maturities' ? '' : 'maturities'))}
-                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-emerald-600 hover:text-emerald-800"
+                className="rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 py-2 text-sm font-semibold text-[#D1D1D6] hover:border-[#5E9EFF] hover:text-white"
                 aria-expanded={openUtility === 'maturities'}
                 aria-haspopup="dialog"
               >
@@ -626,7 +626,7 @@ export default function LogisticsDataPlatform({ currentPath = '' }) {
                 data-testid="data-platform-account-button"
                 type="button"
                 onClick={() => setOpenUtility((current) => (current === 'account' ? '' : 'account'))}
-                className="rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                className="rounded-[8px] border border-[#2C66A2] bg-[#17314E] px-3 py-2 text-sm font-semibold text-[#9AD7FF] hover:bg-[#1D4168]"
                 aria-expanded={openUtility === 'account'}
                 aria-haspopup="dialog"
               >
@@ -676,12 +676,12 @@ export default function LogisticsDataPlatform({ currentPath = '' }) {
           </div>
           <nav className="mt-5 flex gap-1" aria-label="데이터 관리 주요 탭">
             {TABS.map((tab) => (
-              <button key={tab.key} type="button" onClick={() => navigate(tab.key)} className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${activeTab === tab.key ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`} aria-current={activeTab === tab.key ? 'page' : undefined}>{tab.label}</button>
+              <button key={tab.key} type="button" onClick={() => navigate(tab.key)} className={`rounded-[8px] border px-4 py-2 text-sm font-semibold transition ${activeTab === tab.key ? 'border-[#3A3A3C] bg-[#151515] text-white' : 'border-transparent text-[#A1A1AA] hover:border-[#333333] hover:bg-[#252524] hover:text-white'}`} aria-current={activeTab === tab.key ? 'page' : undefined}>{tab.label}</button>
             ))}
           </nav>
         </div>
       </header>
-      <div className="mx-auto max-w-[1680px] px-5 py-6 lg:px-8">
+      <div className="mx-auto max-w-[1480px] px-8 py-6">
         {activeTab === 'home' ? <HomePanel key={`home-${assetKey}`} assetKey={assetKey} homeResource={homeResource} maturities={maturities} /> : null}
         {activeTab === 'rent-roll' ? <RentRollPanel key={`rent-roll-${assetKey}`} assetKey={assetKey} /> : null}
         {activeTab === 'income-expense' ? <FinancePanel key={`income-expense-${assetKey}`} assetKey={assetKey} /> : null}

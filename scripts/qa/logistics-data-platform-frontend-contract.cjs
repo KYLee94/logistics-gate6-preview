@@ -9,6 +9,7 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 const routes = read('src/components/system/workspace/logisticsRoutes.js');
 const workspace = read('src/components/system/workspace/WorkspaceLogistics.jsx');
 const platformCore = read('src/components/system/PlatformCore.jsx');
+const leftNav = read('src/components/system/IotaLeftNav.jsx');
 const platformFeature = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
 const financeSchema = read('src/features/logistics-data-platform/financeSchema.js');
 const feature = [
@@ -20,11 +21,12 @@ const api = read('src/features/logistics-data-platform/api.js');
 const formulas = read('src/features/logistics-data-platform/formulas.js');
 const pagesFallback = read('scripts/build/write-github-pages-fallback.cjs');
 
-for (const route of ['home', 'rent-roll', 'income-expense']) {
+for (const route of ['data-platform', 'data-platform/home', 'data-platform/rent-roll', 'data-platform/income-expense']) {
   assert.ok(
-    routes.includes(`${route}: \`\${LOGISTICS_INTERNAL_BASE}/data-platform/${route}\``)
-      || routes.includes(`'${route}': \`\${LOGISTICS_INTERNAL_BASE}/data-platform/${route}\``)
-      || (route === 'home' && routes.includes('home: LOGISTICS_DATA_PLATFORM_HOME')),
+    routes.includes(`${route}: LOGISTICS_DATA_PLATFORM_HOME`)
+      || routes.includes(`'${route}': LOGISTICS_DATA_PLATFORM_HOME`)
+      || routes.includes(`${route}: \`\${LOGISTICS_INTERNAL_BASE}/${route}\``)
+      || routes.includes(`'${route}': \`\${LOGISTICS_INTERNAL_BASE}/${route}\``),
     `missing public route: ${route}`,
   );
   assert.ok(pagesFallback.includes(`'${route}'`), `missing GitHub Pages deep-link fallback: ${route}`);
@@ -32,8 +34,11 @@ for (const route of ['home', 'rent-roll', 'income-expense']) {
 assert.match(routes, /legacy-dashboard-home/);
 assert.match(workspace, /LogisticsDataPlatform/);
 assert.match(workspace, /WorkspaceLogisticsExisting/);
-assert.match(platformCore, /isLogisticsDataPlatform/);
-assert.match(platformCore, /!isLogisticsDataPlatform\s*\?/);
+assert.doesNotMatch(platformCore, /isLogisticsDataPlatform/);
+assert.match(platformCore, /<IotaLeftNav[\s\S]*currentPath=\{currentPath\}/);
+assert.match(leftNav, /물류센터 데이터 플랫폼/u);
+assert.match(leftNav, /data-testid=["']logistics-data-platform-nav["']/u);
+assert.match(leftNav, /LOGISTICS_DATA_PLATFORM_HOME/u);
 
 for (const action of [
   'v2/home/read',
@@ -117,13 +122,15 @@ for (const label of [
 assert.doesNotMatch(feature, /fallback|stale/i);
 
 assert.match(platformFeature, /function WriteLockNotice/iu);
-assert.match(platformFeature, /useAuth/iu);
-for (const testId of [
-  'data-platform-maturity-button',
-  'data-platform-account-button',
-  'data-platform-sign-out',
+for (const token of [
+  'logistics-data-platform',
+  'bg-[#1F1F1E]',
+  'bg-[#252524]',
+  'border-[#333333]',
+  'rounded-[20px]',
+  'text-[#A1A1AA]',
 ]) {
-  assert.match(platformFeature, new RegExp(`data-testid=["']${testId}["']`, 'iu'));
+  assert.ok(platformFeature.includes(token), `new data platform must reuse existing Gate 6 style token: ${token}`);
 }
 assert.match(platformFeature, /resource\.data\?\.write_enabled\s*===\s*true/iu);
 assert.match(platformFeature, /resource\.data\?\.reason/iu);
@@ -181,7 +188,7 @@ async function verifyFinanceMutationPayloadContract() {
 async function verifyRootRouteContract() {
   const modulePath = path.resolve(root, 'src', 'components', 'system', 'workspace', 'logisticsRoutes.js');
   const routeModule = await import(`${pathToFileURL(modulePath).href}?contract=${Date.now()}`);
-  const expectedHome = routeModule.LOGISTICS_ROUTE_BY_KEY.home;
+  const expectedLegacyRoot = routeModule.LOGISTICS_INTERNAL_BASE;
   for (const rootPath of [
     '',
     routeModule.LOGISTICS_DEPLOY_BASE,
@@ -190,16 +197,32 @@ async function verifyRootRouteContract() {
   ]) {
     assert.equal(
       routeModule.normalizeLogisticsPath(rootPath),
-      expectedHome,
-      `${rootPath || '(empty root)'} must open the new data-platform home`,
+      expectedLegacyRoot,
+      `${rootPath || '(empty root)'} must preserve the existing work platform`,
     );
-    assert.equal(routeModule.publicLogisticsPath(rootPath), 'home');
   }
-  for (const publicPath of ['home', 'rent-roll', 'income-expense']) {
+  assert.equal(routeModule.publicLogisticsPath(routeModule.LOGISTICS_INTERNAL_BASE), 'work-platform');
+  assert.equal(
+    routeModule.normalizeLogisticsPath('home'),
+    `${routeModule.LOGISTICS_INTERNAL_BASE}/dashboard/home`,
+    'existing /home must preserve the legacy dashboard home',
+  );
+  assert.equal(
+    routeModule.publicLogisticsPath(`${routeModule.LOGISTICS_INTERNAL_BASE}/dashboard/home`),
+    'home',
+  );
+  const canonicalDataRoutes = {
+    'data-platform/home': routeModule.LOGISTICS_DATA_PLATFORM_HOME,
+    'data-platform/rent-roll': `${routeModule.LOGISTICS_INTERNAL_BASE}/data-platform/rent-roll`,
+    'data-platform/income-expense': `${routeModule.LOGISTICS_INTERNAL_BASE}/data-platform/income-expense`,
+  };
+  assert.equal(routeModule.normalizeLogisticsPath('data-platform'), routeModule.LOGISTICS_DATA_PLATFORM_HOME);
+  for (const [publicPath, internalPath] of Object.entries(canonicalDataRoutes)) {
+    assert.equal(routeModule.normalizeLogisticsPath(publicPath), internalPath);
     assert.equal(
-      routeModule.publicLogisticsPath(routeModule.LOGISTICS_ROUTE_BY_KEY[publicPath]),
+      routeModule.publicLogisticsPath(internalPath),
       publicPath,
-      `${publicPath} must retain a stable public route`,
+      `${publicPath} must retain a stable separate public route`,
     );
   }
 }

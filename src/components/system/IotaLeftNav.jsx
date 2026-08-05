@@ -11,7 +11,7 @@ import {
     subscribeLogisticsPushNotifications,
     unsubscribeLogisticsPushNotifications,
 } from '../../utils/logisticsPushNotifications';
-import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './workspace/logisticsRoutes';
+import { LOGISTICS_DATA_PLATFORM_HOME, LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './workspace/logisticsRoutes';
 import UserAvatar from './UserAvatar';
 
 const menuItems = [
@@ -582,6 +582,11 @@ const logisticsRootItem = {
     label: '플랫폼 홈',
     path: LOGISTICS_INTERNAL_BASE,
     icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 7h18M5 7v10a2 2 0 002 2h10a2 2 0 002-2V7M8 11h8M8 15h5M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2" /></svg>,
+};
+const logisticsDataPlatformItem = {
+    label: '물류센터 데이터 플랫폼',
+    path: LOGISTICS_DATA_PLATFORM_HOME,
+    icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 6c0-1.1 3.6-2 8-2s8 .9 8 2-3.6 2-8 2-8-.9-8-2zm0 0v6c0 1.1 3.6 2 8 2s8-.9 8-2V6m-16 6v6c0 1.1 3.6 2 8 2s8-.9 8-2v-6" /></svg>,
 };
 const logisticsDashboardItems = [
     {
@@ -1387,11 +1392,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
         const visibleDataManagementItems = logisticsDataManagementItems.filter(canDisplayItem);
         const visibleStandaloneItems = logisticsStandaloneItems;
         const isWorkPlatformActive = normalizedCurrentPath === logisticsRootItem.path;
+        const isDataPlatformActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/data-platform/`);
         const isDashboardActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard`);
         const isMarketDataActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/market-data`);
         const isDataManagementActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/data-management`);
         return (
-            <div className={`${isCollapsed ? 'w-[72px]' : 'w-[275px]'} h-full overflow-hidden bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] print:hidden`}>
+            <div data-testid="logistics-left-nav" className={`${isCollapsed ? 'w-[72px]' : 'w-[275px]'} h-full overflow-hidden bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] print:hidden`}>
                 <div className={`w-full flex items-center ${isCollapsed ? 'justify-center px-[10px]' : 'justify-between px-[15px]'} pt-[14px] pb-4`}>
                     <span className={`overflow-hidden whitespace-nowrap font-bold text-[18px] font-inter ml-[5px] text-white transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[230px] translate-x-0 opacity-100'}`}>IGIS Logistics Platform</span>
                     <button type="button" onClick={() => setIsCollapsed((value) => !value)} title={isCollapsed ? '사이드바 펼치기' : '사이드바 접기'} className="text-[#86868B] hover:text-white pb-1 transition-colors cursor-pointer mt-[4px]">
@@ -1413,6 +1419,21 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                 <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>{logisticsRootItem.label}</span>
                             </div>
                             {renderCollapsedTooltip(logisticsRootItem.label)}
+                        </div>
+
+                        <div
+                            data-testid="logistics-data-platform-nav"
+                            title={isCollapsed ? logisticsDataPlatformItem.label : undefined}
+                            draggable={!isCollapsed}
+                            onDragStart={(event) => startQuickTabDrag(event, logisticsDataPlatformItem)}
+                            onClick={() => handleNavigation(logisticsDataPlatformItem.path)}
+                            className={`group relative mt-1 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} rounded-xl py-[7px] cursor-pointer transition-colors duration-200 outline-none select-none ${isDataPlatformActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}
+                        >
+                            <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : ''}`}>
+                                <span className={`text-white ${isCollapsed ? '[&>svg]:mr-0' : ''}`}>{logisticsDataPlatformItem.icon}</span>
+                                <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>{logisticsDataPlatformItem.label}</span>
+                            </div>
+                            {renderCollapsedTooltip(logisticsDataPlatformItem.label)}
                         </div>
 
                         <div

@@ -658,3 +658,109 @@ html[lang="kr"] .font-light {
 [data-market-filter-block="true"] [data-market-filter-control="search"] {
     min-width: 0;
 }
+
+/* Gate 6 data platform: reuse the existing logistics dark design system without changing legacy screens. */
+.logistics-data-platform .bg-white,
+.logistics-data-platform .bg-slate-50 {
+    background-color: #252524 !important;
+}
+
+.logistics-data-platform .bg-slate-100,
+.logistics-data-platform .bg-slate-950 {
+    background-color: #1F1F1E !important;
+}
+
+.logistics-data-platform .border-slate-100,
+.logistics-data-platform .border-slate-200,
+.logistics-data-platform .border-slate-300 {
+    border-color: #333333 !important;
+}
+
+.logistics-data-platform .text-slate-950,
+.logistics-data-platform .text-slate-900,
+.logistics-data-platform .text-slate-800 {
+    color: #FFFFFF !important;
+}
+
+.logistics-data-platform .text-slate-700,
+.logistics-data-platform .text-slate-600 {
+    color: #D1D1D6 !important;
+}
+
+.logistics-data-platform .text-slate-500,
+.logistics-data-platform .text-slate-400 {
+    color: #A1A1AA !important;
+}
+
+.logistics-data-platform input,
+.logistics-data-platform select,
+.logistics-data-platform textarea {
+    border-color: #3A3A3C !important;
+    background-color: #1F1F1E !important;
+    color: #FFFFFF !important;
+    border-radius: 8px !important;
+    color-scheme: dark;
+}
+
+.logistics-data-platform input::placeholder,
+.logistics-data-platform textarea::placeholder {
+    color: #6E6E73 !important;
+}
+
+.logistics-data-platform option {
+    background-color: #252524;
+    color: #FFFFFF;
+}
+
+.logistics-data-platform table thead,
+.logistics-data-platform table thead .bg-slate-50 {
+    background-color: #191918 !important;
+    color: #8E8E93 !important;
+}
+
+.logistics-data-platform table tbody tr {
+    border-color: #333333;
+}
+
+.logistics-data-platform table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.035);
+}
+
+.logistics-data-platform .bg-emerald-700,
+.logistics-data-platform .bg-emerald-800 {
+    border: 1px solid #2C66A2 !important;
+    background-color: #17314E !important;
+    color: #9AD7FF !important;
+}
+
+.logistics-data-platform .bg-emerald-50 {
+    background-color: #173522 !important;
+}
+
+.logistics-data-platform .text-emerald-950,
+.logistics-data-platform .text-emerald-900,
+.logistics-data-platform .text-emerald-800,
+.logistics-data-platform .text-emerald-700 {
+    color: #B5E48C !important;
+}
+
+.logistics-data-platform .bg-amber-50 {
+    background-color: #332B19 !important;
+}
+
+.logistics-data-platform .text-amber-900 {
+    color: #FFD166 !important;
+}
+
+.logistics-data-platform .bg-rose-50 {
+    background-color: #351F1F !important;
+}
+
+.logistics-data-platform .text-rose-800,
+.logistics-data-platform .text-rose-700 {
+    color: #FFB4B4 !important;
+}
+
+.logistics-data-platform .shadow-sm {
+    box-shadow: none !important;
+}
