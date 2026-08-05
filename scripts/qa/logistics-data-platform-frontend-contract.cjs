@@ -147,6 +147,13 @@ for (const testId of ['rent-roll-add', 'rent-roll-paste', 'rent-roll-save', 'ren
     `${testId} must be disabled by the server rent-roll write policy`,
   );
 }
+assert.match(platformFeature, /showValidationErrors/iu);
+assert.match(platformFeature, /if \(validationErrors\.length\) \{\s*setShowValidationErrors\(true\)/iu);
+assert.doesNotMatch(
+  platformFeature,
+  /data-testid=["']rent-roll-save["'][\s\S]{0,420}disabled=\{[^}]*validationErrors/iu,
+  'rent-roll validation errors must be shown on save instead of disabling save on initial load',
+);
 assert.match(
   platformFeature,
   /data-testid=["']finance-save["'][\s\S]{0,420}disabled=\{[^}]*financeWriteEnabled/iu,

@@ -310,6 +310,7 @@ function RentRollPanel({ assetKey }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [saveError, setSaveError] = useState(null);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
   const rentRollWriteEnabled = resource.data?.write_enabled === true;
   const rentRollWriteLockReason = resource.data?.write_reason;
   const tenants = useMemo(() => (Array.isArray(resource.data?.tenants) ? resource.data.tenants : []), [resource.data?.tenants]);
@@ -322,6 +323,7 @@ function RentRollPanel({ assetKey }) {
       : sortRentRollRows(rows, DEFAULT_RENT_ROLL_SORT);
     setDraftRows(ordered.map((row, index) => ({ ...row, display_order: index + 1, operation: 'update' })));
     setSortConfig(hasPersistedOrder ? null : DEFAULT_RENT_ROLL_SORT);
+    setShowValidationErrors(false);
   }, [resource.data]);
 
   const validationErrors = useMemo(() => validateUniversalRentRoll(draftRows), [draftRows]);
@@ -376,7 +378,11 @@ function RentRollPanel({ assetKey }) {
     setSortConfig(null);
   };
   const save = async () => {
-    if (!assetKey || !rentRollWriteEnabled || validationErrors.length) return;
+    if (!assetKey || !rentRollWriteEnabled) return;
+    if (validationErrors.length) {
+      setShowValidationErrors(true);
+      return;
+    }
     setSaving(true);
     setMessage('');
     setSaveError(null);
@@ -389,6 +395,7 @@ function RentRollPanel({ assetKey }) {
         rows: draftRows.map(withoutDraftId),
       });
       setMessage(`저장 완료 · revision ${response.revision}`);
+      setShowValidationErrors(false);
       resource.reload();
     } catch (error) {
       setSaveError(error);
@@ -404,7 +411,7 @@ function RentRollPanel({ assetKey }) {
       <ErrorNotice error={resource.error || saveError} />
       <SectionCard
         title="렌트롤"
-        action={<div className="flex flex-wrap items-center gap-2"><button data-testid="rent-roll-add" type="button" onClick={addRow} disabled={!rentRollWriteEnabled} className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-sm text-white disabled:opacity-35">행 추가</button><button data-testid="rent-roll-save" type="button" onClick={save} disabled={saving || !rentRollWriteEnabled || validationErrors.length > 0} className="rounded-[8px] border border-[#2C66A2] bg-[#17314E] px-4 py-2 text-sm font-semibold text-[#9AD7FF] disabled:opacity-35">{saving ? '저장 중' : '변경 저장'}</button></div>}
+        action={<div className="flex flex-wrap items-center gap-2"><button data-testid="rent-roll-add" type="button" onClick={addRow} disabled={!rentRollWriteEnabled} className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-sm text-white disabled:opacity-35">행 추가</button><button data-testid="rent-roll-save" type="button" onClick={save} disabled={saving || !rentRollWriteEnabled} className="rounded-[8px] border border-[#2C66A2] bg-[#17314E] px-4 py-2 text-sm font-semibold text-[#9AD7FF] disabled:opacity-35">{saving ? '저장 중' : '변경 저장'}</button></div>}
       >
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <textarea data-testid="rent-roll-paste-input" value={clipboard} onChange={(event) => setClipboard(event.target.value)} disabled={!rentRollWriteEnabled} rows={1} className="min-w-[320px] flex-1 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 py-2 text-sm text-white outline-none focus:border-[#5E9EFF]" placeholder="엑셀 행을 그대로 붙여넣으세요." />
@@ -412,7 +419,7 @@ function RentRollPanel({ assetKey }) {
           <span className="text-xs text-[#86868B]">{draftRows.filter((row) => row.operation !== 'delete').length}행</span>
         </div>
         {!rentRollWriteEnabled && rentRollWriteLockReason ? <p className="mb-3 text-xs text-[#86868B]">{rentRollWriteLockReason}</p> : null}
-        {validationErrors.length ? <div className="mb-3 text-xs leading-5 text-[#FFB4B4]">{validationErrors.slice(0, 8).map((error) => <p key={error}>{error}</p>)}</div> : null}
+        {showValidationErrors && validationErrors.length ? <div className="mb-3 text-xs leading-5 text-[#FFB4B4]">{validationErrors.slice(0, 8).map((error) => <p key={error}>{error}</p>)}</div> : null}
         {message ? <p className="mb-3 text-xs text-[#8FD3A7]">{message}</p> : null}
         {draftRows.length ? (
           <div className="max-h-[calc(100vh-230px)] overflow-auto rounded-[12px] border border-[#333333]">
