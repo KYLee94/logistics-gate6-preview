@@ -396,8 +396,10 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
   const page = await context.newPage();
   const errors = [];
   const edgeActions = [];
+  let documentRequestCount = 0;
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('request', (request) => {
+    if (request.resourceType() === 'document') documentRequestCount += 1;
     if (!request.url().includes('/functions/v1/ll-dashboard-api')) return;
     try {
       const body = request.postDataJSON();
@@ -525,6 +527,57 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       };
       await page.locator('[data-testid="logistics-login-history-close"]').click();
       await loginHistoryModal.waitFor({ state: 'hidden', timeout: timeoutMs });
+    }
+    let returnFocusUi = { checked: false };
+    if (isDataPlatform && route.key === 'root') {
+      await page.evaluate(() => {
+        window.__gate6ReturnFocusProbe = {
+          authResolvingSeen: false,
+          visibilityChanges: 0,
+        };
+        const inspect = () => {
+          if (document.querySelector('[data-testid="logistics-auth-resolving"]')) {
+            window.__gate6ReturnFocusProbe.authResolvingSeen = true;
+          }
+        };
+        const observer = new MutationObserver(inspect);
+        observer.observe(document, { childList: true, subtree: true });
+        document.addEventListener('visibilitychange', () => {
+          window.__gate6ReturnFocusProbe.visibilityChanges += 1;
+          inspect();
+        });
+        window.__gate6ReturnFocusObserver = observer;
+        inspect();
+      });
+      const expectedReturnUrl = page.url();
+      const documentRequestsBeforeReturn = documentRequestCount;
+      const siblingPage = await context.newPage();
+      await siblingPage.goto('about:blank');
+      await siblingPage.bringToFront();
+      await page.waitForTimeout(300);
+      await page.bringToFront();
+      // Headless Chromium does not consistently emit visibilitychange when
+      // bringToFront swaps tabs. Dispatch the same visible-return event that
+      // the application receives in a real browser so the revalidation path
+      // is exercised deterministically.
+      await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+      await page.waitForTimeout(1250);
+      returnFocusUi = await page.evaluate(({ expectedUrl, requestDelta }) => {
+        window.__gate6ReturnFocusObserver?.disconnect();
+        return {
+          checked: true,
+          return_event_dispatched: true,
+          visibility_change_count: window.__gate6ReturnFocusProbe?.visibilityChanges || 0,
+          auth_resolving_ever_seen: Boolean(window.__gate6ReturnFocusProbe?.authResolvingSeen),
+          data_platform_visible: Boolean(document.querySelector('[data-testid="logistics-data-platform"]')),
+          url_preserved: window.location.href === expectedUrl,
+          document_request_count: requestDelta,
+        };
+      }, {
+        expectedUrl: expectedReturnUrl,
+        requestDelta: documentRequestCount - documentRequestsBeforeReturn,
+      });
+      await siblingPage.close();
     }
     const dataPlatformBodyText = isDataPlatform ? await dataPlatformMain.innerText() : '';
     const bannedCopyVisible = isDataPlatform && [
@@ -658,6 +711,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       dark_style: darkStyle,
       write_ui: writeUi,
       login_history_ui: loginHistoryUi,
+      return_focus_ui: returnFocusUi,
       finance_trend_hover: financeTrendHover,
       home_brief_ui: homeBriefUi,
       rent_roll_draft: rentRollDraft,
@@ -689,6 +743,14 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
         && headerControlContract?.top_tab_count === 0
       ))
       && (!loginHistoryUi.checked || (loginHistoryUi.button_visible && loginHistoryUi.modal_visible))
+      && (!returnFocusUi.checked || (
+        returnFocusUi.return_event_dispatched
+        && returnFocusUi.visibility_change_count >= 1
+        && !returnFocusUi.auth_resolving_ever_seen
+        && returnFocusUi.data_platform_visible
+        && returnFocusUi.url_preserved
+        && returnFocusUi.document_request_count === 0
+      ))
       && (!financeTrendHover.checked || (financeTrendHover.tooltip_visible && financeTrendHover.tooltip_text.length > 0))
       && (!homeBriefUi.checked || (homeBriefUi.visible && homeBriefUi.legacy_grid_count === 0 && !homeBriefUi.horizontal_overflow))
       && (!rentRollDraft.checked || (!rentRollDraft.popup_visible && rentRollDraft.save_request_count === 0))

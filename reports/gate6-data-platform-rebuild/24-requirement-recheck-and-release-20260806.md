@@ -81,4 +81,5 @@
 - 로그인·창 복귀 회귀: 4/4 통과
 - ESLint, Edge Type Check, preview build, 환경 계약: 통과
 - 로컬 전체 deep link 직접 접근·새로고침: 통과
+- 운영 로그인 브라우저 복귀 이벤트: 로딩 화면 0회, document 재요청 0건, URL·데이터 플랫폼 화면 유지
 - 운영 Supabase 만기 trigger: 3개 설치, source projection drift 0, 활성 만기 111건 확인
