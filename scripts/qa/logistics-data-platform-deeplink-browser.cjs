@@ -395,7 +395,18 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
   }, { session: auth.session });
   const page = await context.newPage();
   const errors = [];
+  const edgeActions = [];
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
+  page.on('request', (request) => {
+    if (!request.url().includes('/functions/v1/ll-dashboard-api')) return;
+    try {
+      const body = request.postDataJSON();
+      if (body?.action) edgeActions.push(String(body.action));
+    } catch {
+      // Some browser retries do not retain a JSON body. Response errors are
+      // still collected below, so an unreadable request body is not a failure.
+    }
+  });
   page.on('response', (response) => {
     if (response.url().includes('/functions/v1/ll-dashboard-api') && response.status() >= 400) {
       errors.push(`edge ${response.status()} ${response.url()}`);
@@ -478,8 +489,9 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
         await page.waitForFunction(() => {
           const main = document.querySelector('[data-testid="logistics-data-platform"]');
           const text = main?.innerText || '';
-          const tenantSummary = main?.querySelector('[data-testid="home-tenant-summary"]');
-          return Boolean(tenantSummary && text.includes('자산 개요') && text.includes('임차 현황'))
+          const assetBrief = main?.querySelector('[data-testid="home-asset-brief"]');
+          const leaseOperations = main?.querySelector('[data-testid="home-lease-operations"]');
+          return Boolean(assetBrief && leaseOperations && text.includes('자산 브리프') && text.includes('임대 운영'))
             && !text.includes('표시할 데이터가 없습니다.');
         }, null, { timeout: timeoutMs });
       }
@@ -568,6 +580,38 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       await dataPlatformMain.locator('header h1').hover();
       await tooltip.waitFor({ state: 'hidden', timeout: timeoutMs });
     }
+    let homeBriefUi = { checked: false };
+    if (isDataPlatform && route.internalPath.endsWith('/home')) {
+      const brief = page.locator('[data-testid="home-asset-brief"]');
+      homeBriefUi = await brief.evaluate((element) => ({
+        checked: true,
+        visible: Boolean(element.offsetWidth && element.offsetHeight),
+        legacy_grid_count: document.querySelectorAll('[data-testid="home-asset-overview-grid"], [data-testid="home-tenant-summary"]').length,
+        horizontal_overflow: element.scrollWidth > element.clientWidth + 1,
+        tenant_name_count: element.querySelectorAll('[data-testid="home-tenant-operations"] li').length,
+      }));
+    }
+    let rentRollDraft = { checked: false };
+    if (expectWriteEnabled && isDataPlatform && route.internalPath.endsWith('/rent-roll')) {
+      const tenantInput = page.locator('[data-draft-field="tenant_name"]').first();
+      await tenantInput.waitFor({ state: 'visible', timeout: timeoutMs });
+      const originalValue = await tenantInput.inputValue();
+      const saveCountBefore = edgeActions.filter((action) => action === 'v2/rent-roll/batch-save').length;
+      await tenantInput.fill(`${originalValue} `);
+      await tenantInput.fill(originalValue);
+      await page.waitForTimeout(750);
+      const saveCountAfter = edgeActions.filter((action) => action === 'v2/rent-roll/batch-save').length;
+      rentRollDraft = {
+        checked: true,
+        popup_visible: await page.locator('[data-testid="data-platform-error-dialog"]').isVisible().catch(() => false),
+        save_request_count: saveCountAfter - saveCountBefore,
+      };
+      await page.evaluate(() => {
+        Object.keys(sessionStorage)
+          .filter((key) => key.startsWith('gate6-rent-roll-draft-'))
+          .forEach((key) => sessionStorage.removeItem(key));
+      });
+    }
     const darkStyle = isDataPlatform ? await dataPlatformMain.evaluate((main) => {
       const card = main.querySelector('section:not([data-testid="finance-kpi-strip"])');
       return {
@@ -615,6 +659,8 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       write_ui: writeUi,
       login_history_ui: loginHistoryUi,
       finance_trend_hover: financeTrendHover,
+      home_brief_ui: homeBriefUi,
+      rent_roll_draft: rentRollDraft,
       screenshot_path: screenshotPath,
       errors,
     };
@@ -644,6 +690,8 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       ))
       && (!loginHistoryUi.checked || (loginHistoryUi.button_visible && loginHistoryUi.modal_visible))
       && (!financeTrendHover.checked || (financeTrendHover.tooltip_visible && financeTrendHover.tooltip_text.length > 0))
+      && (!homeBriefUi.checked || (homeBriefUi.visible && homeBriefUi.legacy_grid_count === 0 && !homeBriefUi.horizontal_overflow))
+      && (!rentRollDraft.checked || (!rentRollDraft.popup_visible && rentRollDraft.save_request_count === 0))
       && (!writeUi.checked || writeUi.write_control_enabled)
       && errors.length === 0;
   } catch (error) {

@@ -16,7 +16,7 @@ const AUTH_INITIALIZATION_WARNING_MS = 15 * 1000;
 const LOGISTICS_EMAIL_ALIASES = { '10524@igisam.com': 'kylee@igisam.com' };
 const LOGISTICS_LOCAL_AUTH_KEY = 'logistics_preview_auth';
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'wheel'];
-const RETURN_REVALIDATION_THROTTLE_MS = 1000;
+const RETURN_REVALIDATION_THROTTLE_MS = 5 * 60 * 1000;
 
 const deferAuthStateWork = (work) => {
     window.setTimeout(() => {
@@ -291,20 +291,21 @@ export function AuthProvider({ children }) {
                     }
 
                     if (session?.user) {
+                        const shouldBlockForPermissions = !hasVerifiedMemberForSession(session);
                         setUser(session.user);
-                        if (!hasVerifiedMemberForSession(session)) {
+                        if (shouldBlockForPermissions) {
                             clearVerifiedMemberInfo();
                         }
                         if (event === 'SIGNED_IN') {
                             sessionStorage.setItem('iota_last_activity', Date.now().toString());
                         }
-                        setPermissionsLoading(true);
+                        if (shouldBlockForPermissions) setPermissionsLoading(true);
                         setLoading(false);
                         deferAuthStateWork(async () => {
                             const isCurrent = () => mounted && authStateVersion === currentVersion;
                             if (!isCurrent()) return;
                             await fetchMemberInfo(session, isCurrent);
-                            if (isCurrent()) setPermissionsLoading(false);
+                            if (isCurrent() && shouldBlockForPermissions) setPermissionsLoading(false);
                         });
                     } else {
                         returnRevalidationAbortRef.current?.abort();
@@ -333,8 +334,8 @@ export function AuthProvider({ children }) {
             authStateVersion = currentVersion;
             const controller = new AbortController();
             returnRevalidationAbortRef.current = controller;
-            setPermissionsLoading(true);
             const isCurrent = () => mounted && authStateVersion === currentVersion;
+            let shouldBlockForPermissions = false;
             try {
                 const session = await ensureFreshSupabaseSession({
                     force: true,
@@ -349,7 +350,9 @@ export function AuthProvider({ children }) {
                     return false;
                 }
                 if (!isCurrent()) return false;
-                if (!hasVerifiedMemberForSession(session)) {
+                shouldBlockForPermissions = !hasVerifiedMemberForSession(session);
+                if (shouldBlockForPermissions) {
+                    setPermissionsLoading(true);
                     clearVerifiedMemberInfo();
                 }
                 setUser(session.user);
@@ -362,7 +365,7 @@ export function AuthProvider({ children }) {
                 return false;
             } finally {
                 if (returnRevalidationAbortRef.current === controller) returnRevalidationAbortRef.current = null;
-                if (isCurrent()) setPermissionsLoading(false);
+                if (isCurrent() && shouldBlockForPermissions) setPermissionsLoading(false);
             }
         };
         const queueReturnRevalidation = createReturnRevalidationGate(revalidateAfterReturn, {
@@ -371,9 +374,6 @@ export function AuthProvider({ children }) {
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') void queueReturnRevalidation();
         };
-        const handleWindowFocus = () => void queueReturnRevalidation();
-        window.addEventListener('focus', handleWindowFocus);
-        window.addEventListener('pageshow', handleWindowFocus);
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
@@ -381,8 +381,6 @@ export function AuthProvider({ children }) {
             returnRevalidationAbortRef.current?.abort();
             returnRevalidationAbortRef.current = null;
             subscription?.unsubscribe();
-            window.removeEventListener('focus', handleWindowFocus);
-            window.removeEventListener('pageshow', handleWindowFocus);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [clearVerifiedMemberInfo, fetchMemberInfo, handleSignOut, hasVerifiedMemberForSession, setRecoveryMode]);

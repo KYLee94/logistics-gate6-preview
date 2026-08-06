@@ -206,6 +206,276 @@ function HomeValue({ editing, value, type = "text", onChange, align = "left", ar
   );
 }
 
+const HOME_ASSET_BRIEF_SECTIONS = Object.freeze([
+  {
+    key: "basic",
+    title: "기본정보",
+    fields: [
+      { key: "asset_code", label: "자산 코드", type: "text" },
+      { key: "sector", label: "섹터", type: "text" },
+      { key: "floor_count", label: "층수", type: "text" },
+      { key: "currency_code", label: "기준 통화", type: "text" },
+    ],
+  },
+  {
+    key: "area",
+    title: "면적",
+    fields: [
+      { key: "land_area_sqm", label: "대지면적", type: "number", format: "area" },
+      { key: "gross_area_sqm", label: "연면적", type: "number", format: "area" },
+      { key: "leasable_area_sqm", label: "임대가능면적", type: "number", format: "area" },
+    ],
+  },
+  {
+    key: "management",
+    title: "담당 · 가치",
+    fields: [
+      { key: "manager_name", label: "담당자", type: "text" },
+      { key: "manager_team", label: "담당팀", type: "text" },
+      { key: "acquisition_cost", label: "취득가", type: "number", format: "currency" },
+      { key: "current_valuation", label: "현재 평가액", type: "number", format: "currency" },
+    ],
+  },
+]);
+
+function AssetBrief({
+  asset,
+  editing,
+  saveState,
+  writeEnabled,
+  onEdit,
+  onCancel,
+  onSave,
+  onAssetChange,
+  occupancyRate,
+  tenantSummaries,
+  occupiedRows,
+  plannedRows,
+  vacantRows,
+  occupiedArea,
+  monthlyRent,
+  monthlyCam,
+  averageEnoc,
+}) {
+  const occupancyPercent = occupancyRate == null
+    ? null
+    : Number(Math.max(0, Math.min(100, occupancyRate)).toFixed(1));
+  const operatingRows = [
+    ["임차인", `${tenantSummaries.length}개사`],
+    ["점유 공간", `${occupiedRows.length}개`],
+    ["공실 공간", `${vacantRows.length}개`],
+    ["입주 예정", `${plannedRows.length}개`],
+    ["임대면적", area(occupiedArea)],
+    ["월 임대료", `${amount(monthlyRent)}원`],
+    ["월 관리비", `${amount(monthlyCam)}원`],
+    ["평균 E.NOC/평", averageEnoc == null ? "—" : `${amount(averageEnoc)}원`],
+  ];
+
+  return (
+    <section
+      data-testid="home-asset-brief"
+      aria-labelledby="home-asset-brief-title"
+      className="overflow-hidden rounded-[18px] border border-[#333333] bg-[#252524]"
+    >
+      <header
+        data-testid="home-asset-brief-masthead"
+        className="flex flex-col gap-4 border-b border-[#3A3A3C] px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6E6E73]">
+            자산 브리프
+          </p>
+          <h2
+            id="home-asset-brief-title"
+            className={editing ? "sr-only" : "truncate text-xl font-semibold tracking-tight text-white"}
+          >
+            {display(asset.name)}
+          </h2>
+          {editing ? (
+            <div className="max-w-4xl space-y-1">
+              <HomeValue
+                ariaLabel="자산명"
+                value={asset.name}
+                editing
+                onChange={(value) => onAssetChange("name", value)}
+              />
+              <HomeValue
+                ariaLabel="주소"
+                value={asset.address}
+                editing
+                onChange={(value) => onAssetChange("address", value)}
+              />
+            </div>
+          ) : (
+            <p className="mt-1 truncate text-sm text-[#A1A1AA]" title={display(asset.address)}>
+              {display(asset.address)}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-2">
+          <SaveState state={saveState} />
+          {editing ? (
+            <>
+              <button
+                data-testid="home-cancel"
+                type="button"
+                onClick={onCancel}
+                className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-sm text-white hover:bg-white/5"
+              >
+                취소
+              </button>
+              <button
+                data-testid="home-save"
+                type="button"
+                onClick={onSave}
+                disabled={saveState === "saving" || !writeEnabled}
+                className="rounded-[8px] border border-[#2C66A2] bg-[#17314E] px-4 py-2 text-sm font-semibold text-[#9AD7FF] disabled:opacity-35"
+              >
+                저장
+              </button>
+            </>
+          ) : (
+            <button
+              data-testid="home-edit"
+              type="button"
+              onClick={onEdit}
+              disabled={!writeEnabled}
+              aria-label={`${display(asset.name)} 자산 정보 수정`}
+              className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-sm text-white hover:bg-white/5 disabled:opacity-35"
+            >
+              수정
+            </button>
+          )}
+        </div>
+      </header>
+
+      <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.38fr)]">
+        <div data-testid="home-asset-specification" className="divide-y divide-[#333333] px-5">
+          {HOME_ASSET_BRIEF_SECTIONS.map((section) => (
+            <section
+              key={section.key}
+              data-home-brief-section={section.key}
+              aria-labelledby={`home-asset-brief-${section.key}`}
+              className="py-4 md:flex md:gap-8"
+            >
+              <h3
+                id={`home-asset-brief-${section.key}`}
+                className="mb-3 w-28 shrink-0 text-[11px] font-semibold text-[#86868B] md:mb-0"
+              >
+                {section.title}
+              </h3>
+              <dl className="flex min-w-0 flex-1 flex-wrap gap-x-8 gap-y-3">
+                {section.fields.map((field) => (
+                  <div key={field.key} className="min-w-[145px] flex-1 basis-[145px]">
+                    <dt className="text-[10px] text-[#6E6E73]">{field.label}</dt>
+                    <dd className="mt-0.5 min-w-0">
+                      {!editing && field.format === "area" ? (
+                        <span className="block min-h-8 py-1.5 text-sm text-white tabular-nums">
+                          {area(asset[field.key])}
+                        </span>
+                      ) : !editing && field.format === "currency" ? (
+                        <span className="block min-h-8 py-1.5 text-sm text-white tabular-nums">
+                          {asset[field.key] == null || asset[field.key] === ""
+                            ? "—"
+                            : `${amount(asset[field.key])}원`}
+                        </span>
+                      ) : (
+                        <HomeValue
+                          ariaLabel={field.label}
+                          value={asset[field.key]}
+                          type={field.type}
+                          editing={editing}
+                          onChange={(value) => onAssetChange(field.key, value)}
+                          align={field.type === "number" ? "right" : "left"}
+                        />
+                      )}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
+        </div>
+
+        <aside
+          data-testid="home-lease-operations"
+          aria-labelledby="home-lease-operations-title"
+          className="border-t border-[#3A3A3C] px-5 py-4 xl:border-l xl:border-t-0"
+        >
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h3 id="home-lease-operations-title" className="text-sm font-semibold text-white">
+                임대 운영
+              </h3>
+              <p className="mt-1 text-[11px] text-[#6E6E73]">현재 렌트롤 기준</p>
+            </div>
+            <p className="text-2xl font-semibold tracking-tight text-white tabular-nums">
+              {occupancyPercent == null ? "—" : `${occupancyPercent.toFixed(1)}%`}
+            </p>
+          </div>
+          <div
+            role="progressbar"
+            aria-label="임대율"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow={occupancyPercent}
+            aria-valuetext={occupancyPercent == null ? "임대율 정보 없음" : `임대율 ${occupancyPercent.toFixed(1)}%`}
+            className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#3A3A3C]"
+          >
+            <div
+              className="h-full rounded-full bg-[#5E9EFF] transition-[width]"
+              style={{ width: `${occupancyPercent ?? 0}%` }}
+            />
+          </div>
+          <p className="mt-1 text-right text-[10px] text-[#6E6E73]">임대율</p>
+
+          <dl className="mt-3 divide-y divide-[#333333]">
+            {operatingRows.map(([label, value]) => (
+              <div key={label} className="flex items-center justify-between gap-4 py-2">
+                <dt className="text-xs text-[#86868B]">{label}</dt>
+                <dd className="text-right text-sm font-medium text-white tabular-nums">{value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <div className="mt-4 border-t border-[#3A3A3C] pt-3">
+            <h4 className="text-[11px] font-semibold text-[#86868B]">임차인별 운영 현황</h4>
+            <div data-testid="home-tenant-operations" className="mt-2 min-w-0">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 pb-1 text-[10px] text-[#6E6E73]">
+                <span>임차인</span>
+                <span className="text-right">임대면적</span>
+                <span className="text-right">월 임대료</span>
+              </div>
+              {tenantSummaries.length ? (
+                <ul className="divide-y divide-[#333333]">
+                  {tenantSummaries.map((tenant) => (
+                    <li
+                      key={tenant.tenant_name}
+                      className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 py-2 text-xs"
+                    >
+                      <span className="truncate font-medium text-[#D1D1D6]" title={tenant.tenant_name}>
+                        {tenant.tenant_name}
+                      </span>
+                      <span className="text-right text-[#A1A1AA] tabular-nums">
+                        {area(tenant.leased_area_sqm)}
+                      </span>
+                      <span className="text-right text-white tabular-nums">
+                        {amount(tenant.monthly_rent_total_krw)}원
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="border-t border-[#333333] py-2 text-xs text-[#6E6E73]">—</p>
+              )}
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
 const HOME_ENTITY_CONFIG = Object.freeze([
   {
     entity: "asset",
@@ -421,9 +691,22 @@ function HomePanel({ assetKey, resource, maturities }) {
   const occupiedRows = rows.filter((row) => row.occupancy_status === "occupied");
   const plannedRows = rows.filter((row) => row.occupancy_status === "planned");
   const vacantRows = rows.filter((row) => row.occupancy_status === "vacant");
-  const tenants = [
-    ...new Set(occupiedRows.map((row) => row.tenant_name).filter(Boolean)),
-  ];
+  const tenantMap = new Map();
+  occupiedRows.forEach((row) => {
+    const tenantName = String(row.tenant_name || "").trim();
+    if (!tenantName) return;
+    const current = tenantMap.get(tenantName) || {
+      tenant_name: tenantName,
+      leased_area_sqm: 0,
+      monthly_rent_total_krw: 0,
+    };
+    current.leased_area_sqm += Number(row.leased_area_sqm || 0);
+    current.monthly_rent_total_krw += Number(row.monthly_rent_total_krw || 0);
+    tenantMap.set(tenantName, current);
+  });
+  const tenantSummaries = [...tenantMap.values()].sort(
+    (left, right) => right.leased_area_sqm - left.leased_area_sqm,
+  );
   const occupiedArea = occupiedRows.reduce(
     (sum, row) => sum + Number(row.leased_area_sqm || 0),
     0,
@@ -489,21 +772,6 @@ function HomePanel({ assetKey, resource, maturities }) {
     setHomeError(null);
   };
   const writeEnabled = resource.data?.write_enabled === true;
-  const assetFields = [
-    { key: "name", label: "자산명", type: "text", group: "identity", span: "col-span-12 md:col-span-5" },
-    { key: "address", label: "주소", type: "text", group: "identity", span: "col-span-12 md:col-span-7" },
-    { key: "asset_code", label: "자산 코드", type: "text", group: "identity", span: "col-span-6 md:col-span-3" },
-    { key: "sector", label: "섹터", type: "text", group: "identity", span: "col-span-6 md:col-span-3" },
-    { key: "floor_count", label: "층수", type: "text", group: "scale", span: "col-span-6 md:col-span-3" },
-    { key: "currency_code", label: "기준 통화", type: "text", group: "value-management", span: "col-span-6 md:col-span-3" },
-    { key: "land_area_sqm", label: "대지면적", type: "number", group: "scale", span: "col-span-12 md:col-span-4", format: "area" },
-    { key: "gross_area_sqm", label: "연면적", type: "number", group: "scale", span: "col-span-12 md:col-span-4", format: "area" },
-    { key: "leasable_area_sqm", label: "임대가능면적", type: "number", group: "scale", span: "col-span-12 md:col-span-4", format: "area" },
-    { key: "acquisition_cost", label: "취득가", type: "number", group: "value-management", span: "col-span-6 md:col-span-3", suffix: "원" },
-    { key: "current_valuation", label: "현재 평가액", type: "number", group: "value-management", span: "col-span-6 md:col-span-3", suffix: "원" },
-    { key: "manager_name", label: "담당자", type: "text", group: "value-management", span: "col-span-6 md:col-span-3" },
-    { key: "manager_team", label: "담당팀", type: "text", group: "value-management", span: "col-span-6 md:col-span-3" },
-  ];
   if (!assetKey) return <EmptyText>조회 가능한 자산이 없습니다.</EmptyText>;
   return (
     <div className="space-y-4">
@@ -514,111 +782,37 @@ function HomePanel({ assetKey, resource, maturities }) {
         error={homeError || resource.error || maturities.error || rent.error}
         onDismiss={() => setHomeError(null)}
       />
-      <Section
-        title="자산 개요"
-        action={
-          <div className="flex items-center gap-2">
-            <SaveState state={saveState} />
-            {isHomeEditing ? (
-              <>
-                <button data-testid="home-cancel" type="button" onClick={cancelHome} className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-sm text-white">취소</button>
-                <button data-testid="home-save" type="button" onClick={() => void saveHome()} disabled={saveState === "saving" || !writeEnabled} className="rounded-[8px] border border-[#2C66A2] bg-[#17314E] px-4 py-2 text-sm font-semibold text-[#9AD7FF] disabled:opacity-35">저장</button>
-              </>
-            ) : (
-              <button
-                data-testid="home-edit"
-                type="button"
-                onClick={() => {
-                  setHomeDraft(cloneHomeData(resource.data || {}));
-                  setIsHomeEditing(true);
-                  setSaveState("idle");
-                }}
-                disabled={!writeEnabled}
-                className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-sm text-white disabled:opacity-35"
-              >
-                수정
-              </button>
-            )}
-          </div>
-        }
-      >
-        {asset ? (
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <dl
-              data-testid="home-asset-overview-grid"
-              className="grid grid-cols-12 gap-px overflow-hidden rounded-[10px] border border-[#333333] bg-[#333333]"
-            >
-              {assetFields.map(({ key, label, type, group, span, format, suffix }) => (
-                <div
-                  key={key}
-                  data-home-group={group}
-                  className={`${span} min-w-0 bg-[#222221] px-3 py-2`}
-                >
-                  <dt className="text-[11px] text-[#86868B]">{label}</dt>
-                  <dd>
-                    {!isHomeEditing && format === "area" ? (
-                      <span className="block min-h-8 px-2 py-1.5 text-right text-sm text-white tabular-nums">
-                        {area(asset[key])}
-                      </span>
-                    ) : (
-                      <HomeValue
-                        ariaLabel={label}
-                        value={asset[key]}
-                        type={type}
-                        editing={isHomeEditing}
-                        onChange={(value) => updateHomeDraft("asset", asset.asset_key, key, value)}
-                        align={type === "number" ? "right" : "left"}
-                      />
-                    )}
-                    {!isHomeEditing && suffix && asset[key] != null ? (
-                      <span className="sr-only">{suffix}</span>
-                    ) : null}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            <aside
-              data-testid="home-tenant-summary"
-              className="rounded-[12px] border border-[#333333] bg-[#202020] p-4"
-            >
-              <div className="mb-3 flex items-end justify-between gap-3">
-                <h3 className="text-sm font-semibold text-white">임차 현황</h3>
-                <p className="text-right text-2xl font-semibold tracking-tight text-white tabular-nums">
-                  {occupancyRate == null ? "—" : `${occupancyRate.toFixed(1)}%`}
-                  <span className="ml-1 text-[11px] font-normal text-[#86868B]">임대율</span>
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[8px] bg-[#333333]">
-                {[
-                  ["임대율", occupancyRate == null ? "—" : `${occupancyRate.toFixed(1)}%`],
-                  ["임차인", `${tenants.length}개사`],
-                  ["점유 공간", `${occupiedRows.length}개`],
-                  [
-                    "공실 · 예정",
-                    `${vacantRows.length} · ${plannedRows.length}개`,
-                  ],
-                  ["임대면적", area(occupiedArea)],
-                  ["월 임대료", `${amount(monthlyRent)}원`],
-                  ["월 관리비", `${amount(monthlyCam)}원`],
-                  ["평균 E.NOC/평", averageEnoc == null ? "—" : `${amount(averageEnoc)}원`],
-                ].map(([label, value]) => (
-                  <div key={label} className="min-w-0 bg-[#252524] px-3 py-2.5">
-                    <p className="text-[11px] text-[#86868B]">{label}</p>
-                    <p className="mt-1 truncate text-sm font-semibold text-white tabular-nums" title={value}>
-                      {value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <p data-testid="home-tenant-names" className="mt-3 line-clamp-3 text-xs leading-5 text-[#A1A1AA]">
-                {tenants.join(" · ") || "—"}
-              </p>
-            </aside>
-          </div>
-        ) : (
+      {asset ? (
+        <AssetBrief
+          asset={asset}
+          editing={isHomeEditing}
+          saveState={saveState}
+          writeEnabled={writeEnabled}
+          onEdit={() => {
+            setHomeDraft(cloneHomeData(resource.data || {}));
+            setIsHomeEditing(true);
+            setSaveState("idle");
+          }}
+          onCancel={cancelHome}
+          onSave={() => void saveHome()}
+          onAssetChange={(field, value) =>
+            updateHomeDraft("asset", asset.asset_key, field, value)
+          }
+          occupancyRate={occupancyRate}
+          tenantSummaries={tenantSummaries}
+          occupiedRows={occupiedRows}
+          plannedRows={plannedRows}
+          vacantRows={vacantRows}
+          occupiedArea={occupiedArea}
+          monthlyRent={monthlyRent}
+          monthlyCam={monthlyCam}
+          averageEnoc={averageEnoc}
+        />
+      ) : (
+        <section data-testid="home-asset-brief" className="rounded-[18px] border border-[#333333] bg-[#252524] px-5">
           <EmptyText />
-        )}
-      </Section>
+        </section>
+      )}
       <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
         <Section title="펀드·수익증권 투자" className="min-w-0">
           <div className="overflow-x-auto">
@@ -1030,7 +1224,7 @@ function RentRollPanel({ assetKey }) {
   const [validationMessages, setValidationMessages] = useState([]);
   const [draftReady, setDraftReady] = useState(false);
   const [draggedRowId, setDraggedRowId] = useState(null);
-  const [dragOverRowId, setDragOverRowId] = useState(null);
+  const [dragOverTarget, setDragOverTarget] = useState(null);
   const draftHydratedRef = useRef(false);
   const saveReadbackPendingRef = useRef(false);
   const rowRefs = useRef(new Map());
@@ -1232,20 +1426,22 @@ function RentRollPanel({ assetKey }) {
   const commitField = (id, field, value) => {
     update(id, field, value);
   };
-  const reorderRows = (sourceId, targetId) => {
+  const reorderRows = (sourceId, targetId, position = "before") => {
     if (rentRollEditingDisabled || !sourceId || !targetId || sourceId === targetId) return;
     const ordered = [...displayedRows];
     const sourceIndex = ordered.findIndex((row) => rowId(row) === sourceId);
-    const targetIndex = ordered.findIndex((row) => rowId(row) === targetId);
-    if (sourceIndex < 0 || targetIndex < 0) return;
+    const initialTargetIndex = ordered.findIndex((row) => rowId(row) === targetId);
+    if (sourceIndex < 0 || initialTargetIndex < 0) return;
     const [moved] = ordered.splice(sourceIndex, 1);
-    ordered.splice(targetIndex, 0, moved);
+    const targetIndex = ordered.findIndex((row) => rowId(row) === targetId);
+    const insertionIndex = targetIndex + (position === "after" ? 1 : 0);
+    ordered.splice(insertionIndex, 0, moved);
     const changed = ordered.map((row, rowIndex) => ({
       ...row,
       display_order: rowIndex + 1,
     }));
-    const rangeStart = Math.min(sourceIndex, targetIndex);
-    const rangeEnd = Math.max(sourceIndex, targetIndex);
+    const rangeStart = Math.min(sourceIndex, insertionIndex);
+    const rangeEnd = Math.max(sourceIndex, insertionIndex);
     const changedRange = changed.slice(rangeStart, rangeEnd + 1);
     setRows(changed);
     setSort(null);
@@ -1277,6 +1473,12 @@ function RentRollPanel({ assetKey }) {
     setSort(null);
     markDirty(rowId(next));
   };
+  const dragOverRow = dragOverTarget
+    ? displayedRows.find((row) => rowId(row) === dragOverTarget.id)
+    : null;
+  const dragOverLabel = dragOverRow
+    ? dragOverRow.tenant_name || dragOverRow.floor_label || "선택한 행"
+    : null;
   if (!assetKey) return <EmptyText>먼저 자산을 선택해 주세요.</EmptyText>;
   return (
     <div className="space-y-4">
@@ -1364,7 +1566,27 @@ function RentRollPanel({ assetKey }) {
             </ul>
           </div>
         ) : null}
-        <div className="custom-scrollbar h-[calc(100vh-190px)] overflow-auto rounded-[12px] border border-[#333333]">
+        {draggedRowId ? (
+          <div
+            data-testid="rent-roll-drag-status"
+            role="status"
+            aria-live="polite"
+            className="flex items-center gap-2 rounded-[8px] border border-[#2C66A2] bg-[#17314E] px-3 py-2 text-xs font-medium text-[#9AD7FF]"
+          >
+            <span aria-hidden="true">⋮⋮</span>
+            {dragOverLabel
+              ? `${dragOverLabel} ${dragOverTarget.position === "before" ? "위" : "아래"}에 놓습니다.`
+              : "이동할 위치의 위쪽 또는 아래쪽 절반에 놓아 주세요."}
+          </div>
+        ) : null}
+        <div
+          className="custom-scrollbar h-[calc(100vh-190px)] overflow-auto rounded-[12px] border border-[#333333]"
+          onDragOver={(event) => {
+            if (!draggedRowId) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+          }}
+        >
           <table
             data-testid="rent-roll-table"
             className="w-max min-w-full border-separate border-spacing-0 text-sm"
@@ -1401,17 +1623,22 @@ function RentRollPanel({ assetKey }) {
               </tr>
               <tr>
                 {RENT_ROLL_COLUMNS.map((column) => {
-                  const left =
+                  const stickyLeft =
                     column.key === "occupancy_status"
-                      ? "left-[62px]"
+                      ? 62
                       : column.key === "tenant_name"
-                        ? "left-[166px]"
-                        : "";
+                        ? 166
+                        : null;
                   return (
                     <th
                       key={column.key}
-                      style={{ minWidth: column.width, width: column.width }}
-                      className={`sticky top-[33px] z-30 border-b border-r border-[#333333] bg-[#202020] px-2 py-2 text-left text-[11px] font-medium text-[#A1A1AA] ${column.key === "occupancy_status" || column.key === "tenant_name" ? `left-sticky ${left}` : ""}`}
+                      data-sticky-column-header={stickyLeft == null ? undefined : column.key}
+                      style={{
+                        minWidth: column.width,
+                        width: column.width,
+                        left: stickyLeft == null ? undefined : stickyLeft,
+                      }}
+                      className={`sticky top-[33px] border-b border-r border-[#333333] bg-[#202020] px-2 py-2 text-left text-[11px] font-medium text-[#A1A1AA] ${stickyLeft == null ? "z-30" : "z-[60] shadow-[1px_0_0_#333333]"}`}
                     >
                       <button
                         type="button"
@@ -1448,6 +1675,14 @@ function RentRollPanel({ assetKey }) {
                 const rowInvalid = invalidRowIds.has(id);
                 const rowLabel = `${index + 1}행 ${row.tenant_name || row.floor_label || "미입력"}`;
                 const rowEditingDisabled = rentRollEditingDisabled || row.operation === "delete";
+                const dropPosition = dragOverTarget?.id === id
+                  ? dragOverTarget.position
+                  : null;
+                const dropLineClass = dropPosition === "before"
+                  ? "border-t-2 border-t-[#5E9EFF]"
+                  : dropPosition === "after"
+                    ? "border-b-2 border-b-[#5E9EFF]"
+                    : "";
                 return (
                   <tr
                     key={id}
@@ -1458,21 +1693,33 @@ function RentRollPanel({ assetKey }) {
                     data-rent-roll-row-id={id}
                     aria-invalid={rowInvalid || undefined}
                     onDragOver={(event) => {
-                      if (rentRollEditingDisabled || !draggedRowId || draggedRowId === id) return;
+                      if (rentRollEditingDisabled || !draggedRowId) return;
                       event.preventDefault();
                       event.dataTransfer.dropEffect = "move";
-                      setDragOverRowId(id);
+                      if (draggedRowId === id) {
+                        setDragOverTarget(null);
+                        return;
+                      }
+                      const bounds = event.currentTarget.getBoundingClientRect();
+                      const position = event.clientY < bounds.top + bounds.height / 2
+                        ? "before"
+                        : "after";
+                      setDragOverTarget((current) => (
+                        current?.id === id && current.position === position
+                          ? current
+                          : { id, position }
+                      ));
                     }}
                     onDrop={(event) => {
                       event.preventDefault();
                       const sourceId = event.dataTransfer.getData("text/plain") || draggedRowId;
-                      reorderRows(sourceId, id);
+                      reorderRows(sourceId, id, dropPosition || "before");
                       setDraggedRowId(null);
-                      setDragOverRowId(null);
+                      setDragOverTarget(null);
                     }}
-                    className={`hover:bg-[#292929] ${dragOverRowId === id ? "outline outline-1 outline-[#5E9EFF]" : ""} ${row.operation === "delete" ? "opacity-35" : ""}`}
+                    className={`hover:bg-[#292929] ${draggedRowId === id ? "opacity-45" : ""} ${dropPosition ? "bg-[#17314E]/40" : ""} ${row.operation === "delete" ? "opacity-35" : ""}`}
                   >
-                    <td className="sticky left-0 z-20 border-b border-r border-[#333333] bg-[#252524] px-1">
+                    <td className={`sticky left-0 z-20 border-b border-r border-[#333333] bg-[#252524] px-1 ${dropLineClass}`}>
                       <div className="flex justify-center">
                         <button
                           data-testid="rent-roll-drag-handle"
@@ -1489,14 +1736,18 @@ function RentRollPanel({ assetKey }) {
                           }}
                           onDragEnd={() => {
                             setDraggedRowId(null);
-                            setDragOverRowId(null);
+                            setDragOverTarget(null);
                           }}
                           onKeyDown={(event) => {
                             if (!event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
                             event.preventDefault();
                             const targetIndex = index + (event.key === "ArrowUp" ? -1 : 1);
                             if (targetIndex >= 0 && targetIndex < displayedRows.length) {
-                              reorderRows(id, rowId(displayedRows[targetIndex]));
+                              reorderRows(
+                                id,
+                                rowId(displayedRows[targetIndex]),
+                                event.key === "ArrowUp" ? "before" : "after",
+                              );
                             }
                           }}
                           className="flex h-8 w-8 cursor-grab items-center justify-center rounded-[6px] text-[#86868B] hover:bg-[#303030] hover:text-white active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-30"
@@ -1510,20 +1761,20 @@ function RentRollPanel({ assetKey }) {
                       </div>
                     </td>
                     {RENT_ROLL_COLUMNS.map((column) => {
-                      const left =
+                      const stickyLeft =
                         column.key === "occupancy_status"
-                          ? "left-[62px]"
+                          ? 62
                           : column.key === "tenant_name"
-                            ? "left-[166px]"
-                            : "";
-                      const sticky =
-                        column.key === "occupancy_status" ||
-                        column.key === "tenant_name";
-                      const cellClass = `border-b border-r border-[#333333] bg-[#252524] px-1 py-1 ${sticky ? `sticky z-10 ${left}` : ""}`;
+                            ? 166
+                            : null;
+                      const sticky = stickyLeft != null;
+                      const cellStyle = sticky ? { left: stickyLeft } : undefined;
+                      const cellClass = `border-b border-r border-[#333333] bg-[#252524] px-1 py-1 ${dropLineClass} ${sticky ? "sticky z-10 shadow-[1px_0_0_#333333]" : ""}`;
                       if (column.kind === "readonly")
                         return (
                           <td
                             key={column.key}
+                            style={cellStyle}
                             className={`${cellClass} px-3 text-right tabular-nums text-[#A1A1AA]`}
                           >
                             {column.key === "current_total_cost_per_py_krw"
@@ -1535,7 +1786,7 @@ function RentRollPanel({ assetKey }) {
                         );
                       if (column.kind === "select")
                         return (
-                          <td key={column.key} className={cellClass}>
+                          <td key={column.key} style={cellStyle} className={cellClass}>
                             <select
                               data-draft-field={column.key}
                               aria-label={`${rowLabel} ${column.label}`}
@@ -1558,7 +1809,7 @@ function RentRollPanel({ assetKey }) {
                         );
                       if (column.kind === "preset_text")
                         return (
-                          <td key={column.key} className={cellClass}>
+                          <td key={column.key} style={cellStyle} className={cellClass}>
                             <PresetTextCell
                               column={column}
                               value={row[column.key]}
@@ -1573,7 +1824,7 @@ function RentRollPanel({ assetKey }) {
                         );
                       if (column.kind === "multi_select")
                         return (
-                          <td key={column.key} className={cellClass}>
+                          <td key={column.key} style={cellStyle} className={cellClass}>
                             <MultiSelectCell
                               column={column}
                               value={row[column.key]}
@@ -1588,7 +1839,7 @@ function RentRollPanel({ assetKey }) {
                         );
                       if (column.kind === "percent")
                         return (
-                          <td key={column.key} className={cellClass}>
+                          <td key={column.key} style={cellStyle} className={cellClass}>
                             <div className="flex items-center gap-1">
                               <input
                                 data-draft-field={column.key}
@@ -1609,7 +1860,7 @@ function RentRollPanel({ assetKey }) {
                           </td>
                         );
                       return (
-                        <td key={column.key} className={cellClass}>
+                        <td key={column.key} style={cellStyle} className={cellClass}>
                           {column.key === "tenant_name" ? (
                             <input
                               data-draft-field="tenant_name"

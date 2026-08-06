@@ -127,3 +127,24 @@ test('홈 한 번 저장에서 동일 엔티티 여러 필드를 수정해도 �
   assert.match(sql, /checked_entities/iu);
   assert.match(sql, /not\s*\(entity_name\s*\|\|\s*':'\s*\|\|\s*entity_key\s*=\s*any\s*\(checked_entities\)\)/iu);
 });
+
+test('렌트롤 고정 열의 제목은 본문 셀과 같은 왼쪽 위치에 함께 고정된다', () => {
+  const source = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
+  assert.match(source, /data-sticky-column-header=\{stickyLeft == null \? undefined : column\.key\}/u);
+  assert.match(source, /column\.key === ["']occupancy_status["'][\s\S]*?\? 62/u);
+  assert.match(source, /column\.key === ["']tenant_name["'][\s\S]*?\? 166/u);
+  assert.match(source, /left: stickyLeft == null \? undefined : stickyLeft/u);
+  assert.match(source, /style=\{cellStyle\}/u);
+  assert.match(source, /z-\[60\] shadow-\[1px_0_0_#333333\]/u);
+});
+
+test('렌트롤 행 드래그는 놓을 위치와 이동 상태를 명확히 표시한다', () => {
+  const source = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
+  assert.match(source, /data-testid=["']rent-roll-drag-status["']/u);
+  assert.match(source, /bounds\.top \+ bounds\.height \/ 2/u);
+  assert.match(source, /position === ["']before["'] \? ["']위["'] : ["']아래["']/u);
+  assert.match(source, /border-t-2 border-t-\[#5E9EFF\]/u);
+  assert.match(source, /border-b-2 border-b-\[#5E9EFF\]/u);
+  assert.match(source, /event\.dataTransfer\.dropEffect = ["']move["']/u);
+  assert.match(source, /draggedRowId === id \? ["']opacity-45["']/u);
+});

@@ -68,3 +68,13 @@ test('로그인 이력 버튼·모달·새로고침·저장 조회 계약은 그
   assert.match(dataPlatformBranch, /logistics-login-history-modal/u);
   assert.match(dataPlatformBranch, /loadLoginHistory/u);
 });
+
+test('다른 브라우저에서 돌아와도 검증된 화면을 인증 로딩 화면으로 되돌리지 않는다', () => {
+  const auth = read('src/context/AuthContext.jsx');
+  assert.doesNotMatch(auth, /window\.addEventListener\(['"]focus['"],\s*handleWindowFocus\)/u);
+  assert.doesNotMatch(auth, /window\.addEventListener\(['"]pageshow['"],\s*handleWindowFocus\)/u);
+  assert.match(auth, /const\s+shouldBlockForPermissions\s*=\s*!hasVerifiedMemberForSession\(session\)/u);
+  assert.match(auth, /if\s*\(shouldBlockForPermissions\)\s*setPermissionsLoading\(true\)/u);
+  assert.match(auth, /if\s*\(isCurrent\(\)\s*&&\s*shouldBlockForPermissions\)\s*setPermissionsLoading\(false\)/u);
+  assert.match(auth, /document\.addEventListener\(['"]visibilitychange['"],\s*handleVisibilityChange\)/u);
+});

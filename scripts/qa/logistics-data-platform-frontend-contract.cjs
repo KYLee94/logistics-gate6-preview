@@ -64,9 +64,13 @@ assert.match(ui, /data-testid=["']rent-roll-table["']/u);
 assert.match(ui, /custom-scrollbar h-\[calc\(100vh-190px\)\] overflow-auto/u);
 assert.match(ui, /tenant_name[\s\S]{0,500}<input/u);
 assert.match(ui, /data-testid=["']rent-roll-drag-handle["']/u);
+assert.match(ui, /data-sticky-column-header=/u);
+assert.match(ui, /data-testid=["']rent-roll-drag-status["']/u);
 assert.match(ui, /draggable=/u);
 
-for (const label of ['대지면적', '연면적', '임대가능면적', '임차 현황', '약정액', '투입액', 'Coupon', 'All-in']) {
+assert.match(ui, /data-testid=["']home-asset-brief["']/u);
+assert.match(ui, /data-testid=["']home-lease-operations["']/u);
+for (const label of ['대지면적', '연면적', '임대가능면적', '임대 운영', '약정액', '투입액', 'Coupon', 'All-in']) {
   assert.ok(ui.includes(label), `missing home field: ${label}`);
 }
 for (const code of ['POTENTIAL_BASE_RENT', 'RENT_FREE_CONCESSION_LOSS', 'FM_FEE', 'PROPERTY_TAX_PUBLIC_DUES', 'CAPEX', 'TENANT_IMPROVEMENT', 'LEASING_COMMISSION', 'INTEREST_PAID']) {
