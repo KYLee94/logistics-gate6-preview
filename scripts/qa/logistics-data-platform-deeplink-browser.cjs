@@ -459,7 +459,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
           const main = document.querySelector('[data-testid="logistics-data-platform"]');
           const text = main?.innerText || '';
           const tenantSummary = main?.querySelector('[data-testid="home-tenant-summary"]');
-          return Boolean(tenantSummary && text.includes('자산 개요') && text.includes('임차인 현황'))
+          return Boolean(tenantSummary && text.includes('자산 개요') && text.includes('임차 현황'))
             && !text.includes('표시할 데이터가 없습니다.');
         }, null, { timeout: timeoutMs });
       }

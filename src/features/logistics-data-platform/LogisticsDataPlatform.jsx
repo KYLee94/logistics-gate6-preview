@@ -345,7 +345,10 @@ function HomePanel({ assetKey, resource, maturities }) {
                 </div>
               ))}
             </dl>
-            <aside className="rounded-[12px] border border-[#333333] bg-[#202020] p-4">
+            <aside
+              data-testid="home-tenant-summary"
+              className="rounded-[12px] border border-[#333333] bg-[#202020] p-4"
+            >
               <h3 className="mb-3 text-sm font-semibold text-white">
                 임차 현황
               </h3>
