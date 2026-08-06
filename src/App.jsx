@@ -4,19 +4,24 @@ import { useLanguage } from './context/LanguageContext';
 import { useAuth } from './context/AuthContext';
 import AuthSetup from './components/system/AuthSetup';
 import PlatformCore from './components/system/PlatformCore';
-import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, publicLogisticsPath } from './components/system/workspace/logisticsRoutes';
+import {
+    LOGISTICS_DATA_PLATFORM_HOME,
+    LOGISTICS_INTERNAL_BASE,
+    normalizeLogisticsPath,
+    publicLogisticsPath,
+} from './components/system/workspace/logisticsRoutes';
 
 // BASE_URL: '/' in dev, '/IGIS-Fund-Production-DP/' in GitHub Pages production
 const BASE = import.meta.env.BASE_URL;
-const LOGISTICS_WORKSPACE_PATH = LOGISTICS_INTERNAL_BASE;
+const LOGISTICS_DEFAULT_PATH = LOGISTICS_DATA_PLATFORM_HOME;
 
 const normalizeGate6Page = (path) => {
-    const normalized = normalizeLogisticsPath(path || LOGISTICS_WORKSPACE_PATH);
+    const normalized = normalizeLogisticsPath(path || LOGISTICS_DEFAULT_PATH);
     if (normalized === 'auth-setup') return normalized;
-    if (!normalized.startsWith('platform/iotaseoul')) return LOGISTICS_WORKSPACE_PATH;
+    if (!normalized.startsWith('platform/iotaseoul')) return LOGISTICS_DEFAULT_PATH;
     const isLegacyIotaPage = normalized.startsWith('platform/iotaseoul')
         && !normalized.startsWith(LOGISTICS_INTERNAL_BASE);
-    return isLegacyIotaPage ? LOGISTICS_WORKSPACE_PATH : normalized;
+    return isLegacyIotaPage ? LOGISTICS_DEFAULT_PATH : normalized;
 };
 
 const getPage = () => {
@@ -104,9 +109,14 @@ export default function App() {
   };
   const shouldShowAuthSetup = currentPage === 'auth-setup'
       || (!loading && !user && currentPage.startsWith('platform/iotaseoul') && !recoveryMode);
-  const renderedPage = shouldShowAuthSetup ? 'auth-setup' : currentPage;
-  const isFullscreenPage = renderedPage === 'auth-setup' || renderedPage.startsWith('platform/iotaseoul');
-  const hideMobileBlocker = renderedPage === 'auth-setup' || renderedPage.startsWith('platform/iotaseoul');
+  const isAuthResolving = loading && currentPage.startsWith('platform/iotaseoul');
+  const renderedPage = isAuthResolving ? 'auth-resolving' : shouldShowAuthSetup ? 'auth-setup' : currentPage;
+  const isFullscreenPage = renderedPage === 'auth-setup'
+      || renderedPage === 'auth-resolving'
+      || renderedPage.startsWith('platform/iotaseoul');
+  const hideMobileBlocker = renderedPage === 'auth-setup'
+      || renderedPage === 'auth-resolving'
+      || renderedPage.startsWith('platform/iotaseoul');
 
   // Protect platform routes
   React.useEffect(() => {
@@ -122,7 +132,7 @@ export default function App() {
       }
 
       if (!loading && user && currentPage === 'auth-setup' && !recoveryMode && !isAuthSetupMaintenance()) {
-          const nextPath = window.sessionStorage.getItem('logisticsPostLoginPath') || LOGISTICS_WORKSPACE_PATH;
+          const nextPath = window.sessionStorage.getItem('logisticsPostLoginPath') || LOGISTICS_DEFAULT_PATH;
           window.sessionStorage.removeItem('logisticsPostLoginPath');
           navigateTo(nextPath);
       }
@@ -174,7 +184,14 @@ export default function App() {
       </div>
 
       <div className={isFullscreenPage ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
-        {renderedPage === 'auth-setup' && <AuthSetup onLogin={() => navigateTo(window.sessionStorage.getItem('logisticsPostLoginPath') || LOGISTICS_WORKSPACE_PATH)} />}
+        {renderedPage === 'auth-resolving' && (
+          <div
+            data-testid="logistics-auth-resolving"
+            aria-label="로그인 확인 중"
+            className="h-full w-full bg-[#1F1F1E]"
+          />
+        )}
+        {renderedPage === 'auth-setup' && <AuthSetup onLogin={() => navigateTo(window.sessionStorage.getItem('logisticsPostLoginPath') || LOGISTICS_DEFAULT_PATH)} />}
         {renderedPage.startsWith('platform/iotaseoul') && <PlatformCore isPlatform={true} isIotaWorkspaceOverride={true} currentPath={renderedPage} />}
       </div>
     </>

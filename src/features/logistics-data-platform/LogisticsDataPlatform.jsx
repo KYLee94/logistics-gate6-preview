@@ -3,6 +3,7 @@ import { normalizeLogisticsPath } from "../../components/system/workspace/logist
 import {
   DATA_PLATFORM_ACTIONS,
   createClientRequestId,
+  friendlyDataPlatformError,
   invokeDataPlatform,
   usePrimaryResource,
 } from "./api";
@@ -101,12 +102,37 @@ function LoadingLine({ visible }) {
     <div className="h-0.5 w-full animate-pulse rounded bg-[#5E9EFF]" />
   ) : null;
 }
-function ErrorNotice({ error }) {
-  return error ? (
-    <p className="text-sm text-[#FF9B9B]" role="alert">
-      {error.message || "데이터 처리에 실패했습니다."}
-    </p>
-  ) : null;
+function DataPlatformErrorDialog({ error, onDismiss }) {
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => setDismissed(false), [error]);
+  if (!error || dismissed) return null;
+  const message = error.userMessage ?? friendlyDataPlatformError(error);
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="data-platform-error-title"
+        data-testid="data-platform-error-dialog"
+        className="w-full max-w-[440px] rounded-[16px] border border-[#3A3A3C] bg-[#252524] p-5 shadow-2xl"
+      >
+        <h2 id="data-platform-error-title" className="text-base font-semibold text-white">처리하지 못했습니다</h2>
+        <p className="mt-3 text-sm leading-6 text-[#D1D1D6]">{message}</p>
+        <div className="mt-5 flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              setDismissed(true);
+              onDismiss?.();
+            }}
+            className="rounded-[8px] border border-[#3A3A3C] px-4 py-2 text-sm font-semibold text-white hover:bg-[#303030]"
+          >
+            확인
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }
 function EmptyText({ children = "표시할 데이터가 없습니다." }) {
   return <p className="py-5 text-sm text-[#86868B]">{children}</p>;
@@ -125,18 +151,15 @@ function Section({ title, action, children, className = "" }) {
   );
 }
 function SaveState({ state }) {
+  if (state === "error") return null;
   const label =
     state === "saving"
       ? "저장 중"
       : state === "saved"
         ? "저장 완료"
-        : state === "error"
-          ? "저장 실패"
-          : "변경 시 자동 저장";
+        : "변경 내용 없음";
   const color =
-    state === "error"
-      ? "text-[#FF9B9B]"
-      : state === "saved"
+    state === "saved"
         ? "text-[#7BD5A0]"
         : "text-[#86868B]";
   return (
@@ -146,50 +169,100 @@ function SaveState({ state }) {
   );
 }
 
-function EditableValue({
-  value,
-  type = "text",
-  disabled,
-  onSave,
-  align = "left",
-  ariaLabel,
-}) {
-  const [draft, setDraft] = useState(value ?? "");
-  const [state, setState] = useState("idle");
-  useEffect(() => {
-    setDraft(value ?? "");
-  }, [value]);
-  const save = async () => {
-    if (disabled || String(draft ?? "") === String(value ?? "")) return;
-    setState("saving");
-    try {
-      await onSave(draft);
-      setState("saved");
-    } catch {
-      setState("error");
-    }
-  };
-  return (
-    <div data-autosave-field={ariaLabel || true} className="group relative">
-      <input
-        aria-label={ariaLabel}
-        type={type}
-        value={draft}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          setState("idle");
-        }}
-        onBlur={save}
-        disabled={disabled}
-        className={`${INPUT_CLASS} ${align === "right" ? "text-right tabular-nums" : ""}`}
-      />
-      <span
-        className={`pointer-events-none absolute bottom-0 right-1 text-[8px] ${state === "saved" ? "text-[#7BD5A0]" : state === "error" ? "text-[#FF9B9B]" : "opacity-0"}`}
-      >
-        {state === "saved" ? "●" : state === "error" ? "!" : ""}
+function HomeValue({ editing, value, type = "text", onChange, align = "left", ariaLabel }) {
+  if (!editing) {
+    return (
+      <span className={`block min-h-8 px-2 py-1.5 text-sm text-white ${align === "right" ? "text-right tabular-nums" : ""}`}>
+        {type === "number" ? amount(value) : display(value)}
       </span>
-    </div>
+    );
+  }
+  return (
+    <input
+      aria-label={ariaLabel}
+      type={type}
+      value={value ?? ""}
+      onChange={(event) => onChange(event.target.value)}
+      className={`${INPUT_CLASS} bg-[#202020] ${align === "right" ? "text-right tabular-nums" : ""}`}
+    />
   );
+}
+
+const HOME_ENTITY_CONFIG = Object.freeze([
+  {
+    entity: "asset",
+    collection: "asset",
+    key: "asset_key",
+    fields: ["name", "address", "asset_code", "sector", "land_area_sqm", "gross_area_sqm", "leasable_area_sqm", "floor_count", "manager_name", "manager_team", "acquisition_cost", "current_valuation", "currency_code"],
+  },
+  {
+    entity: "fund",
+    collection: "funds",
+    key: "fund_key",
+    fields: ["name", "fund_type", "investment_strategy", "inception_date", "maturity_date", "ownership_ratio"],
+  },
+  {
+    entity: "beneficiary",
+    collection: "investments",
+    key: "beneficiary_key",
+    fields: ["tranche", "beneficiary_name", "agreed_amount_krw", "contributed_amount_krw"],
+  },
+  {
+    entity: "loan",
+    collection: "loans",
+    key: "loan_key",
+    fields: ["tranche", "lender_name", "committed_amount_krw", "drawdown_date", "maturity_date", "loan_type", "interest_type", "coupon_rate", "all_in_rate", "fee_rate"],
+  },
+]);
+
+function homeRecords(data, config) {
+  if (config.collection === "asset") return data?.asset ? [data.asset] : [];
+  return Array.isArray(data?.[config.collection]) ? data[config.collection] : [];
+}
+
+function normalizedHomeValue(value) {
+  return value === "" || value === undefined ? null : value;
+}
+
+function homeExpectedRevision(source, entity, field) {
+  if (entity === "fund") {
+    return field === "ownership_ratio"
+      ? source.link_revision ?? source.revision
+      : source.fund_revision ?? source.revision;
+  }
+  if (entity === "loan") {
+    return field === "lender_name"
+      ? source.lender_revision ?? source.revision
+      : source.loan_revision ?? source.revision;
+  }
+  return source.revision;
+}
+
+export function buildHomeOperations(original, draft) {
+  const operations = [];
+  HOME_ENTITY_CONFIG.forEach((config) => {
+    const originalRows = homeRecords(original, config);
+    const draftRows = homeRecords(draft, config);
+    originalRows.forEach((source) => {
+      const entityKey = source[config.key] || (config.entity === "loan" ? source.row_key : null);
+      const changed = draftRows.find((row) => (row[config.key] || (config.entity === "loan" ? row.row_key : null)) === entityKey);
+      if (!changed || !entityKey) return;
+      config.fields.forEach((field) => {
+        const before = normalizedHomeValue(source[field]);
+        const after = normalizedHomeValue(changed[field]);
+        if (String(before ?? "") === String(after ?? "")) return;
+        operations.push({
+          entity: config.entity,
+          entity_key: entityKey,
+          field,
+          value: after,
+          expected_revision: homeExpectedRevision(source, config.entity, field),
+          reason: "홈 화면 일괄 수정",
+        });
+      });
+    });
+  });
+  return operations;
 }
 
 function MaturityList({ rows, limit = 5 }) {
@@ -235,12 +308,37 @@ function MaturityList({ rows, limit = 5 }) {
   );
 }
 
+function cloneHomeData(data) {
+  return {
+    asset: data?.asset ? { ...data.asset } : null,
+    funds: (Array.isArray(data?.funds) ? data.funds : []).map((row) => ({ ...row })),
+    investments: (Array.isArray(data?.investments) ? data.investments : []).map((row) => ({
+      ...row,
+      agreed_amount_krw: row.agreed_amount_krw ?? row.commitment_amount_krw ?? "",
+      contributed_amount_krw: row.contributed_amount_krw ?? row.invested_amount_krw ?? "",
+    })),
+    loans: (Array.isArray(data?.loans) ? data.loans : []).map((row) => ({
+      ...row,
+      coupon_rate: row.coupon_rate ?? row.loan_rate ?? row.interest_rate ?? "",
+      all_in_rate: row.all_in_rate ?? row.all_in ?? "",
+    })),
+  };
+}
+
 function HomePanel({ assetKey, resource, maturities }) {
-  const data = resource.data || {};
-  const asset = data.asset;
-  const funds = Array.isArray(data.funds) ? data.funds : [];
-  const investments = Array.isArray(data.investments) ? data.investments : [];
-  const loans = Array.isArray(data.loans) ? data.loans : [];
+  const sourceData = useMemo(() => cloneHomeData(resource.data || {}), [resource.data]);
+  const [isHomeEditing, setIsHomeEditing] = useState(false);
+  const [homeDraft, setHomeDraft] = useState(() => cloneHomeData(resource.data || {}));
+  const [saveState, setSaveState] = useState("idle");
+  const [homeError, setHomeError] = useState(null);
+  useEffect(() => {
+    if (!isHomeEditing) setHomeDraft(cloneHomeData(resource.data || {}));
+  }, [isHomeEditing, resource.data]);
+  const workingData = isHomeEditing ? homeDraft : sourceData;
+  const asset = workingData.asset;
+  const funds = workingData.funds;
+  const investments = workingData.investments;
+  const loans = workingData.loans;
   const rent = usePrimaryResource(
     DATA_PLATFORM_ACTIONS.rentRollRead,
     { asset_key: assetKey, limit: 500 },
@@ -251,38 +349,55 @@ function HomePanel({ assetKey, resource, maturities }) {
   const tenants = [
     ...new Set(activeRows.map((row) => row.tenant_name).filter(Boolean)),
   ];
-  const [saveState, setSaveState] = useState("idle");
-  const saveHome = async (
-    entity,
-    entityKey,
-    field,
-    value,
-    expectedRevision,
-  ) => {
+  const homeOperations = useMemo(
+    () => buildHomeOperations(sourceData, homeDraft),
+    [homeDraft, sourceData],
+  );
+  const updateHomeDraft = (entity, entityKey, field, value) => {
+    const config = HOME_ENTITY_CONFIG.find((item) => item.entity === entity);
+    if (!config) return;
+    setSaveState("idle");
+    setHomeDraft((current) => {
+      if (config.collection === "asset") {
+        return { ...current, asset: { ...current.asset, [field]: value } };
+      }
+      return {
+        ...current,
+        [config.collection]: current[config.collection].map((row) => {
+          const key = row[config.key] || (entity === "loan" ? row.row_key : null);
+          return key === entityKey ? { ...row, [field]: value } : row;
+        }),
+      };
+    });
+  };
+  const saveHome = async () => {
+    if (!homeOperations.length) {
+      setIsHomeEditing(false);
+      return;
+    }
     setSaveState("saving");
+    setHomeError(null);
     try {
       await invokeDataPlatform(DATA_PLATFORM_ACTIONS.homeBatchSave, {
         asset_key: assetKey,
         client_request_id: createClientRequestId("home"),
-        operations: [
-          {
-            entity,
-            entity_key: entityKey,
-            field,
-            value,
-            expected_revision: expectedRevision,
-            reason: "홈 화면 직접 수정",
-          },
-        ],
+        operations: homeOperations,
       });
       setSaveState("saved");
+      setIsHomeEditing(false);
       resource.reload();
-    } catch (error) {
+    } catch (cause) {
       setSaveState("error");
-      throw error;
+      setHomeError(cause);
     }
   };
-  const writeEnabled = data.write_enabled === true;
+  const cancelHome = () => {
+    setHomeDraft(cloneHomeData(resource.data || {}));
+    setIsHomeEditing(false);
+    setSaveState("idle");
+    setHomeError(null);
+  };
+  const writeEnabled = resource.data?.write_enabled === true;
   const assetFields = [
     ["name", "자산명", "text"],
     ["address", "주소", "text"],
@@ -304,8 +419,38 @@ function HomePanel({ assetKey, resource, maturities }) {
       <LoadingLine
         visible={resource.loading || maturities.loading || rent.loading}
       />
-      <ErrorNotice error={resource.error || maturities.error || rent.error} />
-      <Section title="자산 개요" action={<SaveState state={saveState} />}>
+      <DataPlatformErrorDialog
+        error={homeError || resource.error || maturities.error || rent.error}
+        onDismiss={() => setHomeError(null)}
+      />
+      <Section
+        title="자산 개요"
+        action={
+          <div className="flex items-center gap-2">
+            <SaveState state={saveState} />
+            {isHomeEditing ? (
+              <>
+                <button data-testid="home-cancel" type="button" onClick={cancelHome} className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-sm text-white">취소</button>
+                <button data-testid="home-save" type="button" onClick={() => void saveHome()} disabled={saveState === "saving" || !writeEnabled} className="rounded-[8px] border border-[#2C66A2] bg-[#17314E] px-4 py-2 text-sm font-semibold text-[#9AD7FF] disabled:opacity-35">저장</button>
+              </>
+            ) : (
+              <button
+                data-testid="home-edit"
+                type="button"
+                onClick={() => {
+                  setHomeDraft(cloneHomeData(resource.data || {}));
+                  setIsHomeEditing(true);
+                  setSaveState("idle");
+                }}
+                disabled={!writeEnabled}
+                className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-sm text-white disabled:opacity-35"
+              >
+                수정
+              </button>
+            )}
+          </div>
+        }
+      >
         {asset ? (
           <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
             <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-[#333333] bg-[#333333] md:grid-cols-3 xl:grid-cols-4">
@@ -325,20 +470,12 @@ function HomePanel({ assetKey, resource, maturities }) {
                       : ""}
                   </dt>
                   <dd>
-                    <EditableValue
+                    <HomeValue
                       ariaLabel={label}
                       value={asset[key]}
                       type={type}
-                      disabled={!writeEnabled}
-                      onSave={(value) =>
-                        saveHome(
-                          "asset",
-                          asset.asset_key,
-                          key,
-                          value,
-                          asset.revision || resource.revision,
-                        )
-                      }
+                      editing={isHomeEditing}
+                      onChange={(value) => updateHomeDraft("asset", asset.asset_key, key, value)}
                       align={type === "number" ? "right" : "left"}
                     />
                   </dd>
@@ -430,19 +567,11 @@ function HomePanel({ assetKey, resource, maturities }) {
                         key={field}
                         className="border-b border-[#333333] px-1 py-1"
                       >
-                        <EditableValue
+                        <HomeValue
                           value={fund[field]}
                           type={type}
-                          disabled={!writeEnabled}
-                          onSave={(value) =>
-                            saveHome(
-                              "fund",
-                              fund.fund_key,
-                              field,
-                              value,
-                              fund.revision,
-                            )
-                          }
+                          editing={isHomeEditing}
+                          onChange={(value) => updateHomeDraft("fund", fund.fund_key, field, value)}
                           align={type === "number" ? "right" : "left"}
                         />
                       </td>
@@ -486,26 +615,17 @@ function HomePanel({ assetKey, resource, maturities }) {
                           key={field}
                           className="border-b border-[#333333] px-1 py-1"
                         >
-                          <EditableValue
-                            value={
-                              row[field] ??
-                              (field === "agreed_amount_krw"
-                                ? row.commitment_amount_krw
-                                : row.invested_amount_krw)
-                            }
-                            type={type}
-                            disabled={!writeEnabled || index === 0}
-                            onSave={(value) =>
-                              saveHome(
-                                "beneficiary",
-                                row.beneficiary_key,
-                                field,
-                                value,
-                                row.revision,
-                              )
-                            }
-                            align={type === "number" ? "right" : "left"}
-                          />
+                          {index === 0 ? (
+                            <span className="block px-2 py-1.5 text-sm text-[#A1A1AA]">{display(row[field])}</span>
+                          ) : (
+                            <HomeValue
+                              value={row[field]}
+                              type={type}
+                              editing={isHomeEditing}
+                              onChange={(value) => updateHomeDraft("beneficiary", row.beneficiary_key, field, value)}
+                              align={type === "number" ? "right" : "left"}
+                            />
+                          )}
                         </td>
                       ))}
                     </tr>
@@ -564,26 +684,11 @@ function HomePanel({ assetKey, resource, maturities }) {
                       key={field}
                       className="border-b border-[#333333] px-1 py-1"
                     >
-                      <EditableValue
-                        value={
-                          loan[field] ??
-                          (field === "coupon_rate"
-                            ? loan.loan_rate || loan.interest_rate
-                            : field === "all_in_rate"
-                              ? loan.all_in
-                              : null)
-                        }
+                      <HomeValue
+                        value={loan[field]}
                         type={type}
-                        disabled={!writeEnabled}
-                        onSave={(value) =>
-                          saveHome(
-                            "loan",
-                            loan.loan_key || loan.row_key,
-                            field,
-                            value,
-                            loan.revision,
-                          )
-                        }
+                        editing={isHomeEditing}
+                        onChange={(value) => updateHomeDraft("loan", loan.loan_key || loan.row_key, field, value)}
                         align={type === "number" ? "right" : "left"}
                       />
                     </td>
@@ -682,7 +787,7 @@ function RentRollPanel({ assetKey }) {
       targetRows.filter((row) => row.operation !== "delete"),
     );
     if (errors.length) {
-      setError(new Error(errors[0]));
+      setError({ userMessage: errors[0] });
       setSaveState("error");
       return;
     }
@@ -756,7 +861,7 @@ function RentRollPanel({ assetKey }) {
   return (
     <div className="space-y-4">
       <LoadingLine visible={resource.loading} />
-      <ErrorNotice error={resource.error || error} />
+      <DataPlatformErrorDialog error={error || resource.error} onDismiss={() => setError(null)} />
       <Section
         title="렌트롤"
         action={
@@ -1090,42 +1195,67 @@ function buildFinanceSeries(entries, accounts, months, aggregation) {
   });
 }
 function FinanceTrend({ series, comparison }) {
+  const [activeIndex, setActiveIndex] = useState(null);
   const values = [...series, ...comparison]
     .flatMap((row) => [row.net_operating_income, row.asset_net_cash_flow])
     .map((value) => Math.abs(Number(value || 0)));
   const max = Math.max(...values, 1);
+  const active = activeIndex === null ? null : series[activeIndex];
+  const activeComparison = activeIndex === null ? null : comparison[activeIndex];
   return (
-    <div
-      data-testid="finance-trend"
-      className="flex h-44 items-end gap-3 border-b border-[#3A3A3C] px-3 pt-4"
-    >
-      {series.map((row, index) => (
-        <div
-          key={row.period}
-          className="flex min-w-0 flex-1 items-end justify-center gap-1"
-        >
-          <div
-            data-testid={index === 0 ? "finance-primary-chart" : undefined}
-            title={`NOI ${amount(row.net_operating_income)}`}
-            style={{
-              height: `${Math.max(3, (Math.abs(row.net_operating_income) / max) * 130)}px`,
-            }}
-            className="w-4 rounded-t bg-[#5E9EFF]"
-          />
-          {comparison[index] ? (
-            <div
-              title={`비교 NOI ${amount(comparison[index].net_operating_income)}`}
-              style={{
-                height: `${Math.max(3, (Math.abs(comparison[index].net_operating_income) / max) * 130)}px`,
-              }}
-              className="w-4 rounded-t bg-[#737373]"
+    <div className="relative">
+      <div
+        data-testid="finance-trend"
+        className="flex h-44 items-end gap-3 border-b border-[#3A3A3C] px-3 pt-4"
+      >
+        {series.map((row, index) => (
+          <button
+            key={row.period}
+            type="button"
+            aria-label={`${row.period} 상세 보기`}
+            onMouseEnter={() => setActiveIndex(index)}
+            onMouseLeave={() => setActiveIndex(null)}
+            onFocus={() => setActiveIndex(index)}
+            onBlur={() => setActiveIndex(null)}
+            className="relative flex h-full min-w-0 flex-1 items-end justify-center gap-1 outline-none focus-visible:ring-1 focus-visible:ring-[#5E9EFF]"
+          >
+            <span
+              data-testid={index === 0 ? "finance-primary-chart" : undefined}
+              style={{ height: `${Math.max(3, (Math.abs(row.net_operating_income) / max) * 130)}px` }}
+              className="w-4 rounded-t bg-[#5E9EFF]"
             />
-          ) : null}
-          <span className="absolute mt-5 hidden text-[9px] text-[#86868B] xl:block">
-            {row.period}
-          </span>
+            {comparison[index] ? (
+              <span
+                style={{ height: `${Math.max(3, (Math.abs(comparison[index].net_operating_income) / max) * 130)}px` }}
+                className="w-4 rounded-t bg-[#737373]"
+              />
+            ) : null}
+            <span className="absolute -bottom-4 hidden text-[9px] text-[#86868B] xl:block">{row.period}</span>
+          </button>
+        ))}
+      </div>
+      {active ? (
+        <div
+          data-testid="finance-trend-tooltip"
+          role="tooltip"
+          className="pointer-events-none absolute right-3 top-2 z-20 min-w-[230px] rounded-[10px] border border-[#3A3A3C] bg-[#161616]/95 p-3 text-xs shadow-xl"
+        >
+          <p className="mb-2 font-semibold text-white">{active.period}</p>
+          {[
+            ["유효총수입", "effective_gross_income"],
+            ["운영비용", "total_operating_expense"],
+            ["순영업소득", "net_operating_income"],
+            ["자산 NCF", "asset_net_cash_flow"],
+          ].map(([label, key]) => (
+            <div key={key} className="flex justify-between gap-5 py-0.5">
+              <span className="text-[#A1A1AA]">{label}</span>
+              <span className="tabular-nums text-white">
+                {amount(active[key])}{activeComparison ? ` · 비교 ${amount(activeComparison[key])}` : ""}
+              </span>
+            </div>
+          ))}
         </div>
-      ))}
+      ) : null}
     </div>
   );
 }
@@ -1141,6 +1271,9 @@ function FinancePanel({ assetKey, assets }) {
   const [entries, setEntries] = useState([]);
   const [saveState, setSaveState] = useState("idle");
   const [error, setError] = useState(null);
+  const [selectedAccountCodes, setSelectedAccountCodes] = useState(
+    () => new Set(KOREAN_LOGISTICS_NOI_ACCOUNTS.filter((account) => account.defaultVisible).map((account) => account.code)),
+  );
   const payload = {
     asset_key: assetKey,
     start_month: start,
@@ -1174,6 +1307,7 @@ function FinancePanel({ assetKey, assets }) {
   const accounts = serverAccounts
     .filter((account) => definitions.has(account.account_code))
     .sort((a, b) => Number(a.display_order) - Number(b.display_order));
+  const visibleAccounts = accounts.filter((account) => selectedAccountCodes.has(account.account_code));
   const months = monthsBetween(start, end);
   const series = buildFinanceSeries(entries, accounts, months, aggregation);
   const comparisonEntries = Array.isArray(comparison.data?.entries)
@@ -1244,9 +1378,23 @@ function FinancePanel({ assetKey, assets }) {
         },
       ];
     });
-  const saveCell = async (account, month) => {
-    const entry = findEditableEntry(account.account_code, month);
-    if (!entry) return;
+  const saveCell = async (account, month, explicitValue) => {
+    const cellEntries = accountEntries(account.account_code, month);
+    const editable = cellEntries.find((entry) => entry.source_kind === "manual_input" || entry._draft_id);
+    const derivedAmount = cellEntries
+      .filter((entry) => entry !== editable)
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+    const manualAmount = explicitValue === "" ? "" : Number(explicitValue) - derivedAmount;
+    if (!editable && (explicitValue === "" || manualAmount === 0)) return;
+    const entry = {
+      ...editable,
+      operation: explicitValue === "" ? "delete" : editable ? "update" : "create",
+      month,
+      account_code: account.account_code,
+      amount: manualAmount,
+      scenario,
+      accounting_basis: basis,
+    };
     setSaveState("saving");
     setError(null);
     try {
@@ -1286,53 +1434,35 @@ function FinancePanel({ assetKey, assets }) {
   const comparisonTotal = (key) =>
     comparisonSeries.reduce((sum, row) => sum + Number(row[key] || 0), 0);
   const rows = [];
-  let section = null;
-  accounts.forEach((account) => {
-    const definition = definitions.get(account.account_code);
-    if (definition.section !== section) {
-      section = definition.section;
-      rows.push({
-        kind: "section",
-        key: section,
-        label: definition.sectionLabel,
-      });
-    }
-    rows.push({
-      kind: "account",
-      key: account.account_code,
-      label: definition.label,
-      account,
+  const sectionOrder = ["potential_income", "income_loss", "operating_expense", "below_noi", "debt_service"];
+  sectionOrder.forEach((section) => {
+    const sectionAccounts = visibleAccounts.filter((account) => definitions.get(account.account_code)?.section === section);
+    if (!sectionAccounts.length) return;
+    rows.push({ kind: "section", key: section, label: definitions.get(sectionAccounts[0].account_code).sectionLabel });
+    sectionAccounts.forEach((account) => {
+      const definition = definitions.get(account.account_code);
+      rows.push({ kind: "account", key: account.account_code, label: definition.label, account });
     });
-    if (account.account_code === "OTHER_INCOME_LOSS")
-      rows.push({
-        kind: "metric",
-        key: "effective_gross_income",
-        label: "유효총수입(EGI)",
-      });
-    if (account.account_code === "OTHER_PROPERTY_OPEX")
-      rows.push({
-        kind: "metric",
-        key: "net_operating_income",
-        label: "순영업소득(NOI)",
-      });
-    if (account.account_code === "NONCASH_ADDBACK")
-      rows.push({
-        kind: "metric",
-        key: "asset_net_cash_flow",
-        label: "자산 순현금흐름(NCF)",
-      });
-    if (account.account_code === "LOAN_FEE")
-      rows.push({
-        kind: "metric",
-        key: "after_debt_service_cash_flow",
-        label: "부채상환 후 현금흐름",
-      });
+    if (section === "potential_income") rows.push({ kind: "metric", key: "potential_gross_income", label: "영업수익 소계" });
+    if (section === "income_loss") rows.push({ kind: "metric", key: "effective_gross_income", label: "유효총수입(EGI)" });
+    if (section === "operating_expense") {
+      rows.push({ kind: "metric", key: "total_operating_expense", label: "영업비용 소계" });
+      rows.push({ kind: "metric", key: "net_operating_income", label: "순영업소득(NOI)" });
+    }
+    if (section === "below_noi") rows.push({ kind: "metric", key: "asset_net_cash_flow", label: "자산 순현금흐름(NCF)" });
+    if (section === "debt_service") rows.push({ kind: "metric", key: "after_debt_service_cash_flow", label: "부채상환 후 현금흐름" });
   });
+  if (!visibleAccounts.some((account) => definitions.get(account.account_code)?.section === "below_noi")) {
+    rows.push({ kind: "metric", key: "asset_net_cash_flow", label: "자산 순현금흐름(NCF)" });
+  }
+  if (!visibleAccounts.some((account) => definitions.get(account.account_code)?.section === "debt_service")) {
+    rows.push({ kind: "metric", key: "after_debt_service_cash_flow", label: "부채상환 후 현금흐름" });
+  }
   if (!assetKey) return <EmptyText>먼저 자산을 선택해 주세요.</EmptyText>;
   return (
     <div className="space-y-4">
       <LoadingLine visible={resource.loading || comparison.loading} />
-      <ErrorNotice error={resource.error || comparison.error || error} />
+      <DataPlatformErrorDialog error={error || resource.error || comparison.error} onDismiss={() => setError(null)} />
       <div className="flex flex-wrap items-end gap-3 rounded-[14px] border border-[#333333] bg-[#242423] px-4 py-3">
         {[
           ["시작 월", "month", start, setStart],
@@ -1490,6 +1620,34 @@ function FinancePanel({ assetKey, assets }) {
         title="물류센터 NOI 손익표"
         action={<SaveState state={saveState} />}
       >
+        <details
+          data-testid="finance-account-picker"
+          className="mb-3 rounded-[10px] border border-[#333333] bg-[#202020] px-3 py-2"
+        >
+          <summary className="cursor-pointer text-xs font-semibold text-[#A1A1AA]">표시 항목 선택</summary>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {accounts.map((account) => {
+              const definition = definitions.get(account.account_code);
+              return (
+                <label key={account.account_code} className="flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-xs text-[#D1D1D6] hover:bg-[#292929]">
+                  <input
+                    data-testid="finance-account-toggle"
+                    type="checkbox"
+                    checked={selectedAccountCodes.has(account.account_code)}
+                    onChange={() => setSelectedAccountCodes((current) => {
+                      const next = new Set(current);
+                      if (next.has(account.account_code)) next.delete(account.account_code);
+                      else next.add(account.account_code);
+                      return next;
+                    })}
+                    className="accent-[#5E9EFF]"
+                  />
+                  <span>{definition.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </details>
         <div
           data-testid="finance-statement-scroll"
           className="custom-scrollbar overflow-x-auto rounded-[10px] border border-[#333333]"
@@ -1572,7 +1730,7 @@ function FinancePanel({ assetKey, assets }) {
                               onChange={(event) =>
                                 setCell(row.account, period, event.target.value)
                               }
-                              onBlur={() => void saveCell(row.account, period)}
+                              onBlur={(event) => void saveCell(row.account, period, event.currentTarget.value)}
                               disabled={!writeEnabled}
                               className="w-full rounded-[6px] border border-transparent bg-transparent px-2 py-1.5 text-right tabular-nums text-white outline-none hover:border-[#35414E] focus:border-[#5E9EFF]"
                             />

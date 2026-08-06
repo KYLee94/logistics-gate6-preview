@@ -30,6 +30,8 @@ const releaseSteps = Object.freeze([
   { id: 'finance-manual-input-contract', kind: 'node', target: 'scripts/qa/logistics-finance-manual-input-contract.cjs' },
   { id: 'rent-roll-template-contract', kind: 'node', target: 'scripts/qa/logistics-rent-roll-template-contract.cjs' },
   { id: 'frontend-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-frontend-contract.cjs' },
+  { id: 'ux-v4-regression', kind: 'node', target: 'tests/logistics-data-platform-ux-v4.test.cjs' },
+  { id: 'login-entry-v4-regression', kind: 'node', target: 'tests/logistics-data-platform-login-entry-v4.test.cjs' },
   {
     id: 'deeplink-browser-self-test',
     kind: 'node',

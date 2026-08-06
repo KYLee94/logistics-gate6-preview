@@ -1,5 +1,22 @@
 export const FINANCE_FORMULA_VERSION = 'gate6-korean-logistics-noi-v2';
 
+const DEFAULT_VISIBLE_NOI_CODES = new Set([
+  'POTENTIAL_BASE_RENT',
+  'POTENTIAL_CAM_INCOME',
+  'EXPENSE_REIMBURSEMENT_INCOME',
+  'DEPOSIT_OPERATING_INCOME',
+  'OTHER_PROPERTY_INCOME',
+  'VACANCY_LOSS',
+  'RENT_FREE_CONCESSION_LOSS',
+  'PM_FEE',
+  'FM_FEE',
+  'REPAIRS_MAINTENANCE',
+  'UTILITIES',
+  'PROPERTY_TAX_PUBLIC_DUES',
+  'PROPERTY_INSURANCE',
+  'OTHER_PROPERTY_OPEX',
+]);
+
 export const KOREAN_LOGISTICS_NOI_ACCOUNTS = Object.freeze([
   ['potential_income', '잠재총수입', 'POTENTIAL_BASE_RENT', '잠재 임대료'],
   ['potential_income', '잠재총수입', 'POTENTIAL_CAM_INCOME', '잠재 관리비'],
@@ -37,7 +54,13 @@ export const KOREAN_LOGISTICS_NOI_ACCOUNTS = Object.freeze([
   ['debt_service', '부채상환', 'INTEREST_PAID', '이자 지급액'],
   ['debt_service', '부채상환', 'PRINCIPAL_REPAYMENT', '원금 상환액'],
   ['debt_service', '부채상환', 'LOAN_FEE', '대출 관련 수수료'],
-].map(([section, sectionLabel, code, label]) => Object.freeze({ section, sectionLabel, code, label })));
+].map(([section, sectionLabel, code, label]) => Object.freeze({
+  section,
+  sectionLabel,
+  code,
+  label,
+  defaultVisible: DEFAULT_VISIBLE_NOI_CODES.has(code),
+})));
 
 export function calculateKoreanLogisticsNoi(input = {}) {
   const potentialGrossIncome = Number(input.potential_income) || 0;

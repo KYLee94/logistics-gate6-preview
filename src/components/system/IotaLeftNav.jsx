@@ -203,6 +203,152 @@ const LoginSortableHeader = ({ column, sortConfig, onSort }) => {
         </th>
     );
 };
+const LoginHistoryModal = ({
+    open,
+    testId = 'logistics-login-history-modal',
+    onRefresh,
+    onClose,
+    loading,
+    error,
+    hasContent,
+    recentLoginHistoryRows,
+    loginCapabilityUsers,
+    sortedLoginCapabilityUsers,
+    loginCapabilitySort,
+    toggleLoginCapabilitySort,
+}) => {
+    if (!open) return null;
+    return (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm">
+            <div data-testid={testId} className="flex h-[82vh] w-full max-w-[1120px] flex-col overflow-hidden rounded-[18px] border border-[#333333] bg-[#171717] shadow-2xl">
+                <div className="flex items-center justify-between border-b border-[#2C2C2E] px-6 py-4">
+                    <div>
+                        <div className="text-[18px] font-bold text-white">로그인 이력</div>
+                        <div className="mt-1 text-[12px] text-[#8E8E93]">기획추진센터 전용 조회 화면</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button type="button" data-testid="logistics-login-history-refresh" onClick={onRefresh} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                            새로고침
+                        </button>
+                        <button type="button" data-testid="logistics-login-history-close" onClick={onClose} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                            닫기
+                        </button>
+                    </div>
+                </div>
+                <div className="custom-scrollbar flex-1 overflow-auto px-6 py-5">
+                    {loading && !hasContent ? (
+                        <div className="flex h-full items-center justify-center text-[14px] text-[#A1A1AA]">불러오는 중...</div>
+                    ) : error && !hasContent ? (
+                        <div className="rounded-[14px] border border-[#5A2A2A] bg-[#2A1717] p-4 text-[13px] text-[#FFB4A9]">{error}</div>
+                    ) : (
+                        <div className="grid gap-5">
+                            {error && hasContent ? (
+                                <div className="rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[12px] font-semibold text-[#FFD479]">
+                                    {error}
+                                </div>
+                            ) : null}
+                            {loading ? (
+                                <div className="rounded-[12px] border border-[#3A3A3C] bg-[#1F1F1E] px-4 py-3 text-[12px] font-semibold text-[#FFD166]">
+                                    최신 로그인 이력을 다시 불러오는 중입니다. 기존 조회값은 그대로 표시합니다.
+                                </div>
+                            ) : null}
+                            <section>
+                                <div className="mb-3 flex items-end justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-[14px] font-bold text-white">최근 로그인</h3>
+                                        <p className="mt-1 text-[12px] text-[#8E8E93]">테스트 및 smoke 기록은 제외했습니다.</p>
+                                    </div>
+                                    <div className="text-[12px] text-[#A1A1AA]">최근 {recentLoginHistoryRows.length.toLocaleString('ko-KR')}건</div>
+                                </div>
+                                <div className="overflow-hidden rounded-[12px] border border-[#303033]">
+                                    <table className="w-full min-w-[760px] border-collapse text-left text-[12px]">
+                                        <thead className="bg-[#202020] text-[#A1A1AA]">
+                                            <tr>
+                                                <th className="px-4 py-3 font-semibold">일시</th>
+                                                <th className="px-4 py-3 font-semibold">조직</th>
+                                                <th className="px-4 py-3 font-semibold">이름</th>
+                                                <th className="px-4 py-3 font-semibold">이메일</th>
+                                                <th className="px-4 py-3 font-semibold">상태</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-[#2C2C2E] text-[#E5E5E5]">
+                                            {recentLoginHistoryRows.length ? recentLoginHistoryRows.map((row, index) => (
+                                                <tr key={row.event_id || `${row.email || 'login'}-${row.logged_at || index}`} className="hover:bg-white/[0.03]">
+                                                    <td className="whitespace-nowrap px-4 py-3 text-[#C7C7CC]">{formatLoginHistoryTime(row.logged_at)}</td>
+                                                    <td className="px-4 py-3">{row.organization || '-'}</td>
+                                                    <td className="px-4 py-3 font-semibold">
+                                                        <div className="flex items-center gap-2">
+                                                            <UserAvatar memberInfo={row} name={row.staff_name} sizeClass="h-7 w-7" textClass="text-[10px]" />
+                                                            <span>{row.staff_name || '-'}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-[#C7C7CC]">{row.email || '-'}</td>
+                                                    <td className="px-4 py-3"><span className="rounded-full bg-[#203524] px-2 py-1 text-[11px] font-semibold text-[#8EE59A]">성공</span></td>
+                                                </tr>
+                                            )) : (
+                                                <tr>
+                                                    <td className="px-4 py-8 text-center text-[#8E8E93]" colSpan={5}>저장된 실제 로그인 이력이 아직 없습니다. 다음 로그인부터 자동으로 기록됩니다.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+
+                            <section>
+                                <div className="mb-3 flex items-end justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-[14px] font-bold text-white">권한자 로그인 상태</h3>
+                                        <p className="mt-1 text-[12px] text-[#8E8E93]">비밀번호를 새로 만들지 않고 Auth 사용자와 권한 테이블 매칭만 확인합니다.</p>
+                                    </div>
+                                    <div className="text-[12px] text-[#A1A1AA]">총 {loginCapabilityUsers.length.toLocaleString('ko-KR')}명</div>
+                                </div>
+                                <div className="overflow-hidden rounded-[12px] border border-[#303033]">
+                                    <table className="w-full min-w-[860px] border-collapse text-left text-[12px]">
+                                        <thead className="bg-[#202020] text-[#A1A1AA]">
+                                            <tr>
+                                                <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[0]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
+                                                <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[1]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
+                                                <th className="px-4 py-3 font-semibold">이메일</th>
+                                                <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[2]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
+                                                <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[3]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
+                                                <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[4]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-[#2C2C2E] text-[#E5E5E5]">
+                                            {sortedLoginCapabilityUsers.map((row, index) => {
+                                                const ok = row.login_status === '로그인 가능';
+                                                return (
+                                                    <tr key={`${row.email || 'user'}-${index}`} className="hover:bg-white/[0.03]">
+                                                        <td className="px-4 py-3">{row.organization || '-'}</td>
+                                                        <td className="px-4 py-3 font-semibold">
+                                                            <div className="flex items-center gap-2">
+                                                                <UserAvatar memberInfo={row} name={row.staff_name} sizeClass="h-7 w-7" textClass="text-[10px]" />
+                                                                <span>{row.staff_name || '-'}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-[#C7C7CC]">{row.email || '-'}</td>
+                                                        <td className="px-4 py-3 text-[#C7C7CC]">{row.logistics_role || '-'}</td>
+                                                        <td className="px-4 py-3">
+                                                            <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${ok ? 'bg-[#203524] text-[#8EE59A]' : 'bg-[#3A2E18] text-[#FFD479]'}`}>
+                                                                {row.login_status || '-'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="whitespace-nowrap px-4 py-3 text-[#C7C7CC]">{formatLoginHistoryTime(row.last_sign_in_at)}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
 const NOTIFICATION_STATUS_LABELS = {
     written: '정규 DB 반영 완료',
     submitted: '승인 확인 필요',
@@ -941,6 +1087,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         || normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/data-platform/`);
     const isLegacyLogisticsPath = isLogisticsPath && !isDataPlatformActive;
     const canManageFeatureAccess = memberHasFeatureAccess('permission_admin', memberInfo);
+    const canViewLoginHistory = memberHasFeatureAccess('login_history', memberInfo) || canManageFeatureAccess;
     const loginHistoryRows = Array.isArray(loginHistoryData?.rows) ? loginHistoryData.rows : [];
     const recentLoginHistoryRows = loginHistoryRows.slice(0, 5);
     const loginCapabilityUsers = useMemo(() => (
@@ -1362,7 +1509,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         await loadLoginHistory();
     };
     useEffect(() => {
-        if (!isLegacyLogisticsPath || (!showFeatureAccessModal && !showLoginHistoryModal)) return undefined;
+        if (!isLogisticsPath || (!showFeatureAccessModal && !showLoginHistoryModal)) return undefined;
         let lastRefreshAt = 0;
         const refreshOpenModalData = () => {
             if (document.visibilityState && document.visibilityState !== 'visible') return;
@@ -1388,7 +1535,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
             window.removeEventListener('logistics-data-refresh', refreshOpenModalData);
             document.removeEventListener('visibilitychange', refreshOpenModalData);
         };
-    }, [isLegacyLogisticsPath, showFeatureAccessModal, showLoginHistoryModal, featureAccessDirty, featureAccessSaving, featureAccessLoading, loginHistoryLoading]);
+    }, [isLogisticsPath, showFeatureAccessModal, showLoginHistoryModal, featureAccessDirty, featureAccessSaving, featureAccessLoading, loginHistoryLoading]);
     const renderCollapsedTooltip = (label) => (
         isCollapsed ? (
             <span className="pointer-events-none absolute left-[58px] top-1/2 z-[9999] -translate-y-1/2 whitespace-nowrap rounded-[8px] border border-[#3A3A3C] bg-[#242424] px-2.5 py-1.5 text-[12px] font-semibold text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
@@ -1402,6 +1549,25 @@ export default function IotaLeftNav({ currentPath = '' }) {
         event.dataTransfer.setData('text/plain', item.path);
         event.dataTransfer.effectAllowed = 'copy';
     };
+    const renderLoginHistoryModal = ({
+        testId = 'logistics-login-history-modal',
+        onRefresh = loadLoginHistory,
+    } = {}) => (
+        <LoginHistoryModal
+            open={showLoginHistoryModal}
+            testId={testId}
+            onRefresh={onRefresh}
+            onClose={() => setShowLoginHistoryModal(false)}
+            loading={loginHistoryLoading}
+            error={loginHistoryError}
+            hasContent={hasLoginHistoryContent}
+            recentLoginHistoryRows={recentLoginHistoryRows}
+            loginCapabilityUsers={loginCapabilityUsers}
+            sortedLoginCapabilityUsers={sortedLoginCapabilityUsers}
+            loginCapabilitySort={loginCapabilitySort}
+            toggleLoginCapabilitySort={toggleLoginCapabilitySort}
+        />
+    );
 
     if (isDataPlatformActive) {
         return (
@@ -1435,6 +1601,20 @@ export default function IotaLeftNav({ currentPath = '' }) {
                         })}
                     </nav>
                     <div className={`relative border-t border-[#2C2C2E] ${isCollapsed ? 'px-3 py-3' : 'px-3 py-3'}`}>
+                        {canViewLoginHistory ? (
+                            <button
+                                type="button"
+                                data-testid="logistics-login-history-button"
+                                onClick={openLoginHistoryModal}
+                                title="로그인 이력"
+                                className={`mb-2 flex items-center ${isCollapsed ? 'h-10 w-full justify-center px-0' : 'h-9 w-full justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                            >
+                                <svg className="h-4 w-4 shrink-0 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {!isCollapsed ? <span>로그인 이력</span> : null}
+                            </button>
+                        ) : null}
                         <button type="button" data-testid="logistics-profile-button" onClick={() => setShowProfileMenu((value) => !value)} className={`flex w-full min-w-0 items-center rounded-xl py-2 hover:bg-[#151515] ${isCollapsed ? 'justify-center px-0' : 'justify-start px-2'}`}>
                             <UserAvatar memberInfo={memberInfo} name={memberInfo?.staff_name || memberInfo?.name} sizeClass="h-8 w-8" textClass="text-[11px]" className="bg-[#3c3c3c]" />
                             {!isCollapsed ? <div className="ml-3 min-w-0 text-left"><div className="truncate text-[13px] font-semibold">{memberInfo?.staff_name || '로그인 사용자'}</div><div className="truncate text-[11px] text-[#86868B]">{memberInfo?.organization || memberInfo?.department || '조직 미확인'}</div></div> : null}
@@ -1442,6 +1622,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                         {showProfileMenu ? <><div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} /><div className="absolute bottom-full left-3 right-3 z-50 mb-2 rounded-[14px] border border-[#3A3A3C] bg-[#2C2C2E] py-2 shadow-xl"><button type="button" onClick={handleSignOutClick} className="w-full px-4 py-2.5 text-left text-[14px] font-medium text-[#FF6B61] hover:bg-red-500/10">로그아웃</button></div></> : null}
                     </div>
                 </div>
+                {renderLoginHistoryModal({ testId: 'logistics-login-history-modal', onRefresh: loadLoginHistory })}
             </div>
         );
     }
@@ -1822,136 +2003,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                     ) : null}
                     </div>
                 </div>
-                {showLoginHistoryModal ? (
-                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm">
-                        <div data-testid="logistics-login-history-modal" className="flex h-[82vh] w-full max-w-[1120px] flex-col overflow-hidden rounded-[18px] border border-[#333333] bg-[#171717] shadow-2xl">
-                            <div className="flex items-center justify-between border-b border-[#2C2C2E] px-6 py-4">
-                                <div>
-                                    <div className="text-[18px] font-bold text-white">로그인 이력</div>
-                                    <div className="mt-1 text-[12px] text-[#8E8E93]">기획추진센터 전용 조회 화면</div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button type="button" data-testid="logistics-login-history-refresh" onClick={loadLoginHistory} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
-                                        새로고침
-                                    </button>
-                                    <button type="button" data-testid="logistics-login-history-close" onClick={() => setShowLoginHistoryModal(false)} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
-                                        닫기
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="custom-scrollbar flex-1 overflow-auto px-6 py-5">
-                                {loginHistoryLoading && !hasLoginHistoryContent ? (
-                                    <div className="flex h-full items-center justify-center text-[14px] text-[#A1A1AA]">불러오는 중...</div>
-                                ) : loginHistoryError && !hasLoginHistoryContent ? (
-                                    <div className="rounded-[14px] border border-[#5A2A2A] bg-[#2A1717] p-4 text-[13px] text-[#FFB4A9]">{loginHistoryError}</div>
-                                ) : (
-                                    <div className="grid gap-5">
-                                        {loginHistoryError && hasLoginHistoryContent ? (
-                                            <div className="rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[12px] font-semibold text-[#FFD479]">
-                                                {loginHistoryError}
-                                            </div>
-                                        ) : null}
-                                        {loginHistoryLoading ? (
-                                            <div className="rounded-[12px] border border-[#3A3A3C] bg-[#1F1F1E] px-4 py-3 text-[12px] font-semibold text-[#FFD166]">
-                                                최신 로그인 이력을 다시 불러오는 중입니다. 기존 조회값은 그대로 표시합니다.
-                                            </div>
-                                        ) : null}
-                                        <section>
-                                            <div className="mb-3 flex items-end justify-between gap-4">
-                                                <div>
-                                                    <h3 className="text-[14px] font-bold text-white">최근 로그인</h3>
-                                                    <p className="mt-1 text-[12px] text-[#8E8E93]">테스트 및 smoke 기록은 제외했습니다.</p>
-                                                </div>
-                                                <div className="text-[12px] text-[#A1A1AA]">최근 {recentLoginHistoryRows.length.toLocaleString('ko-KR')}건</div>
-                                            </div>
-                                            <div className="overflow-hidden rounded-[12px] border border-[#303033]">
-                                                <table className="w-full min-w-[760px] border-collapse text-left text-[12px]">
-                                                    <thead className="bg-[#202020] text-[#A1A1AA]">
-                                                        <tr>
-                                                            <th className="px-4 py-3 font-semibold">일시</th>
-                                                            <th className="px-4 py-3 font-semibold">조직</th>
-                                                            <th className="px-4 py-3 font-semibold">이름</th>
-                                                            <th className="px-4 py-3 font-semibold">이메일</th>
-                                                            <th className="px-4 py-3 font-semibold">상태</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-[#2C2C2E] text-[#E5E5E5]">
-                                                        {recentLoginHistoryRows.length ? recentLoginHistoryRows.map((row, index) => (
-                                                            <tr key={row.event_id || `${row.email || 'login'}-${row.logged_at || index}`} className="hover:bg-white/[0.03]">
-                                                                <td className="whitespace-nowrap px-4 py-3 text-[#C7C7CC]">{formatLoginHistoryTime(row.logged_at)}</td>
-                                                                <td className="px-4 py-3">{row.organization || '-'}</td>
-                                                                <td className="px-4 py-3 font-semibold">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <UserAvatar memberInfo={row} name={row.staff_name} sizeClass="h-7 w-7" textClass="text-[10px]" />
-                                                                        <span>{row.staff_name || '-'}</span>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-4 py-3 text-[#C7C7CC]">{row.email || '-'}</td>
-                                                                <td className="px-4 py-3"><span className="rounded-full bg-[#203524] px-2 py-1 text-[11px] font-semibold text-[#8EE59A]">성공</span></td>
-                                                            </tr>
-                                                        )) : (
-                                                            <tr>
-                                                                <td className="px-4 py-8 text-center text-[#8E8E93]" colSpan={5}>저장된 실제 로그인 이력이 아직 없습니다. 다음 로그인부터 자동으로 기록됩니다.</td>
-                                                            </tr>
-                                                        )}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </section>
-
-                                        <section>
-                                            <div className="mb-3 flex items-end justify-between gap-4">
-                                                <div>
-                                                    <h3 className="text-[14px] font-bold text-white">권한자 로그인 상태</h3>
-                                                    <p className="mt-1 text-[12px] text-[#8E8E93]">비밀번호를 새로 만들지 않고 Auth 사용자와 권한 테이블 매칭만 확인합니다.</p>
-                                                </div>
-                                                <div className="text-[12px] text-[#A1A1AA]">총 {loginCapabilityUsers.length.toLocaleString('ko-KR')}명</div>
-                                            </div>
-                                            <div className="overflow-hidden rounded-[12px] border border-[#303033]">
-                                                <table className="w-full min-w-[860px] border-collapse text-left text-[12px]">
-                                                    <thead className="bg-[#202020] text-[#A1A1AA]">
-                                                        <tr>
-                                                            <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[0]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
-                                                            <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[1]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
-                                                            <th className="px-4 py-3 font-semibold">이메일</th>
-                                                            <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[2]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
-                                                            <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[3]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
-                                                            <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[4]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-[#2C2C2E] text-[#E5E5E5]">
-                                                        {sortedLoginCapabilityUsers.map((row, index) => {
-                                                            const ok = row.login_status === '로그인 가능';
-                                                            return (
-                                                                <tr key={`${row.email || 'user'}-${index}`} className="hover:bg-white/[0.03]">
-                                                                    <td className="px-4 py-3">{row.organization || '-'}</td>
-                                                                    <td className="px-4 py-3 font-semibold">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <UserAvatar memberInfo={row} name={row.staff_name} sizeClass="h-7 w-7" textClass="text-[10px]" />
-                                                                            <span>{row.staff_name || '-'}</span>
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-4 py-3 text-[#C7C7CC]">{row.email || '-'}</td>
-                                                                    <td className="px-4 py-3 text-[#C7C7CC]">{row.logistics_role || '-'}</td>
-                                                                    <td className="px-4 py-3">
-                                                                        <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${ok ? 'bg-[#203524] text-[#8EE59A]' : 'bg-[#3A2E18] text-[#FFD479]'}`}>
-                                                                            {row.login_status || '-'}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="whitespace-nowrap px-4 py-3 text-[#C7C7CC]">{formatLoginHistoryTime(row.last_sign_in_at)}</td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </section>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                ) : null}
+                {renderLoginHistoryModal()}
                 {showFeatureAccessModal ? (
                     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm">
                         <div data-testid="logistics-feature-access-modal" className="flex h-[84vh] w-full max-w-[1180px] flex-col overflow-hidden rounded-[18px] border border-[#333333] bg-[#171717] shadow-2xl">

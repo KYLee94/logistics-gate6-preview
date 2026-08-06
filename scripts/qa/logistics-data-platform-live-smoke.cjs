@@ -153,16 +153,23 @@ async function main() {
   const homeBootstrap = await invoke('v2/home/read', auth.token, {});
   const assets = Array.isArray(homeBootstrap.data.assets) ? homeBootstrap.data.assets : [];
   assert.ok(assets.length > 0, 'No readable assets were returned');
-  const assetKey = argValue('asset-key', assets[0].asset_key);
+  const requestedAssetName = argValue('asset-name');
+  const namedAsset = requestedAssetName
+    ? assets.find((asset) => String(asset.name || '').trim() === requestedAssetName.trim())
+    : null;
+  if (requestedAssetName) assert.ok(namedAsset, `Readable asset not found: ${requestedAssetName}`);
+  const assetKey = argValue('asset-key', namedAsset?.asset_key || assets[0].asset_key);
   assert.ok(assetKey, 'Selected asset key is missing');
 
   const month = new Date(Date.now() + (9 * 60 * 60 * 1000)).toISOString().slice(0, 7);
+  const startMonth = argValue('start-month', month);
+  const endMonth = argValue('end-month', month);
   const home = await invoke('v2/home/read', auth.token, { asset_key: assetKey });
   const rentRoll = await invoke('v2/rent-roll/read', auth.token, { asset_key: assetKey });
   const finance = await invoke('v2/finance/read', auth.token, {
     asset_key: assetKey,
-    start_month: month,
-    end_month: month,
+    start_month: startMonth,
+    end_month: endMonth,
     scenario: 'actual',
     accounting_basis: 'accrual',
   });
@@ -227,24 +234,35 @@ async function main() {
   if (validateSafeWrites) {
     assert.equal(expectedWriteState, 'enabled', 'Safe write validation requires --expect-write enabled');
     const homeAsset = home.data.asset;
-    assert.ok(homeAsset?.asset_key && homeAsset?.name && Number(homeAsset?.revision) > 0, 'Home asset is unavailable for no-op validation');
+    assert.ok(homeAsset?.asset_key && homeAsset?.name && homeAsset?.address && Number(homeAsset?.revision) > 0, 'Home asset is unavailable for no-op validation');
     const homeSave = await invoke('v2/home/batch-save', auth.token, {
       asset_key: assetKey,
       client_request_id: randomUUID(),
       expected_revisions: { [homeAsset.asset_key]: Number(homeAsset.revision) },
-      operations: [{
-        entity: 'asset',
-        entity_key: homeAsset.asset_key,
-        field: 'name',
-        value: homeAsset.name,
-        expected_revision: Number(homeAsset.revision),
-        reason: 'release_validation_no_business_value_change',
-      }],
+      operations: [
+        {
+          entity: 'asset',
+          entity_key: homeAsset.asset_key,
+          field: 'name',
+          value: homeAsset.name,
+          expected_revision: Number(homeAsset.revision),
+          reason: 'release_validation_no_business_value_change',
+        },
+        {
+          entity: 'asset',
+          entity_key: homeAsset.asset_key,
+          field: 'address',
+          value: homeAsset.address,
+          expected_revision: Number(homeAsset.revision),
+          reason: 'release_validation_no_business_value_change',
+        },
+      ],
     });
     const homeReadback = await invoke('v2/home/read', auth.token, { asset_key: assetKey });
     assert.equal(homeReadback.data.asset.name, homeAsset.name, 'Home no-op validation changed the asset name');
+    assert.equal(homeReadback.data.asset.address, homeAsset.address, 'Home no-op validation changed the asset address');
     assert.ok(Number(homeReadback.data.asset.revision) > Number(homeAsset.revision), 'Home no-op validation did not advance revision');
-    writeEvidence.push({ action: 'home_noop_update', revision: homeSave.revision, readback_revision: homeReadback.data.asset.revision });
+    writeEvidence.push({ action: 'home_multi_field_noop_update', revision: homeSave.revision, readback_revision: homeReadback.data.asset.revision });
 
     const beforeRows = Array.isArray(rentRoll.data.rows) ? rentRoll.data.rows : [];
     const before = beforeRows.find((row) => row?.space_key && Number(row?.revision) > 0);
@@ -302,6 +320,8 @@ async function main() {
     mode: 'live-data-platform-smoke',
     auth_source: auth.source,
     asset_key: assetKey,
+    asset_name: home.data.asset?.name || namedAsset?.name || null,
+    finance_period: { start_month: startMonth, end_month: endMonth },
     expected_write_state: expectedWriteState,
     counts: {
       readable_assets: assets.length,

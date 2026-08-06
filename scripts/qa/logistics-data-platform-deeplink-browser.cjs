@@ -13,9 +13,11 @@ const ROUTES = Object.freeze([
   {
     key: 'root',
     publicPath: '',
-    expectedPublicPath: 'work-platform',
-    internalPath: 'platform/iotaseoul/workspace/logistics',
-    surface: 'legacy-work-platform',
+    expectedPublicPath: 'data-platform/home',
+    internalPath: 'platform/iotaseoul/workspace/logistics/data-platform/home',
+    surface: 'data-platform',
+    expectedTitle: '홈',
+    navTestId: 'data-platform-home-nav',
   },
   {
     key: 'work-platform',
@@ -381,6 +383,15 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
   await context.addInitScript(({ session }) => {
     sessionStorage.setItem('sb-iota-auth-token', JSON.stringify(session));
     sessionStorage.setItem('logistics_preview_auth', JSON.stringify({ email: session.user?.email || '' }));
+    window.__gate6LegacySurfaceSeen = false;
+    const inspectLegacySurface = () => {
+      if (document.querySelector('[data-work-platform-quick-tabs="true"]')) {
+        window.__gate6LegacySurfaceSeen = true;
+      }
+    };
+    const observer = new MutationObserver(inspectLegacySurface);
+    observer.observe(document, { childList: true, subtree: true });
+    inspectLegacySurface();
   }, { session: auth.session });
   const page = await context.newPage();
   const errors = [];
@@ -443,6 +454,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
     const directSelectedTab = isDataPlatform
       ? await page.locator('[data-testid^="data-platform-"][aria-current="page"]').count()
       : 0;
+    const directLegacySurfaceSeen = await page.evaluate(() => Boolean(window.__gate6LegacySurfaceSeen));
     const refreshResponse = await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
     await leftNav.waitFor({ state: 'visible', timeout: timeoutMs });
     await expectedSurface.waitFor({ state: 'visible', timeout: timeoutMs });
@@ -450,6 +462,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       await page.locator(`[data-testid="${route.navTestId}"][aria-current="page"]`).waitFor({ state: 'visible', timeout: timeoutMs });
     }
     const refreshPath = normalizedPathname(page.url());
+    const refreshLegacySurfaceSeen = await page.evaluate(() => Boolean(window.__gate6LegacySurfaceSeen));
     if (expectWriteEnabled && isDataPlatform) {
       await page.waitForFunction(() => Boolean(document.querySelector('header select')?.value), null, {
         timeout: timeoutMs,
@@ -479,6 +492,21 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
     const dataPlatformNavItemCount = isDataPlatform
       ? await page.locator('[data-testid="data-platform-only-nav"] > [data-testid^="data-platform-"]').count().catch(() => 0)
       : 0;
+    let loginHistoryUi = { checked: false };
+    if (isDataPlatform && route.key === 'root') {
+      const loginHistoryButton = page.locator('[data-testid="logistics-login-history-button"]');
+      await loginHistoryButton.waitFor({ state: 'visible', timeout: timeoutMs });
+      await loginHistoryButton.click();
+      const loginHistoryModal = page.locator('[data-testid="logistics-login-history-modal"]');
+      await loginHistoryModal.waitFor({ state: 'visible', timeout: timeoutMs });
+      loginHistoryUi = {
+        checked: true,
+        button_visible: await loginHistoryButton.isVisible(),
+        modal_visible: await loginHistoryModal.isVisible(),
+      };
+      await page.locator('[data-testid="logistics-login-history-close"]').click();
+      await loginHistoryModal.waitFor({ state: 'hidden', timeout: timeoutMs });
+    }
     const dataPlatformBodyText = isDataPlatform ? await dataPlatformMain.innerText() : '';
     const bannedCopyVisible = isDataPlatform && [
       '물류센터 데이터 관리 플랫폼',
@@ -518,6 +546,21 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
         write_control_enabled: await page.locator(writeSelector).isEnabled(),
       };
     }
+    let financeTrendHover = { checked: false };
+    if (isDataPlatform && route.internalPath.endsWith('/income-expense')) {
+      const firstTrendPoint = page.locator('[data-testid="finance-trend"] button').first();
+      await firstTrendPoint.waitFor({ state: 'visible', timeout: timeoutMs });
+      await firstTrendPoint.hover();
+      const tooltip = page.locator('[data-testid="finance-trend-tooltip"]');
+      await tooltip.waitFor({ state: 'visible', timeout: timeoutMs });
+      financeTrendHover = {
+        checked: true,
+        tooltip_visible: await tooltip.isVisible(),
+        tooltip_text: (await tooltip.innerText()).trim(),
+      };
+      await dataPlatformMain.locator('header h1').hover();
+      await tooltip.waitFor({ state: 'hidden', timeout: timeoutMs });
+    }
     const darkStyle = isDataPlatform ? await dataPlatformMain.evaluate((main) => {
       const card = main.querySelector('section:not([data-testid="finance-kpi-strip"])');
       return {
@@ -552,6 +595,9 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       asset_selected: assetSelected,
       asset_option_count: assetOptionCount,
       legacy_work_platform_visible: legacyWorkPlatformVisible,
+      legacy_work_platform_ever_seen: directLegacySurfaceSeen || refreshLegacySurfaceSeen,
+      legacy_work_platform_seen_direct: directLegacySurfaceSeen,
+      legacy_work_platform_seen_refresh: refreshLegacySurfaceSeen,
       data_platform_visible: dataPlatformVisible,
       left_nav_visible: leftNavVisible,
       data_platform_nav_visible: dataPlatformNavVisible,
@@ -560,6 +606,8 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       header_control_contract: headerControlContract,
       dark_style: darkStyle,
       write_ui: writeUi,
+      login_history_ui: loginHistoryUi,
+      finance_trend_hover: financeTrendHover,
       screenshot_path: screenshotPath,
       errors,
     };
@@ -574,7 +622,9 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       && (!isDataPlatform || dataPlatformNavItemCount === 3)
       && !bannedCopyVisible
       && (!isDataPlatform || (!expectWriteEnabled || assetSelected))
-      && (isDataPlatform ? !legacyWorkPlatformVisible && dataPlatformVisible : !dataPlatformVisible)
+      && (isDataPlatform
+        ? !legacyWorkPlatformVisible && !directLegacySurfaceSeen && !refreshLegacySurfaceSeen && dataPlatformVisible
+        : !dataPlatformVisible)
       && (route.surface !== 'legacy-work-platform' || legacyWorkPlatformVisible)
       && (!isDataPlatform || (
         darkStyle?.main_background === 'rgb(31, 31, 30)'
@@ -585,6 +635,8 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
         && headerControlContract?.maturity_button_count === 1
         && headerControlContract?.top_tab_count === 0
       ))
+      && (!loginHistoryUi.checked || (loginHistoryUi.button_visible && loginHistoryUi.modal_visible))
+      && (!financeTrendHover.checked || (financeTrendHover.tooltip_visible && financeTrendHover.tooltip_text.length > 0))
       && (!writeUi.checked || writeUi.write_control_enabled)
       && errors.length === 0;
   } catch (error) {
@@ -614,12 +666,12 @@ function runSelfTest() {
   assert.equal(normalizedPathname(`${DEFAULT_LIVE_BASE_URL}home/`), '/logistics-gate6-preview/home');
   const legacyRoutes = ROUTES.filter((route) => route.surface !== 'data-platform');
   const dataPlatformRoutes = routesForScope(true);
-  assert.deepEqual(legacyRoutes.map((route) => route.publicPath), ['', 'work-platform', 'home']);
-  assert.equal(dataPlatformRoutes.length, 4);
+  assert.deepEqual(legacyRoutes.map((route) => route.publicPath), ['work-platform', 'home']);
+  assert.equal(dataPlatformRoutes.length, 5);
   assert.equal(routesForScope(false), ROUTES);
   for (const route of dataPlatformRoutes) {
     assert.match(route.internalPath, /\/data-platform\/(?:home|rent-roll|income-expense)$/u);
-    assert.match(route.publicPath, /^data-platform(?:\/|$)/u);
+    assert.ok(route.publicPath === '' || /^data-platform(?:\/|$)/u.test(route.publicPath));
   }
   console.log('logistics data platform deep-link self-test PASS');
 }

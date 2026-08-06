@@ -21,6 +21,17 @@ export class DataPlatformResponseError extends Error {
   }
 }
 
+export function friendlyDataPlatformError(error) {
+  const status = Number(error?.status || error?.cause?.status || 0);
+  if (status === 401) return '로그인이 만료되었습니다. 다시 로그인한 뒤 시도해 주세요.';
+  if (status === 403) return '이 작업을 수행할 권한이 없습니다. 담당 권한을 확인해 주세요.';
+  if (status === 409) return '다른 담당자가 먼저 수정했습니다. 최신 내용을 다시 불러온 뒤 저장해 주세요.';
+  if (status === 429) return '요청이 잠시 몰렸습니다. 잠시 후 다시 시도해 주세요.';
+  if (status >= 500) return '서버에서 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+  if (error?.name === 'AbortError') return '요청이 취소되었습니다. 다시 시도해 주세요.';
+  return '데이터를 처리하지 못했습니다. 입력값과 연결 상태를 확인한 뒤 다시 시도해 주세요.';
+}
+
 export async function invokeDataPlatform(action, payload = {}, { signal = null } = {}) {
   const result = await invokeDashboardApi(action, payload, {
     signal,
@@ -30,16 +41,18 @@ export async function invokeDataPlatform(action, payload = {}, { signal = null }
   });
 
   if (result?.error) {
+    const cause = result.error;
     throw new DataPlatformResponseError(
-      result.error.message || '서버 요청에 실패했습니다.',
-      { status: result.error.status || null, cause: result.error },
+      friendlyDataPlatformError(cause),
+      { status: cause.status || null, cause },
     );
   }
 
   const response = result?.data;
   if (!response || response.ok !== true || response.status !== 'primary') {
+    const responseError = { status: response?.status || null };
     throw new DataPlatformResponseError(
-      response?.message || '운영 원본 데이터로 확인되지 않아 표시하지 않았습니다.',
+      friendlyDataPlatformError(responseError),
       { status: response?.status || null, requestId: response?.request_id || null },
     );
   }
