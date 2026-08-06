@@ -128,9 +128,13 @@ test('한국 물류센터 NOI는 PGI, EGI, NOI, NCF, 부채상환 후 현금흐�
   assert.equal(formulas.KOREAN_LOGISTICS_NOI_ACCOUNTS.some((row) => row.code === 'FM_FEE'), true);
 });
 
-test('data-platform UI는 자동저장 필드, 기존 표 스크롤, 내부 세로 스크롤 금지를 선언한다', () => {
+test('렌트롤은 편집 중 서버 요청 없이 초안을 유지하고 사용자가 명시적으로 일괄 저장한다', () => {
   const source = fs.readFileSync(path.join(ROOT, 'src/features/logistics-data-platform/LogisticsDataPlatform.jsx'), 'utf8');
-  assert.match(source, /data-autosave-field/u);
+  const rentRollSource = source.slice(
+    source.indexOf('function RentRollPanel'),
+    source.indexOf('function periodFor'),
+  );
+
   assert.match(source, /data-save-state/u);
   assert.match(source, /custom-scrollbar/u);
   assert.match(source, /tenant_name[\s\S]{0,400}<input/iu);
@@ -141,9 +145,27 @@ test('data-platform UI는 자동저장 필드, 기존 표 스크롤, 내부 세�
   assert.match(source, /onDrop/u);
   assert.doesNotMatch(source, /rent-roll-move-up|rent-roll-move-down/u);
   assert.match(source, /const changedRange = changed\.slice\(rangeStart, rangeEnd \+ 1\)/u);
-  assert.match(source, /saveRows\(changedRange\)/u);
-  assert.match(source, /draggable=\{writeEnabled && row\.operation !== ["']delete["']\}/u);
-  assert.match(source, /disabled=\{!writeEnabled \|\| row\.operation === ["']delete["']\}/u);
+  assert.match(rentRollSource, /dirtyRowIds/u);
+  assert.match(rentRollSource, /validationMessages/u);
+  assert.match(rentRollSource, /data-testid=["']rent-roll-save["']/u);
+  assert.match(rentRollSource, /변경사항 저장/u);
+  assert.match(rentRollSource, /rentRollEditingDisabled/u);
+  assert.match(rentRollSource, /beforeunload/u);
+  assert.match(rentRollSource, /gate6-rent-roll-draft-/u);
+  assert.match(rentRollSource, /draftHydratedRef/u);
+  assert.match(rentRollSource, /undoArchive/u);
+  assert.match(rentRollSource, /data-testid=\{row\.operation === ["']delete["'] \? ["']rent-roll-archive-undo["']/u);
+  assert.match(rentRollSource, /rowEditingDisabled/u);
+  assert.match(rentRollSource, /focusRentRollRow/u);
+  assert.match(rentRollSource, /data-validation-row-id/u);
+  assert.match(rentRollSource, /aria-invalid/u);
+  assert.match(source, /aria-live=["']polite["']/u);
+  assert.doesNotMatch(rentRollSource, /blurSave/u);
+  assert.doesNotMatch(rentRollSource, /onBlur=.*saveRows/u);
+  assert.doesNotMatch(rentRollSource, /void saveRows\(changedRange\)/u);
+  assert.doesNotMatch(rentRollSource, /void saveRows\(\[next\]\)/u);
+  assert.match(rentRollSource, /draggable=\{!rowEditingDisabled\}/u);
+  assert.match(rentRollSource, /disabled=\{rowEditingDisabled\}/u);
   assert.match(source, /MultiSelectCell/u);
   assert.match(source, /PresetTextCell/u);
   assert.match(source, /column\?\.kind === ["']multi_select["'][\s\S]{0,160}serializeCostTerms/u);

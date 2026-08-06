@@ -99,7 +99,7 @@ export default function App() {
   }, [currentPage]);
 
   const { lang } = useLanguage();
-  const { user, loading, recoveryMode } = useAuth();
+  const { user, memberInfo, loading, permissionsLoading, recoveryMode } = useAuth();
   const isAuthSetupMaintenance = () => {
       try {
           return window.sessionStorage.getItem('logisticsAuthSetupMode') === 'password-change';
@@ -107,10 +107,24 @@ export default function App() {
           return false;
       }
   };
-  const shouldShowAuthSetup = currentPage === 'auth-setup'
-      || (!loading && !user && currentPage.startsWith('platform/iotaseoul') && !recoveryMode);
-  const isAuthResolving = loading && currentPage.startsWith('platform/iotaseoul');
-  const renderedPage = isAuthResolving ? 'auth-resolving' : shouldShowAuthSetup ? 'auth-setup' : currentPage;
+  const isPlatformRoute = currentPage.startsWith('platform/iotaseoul');
+  const hasVerifiedPlatformAccess = Boolean(
+      user
+      && !permissionsLoading
+      && memberInfo?.account_status === 'active'
+      && memberInfo?.auth_subject === user.id
+  );
+  const isAuthResolving = isPlatformRoute && !recoveryMode && (loading || permissionsLoading);
+  const shouldShowAuthSetup = recoveryMode
+      || currentPage === 'auth-setup'
+      || (isPlatformRoute && !isAuthResolving && !hasVerifiedPlatformAccess);
+  const renderedPage = isAuthResolving
+      ? 'auth-resolving'
+      : shouldShowAuthSetup
+          ? 'auth-setup'
+          : isPlatformRoute && !hasVerifiedPlatformAccess
+              ? 'auth-setup'
+              : currentPage;
   const isFullscreenPage = renderedPage === 'auth-setup'
       || renderedPage === 'auth-resolving'
       || renderedPage.startsWith('platform/iotaseoul');
@@ -125,18 +139,18 @@ export default function App() {
           return;
       }
 
-      if (!loading && !user && currentPage.startsWith('platform/iotaseoul') && !recoveryMode) {
+      if (!loading && !permissionsLoading && !hasVerifiedPlatformAccess && isPlatformRoute && !recoveryMode) {
           window.sessionStorage.setItem('logisticsPostLoginPath', currentPage);
           navigateTo('auth-setup');
           return;
       }
 
-      if (!loading && user && currentPage === 'auth-setup' && !recoveryMode && !isAuthSetupMaintenance()) {
+      if (!loading && !permissionsLoading && hasVerifiedPlatformAccess && currentPage === 'auth-setup' && !recoveryMode && !isAuthSetupMaintenance()) {
           const nextPath = window.sessionStorage.getItem('logisticsPostLoginPath') || LOGISTICS_DEFAULT_PATH;
           window.sessionStorage.removeItem('logisticsPostLoginPath');
           navigateTo(nextPath);
       }
-  }, [user, loading, currentPage, recoveryMode, navigateTo]);
+  }, [currentPage, hasVerifiedPlatformAccess, isPlatformRoute, loading, navigateTo, permissionsLoading, recoveryMode]);
 
   React.useEffect(() => {
     const applyLanguage = () => {

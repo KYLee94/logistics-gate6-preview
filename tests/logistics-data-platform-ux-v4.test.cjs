@@ -36,7 +36,7 @@ test('렌트롤 용도는 네 가지 운영 용도만 선택한다', async () =>
   assert.equal(schema.RENT_ROLL_COLUMNS.some((column) => column.key === 'use_category'), false);
 });
 
-test('NOI 기본 본표는 MECE 핵심 계정만 보이고 세부 계정은 선택할 수 있다', async () => {
+test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 잠근 채 아래에 배치한다', async () => {
   const formulas = await importFresh('src/features/logistics-data-platform/formulas.js');
   const core = formulas.KOREAN_LOGISTICS_NOI_ACCOUNTS.filter((account) => account.defaultVisible);
   const optional = formulas.KOREAN_LOGISTICS_NOI_ACCOUNTS.filter((account) => !account.defaultVisible);
@@ -59,9 +59,38 @@ test('NOI 기본 본표는 MECE 핵심 계정만 보이고 세부 계정은 선�
   assert.ok(optional.some((account) => account.code === 'CAPEX'));
   assert.ok(optional.some((account) => account.code === 'INTEREST_PAID'));
 
+  const hierarchy = formulas.buildFinanceAccountHierarchy(
+    formulas.KOREAN_LOGISTICS_NOI_ACCOUNTS.map((account, index) => ({
+      account_code: account.code,
+      display_order: index + 1,
+    })),
+    new Set(['POTENTIAL_BASE_RENT', 'PARKING_YARD_INCOME']),
+  );
+  const income = hierarchy.find((section) => section.key === 'potential_income');
+  assert.deepEqual(
+    income.accounts.slice(0, 2).map((account) => [account.account_code, account.active]),
+    [['POTENTIAL_BASE_RENT', true], ['PARKING_YARD_INCOME', true]],
+  );
+  assert.ok(income.accounts.slice(2).every((account) => account.active === false));
+
+  const calculationAccounts = formulas.filterFinanceCalculationAccounts(
+    income.accounts,
+    new Set(['POTENTIAL_BASE_RENT']),
+  );
+  assert.deepEqual(
+    calculationAccounts.map((account) => account.account_code),
+    ['POTENTIAL_BASE_RENT'],
+    '비활성 계정은 화면 선택만 바꾸고 DB 원장을 삭제하지 않으면서 NOI 계산에서는 제외해야 합니다.',
+  );
+
   const source = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
-  assert.match(source, /data-testid=["']finance-account-picker["']/u);
+  assert.doesNotMatch(source, /data-testid=["']finance-account-picker["']/u);
+  assert.match(source, /data-testid=["']finance-account-row["']/u);
   assert.match(source, /data-testid=["']finance-account-toggle["']/u);
+  assert.match(source, /data-finance-account-active=/u);
+  assert.match(source, /disabled=\{!writeEnabled \|\| !row\.active\}/u);
+  assert.match(source, /pendingAccountFocusRef/u);
+  assert.match(source, /accountSelectionAnnouncement/u);
   assert.match(source, /영업수익 소계/u);
   assert.match(source, /영업비용 소계/u);
 });

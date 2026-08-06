@@ -804,8 +804,6 @@ const ACTION_SCOPE_MANIFEST = new Map<string, ActionScopeContract>([
     'news/list', 'news/collect-run', 'news/restore-20260617',
     'market-docs/upload', 'market-docs/ingest', 'market-docs/embed', 'market-docs/status', 'market-docs/search',
     'dashboard-metrics/refresh', 'snapshot-refresh', 'cache-clear',
-    'v2/home/read', 'v2/home/batch-save', 'v2/rent-roll/read', 'v2/rent-roll/batch-save', 'v2/finance/read',
-    'v2/finance/batch-save', 'v2/maturities/read', 'v2/calculations/explain',
   ].map((action) => [action, 'global'] as const),
   ...[
     'asset-spec/read', 'asset-spec/save', 'asset-admin/gyeongsan-coupang-floor-count-preview', 'operating-costs/read',
@@ -818,6 +816,8 @@ const ACTION_SCOPE_MANIFEST = new Map<string, ActionScopeContract>([
     'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset', 'funds/save-by-asset',
     'opendart/company/cache-upsert', 'opendart/company', 'building-register/summary',
     'naver/geocode', 'naver/geocode-batch', 'naver/reverse-geocode', 'dashboard/asset/read', 'asset-floor-plans/register',
+    'v2/home/read', 'v2/home/batch-save', 'v2/rent-roll/read', 'v2/rent-roll/batch-save', 'v2/finance/read',
+    'v2/finance/batch-save', 'v2/maturities/read', 'v2/calculations/explain',
   ].map((action) => [action, 'asset'] as const),
   ...[
     'quality/findings', 'contract-data/apply', 'edits/submit', 'edits/list', 'edits/readback', 'edits/approve', 'edits/reject',
@@ -846,6 +846,8 @@ const ACTION_SCOPE_HANDLER_CONTRACTS = new Map<string, Extract<ActionScopeContra
     'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset', 'funds/save-by-asset',
     'opendart/company/cache-upsert', 'opendart/company', 'building-register/summary',
     'naver/geocode', 'naver/geocode-batch', 'naver/reverse-geocode', 'dashboard/asset/read', 'asset-floor-plans/register',
+    'v2/home/read', 'v2/home/batch-save', 'v2/rent-roll/read', 'v2/rent-roll/batch-save', 'v2/finance/read',
+    'v2/finance/batch-save', 'v2/maturities/read', 'v2/calculations/explain',
   ].map((action) => [action, 'asset'] as const),
   ...[
     'quality/findings', 'contract-data/apply', 'edits/submit', 'edits/list', 'edits/readback', 'edits/approve', 'edits/reject',

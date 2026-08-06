@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { normalizeLogisticsPath } from "../../components/system/workspace/logisticsRoutes";
 import {
   DATA_PLATFORM_ACTIONS,
@@ -18,7 +18,9 @@ import {
   validateUniversalRentRoll,
 } from "./rentRollSchema";
 import {
+  buildFinanceAccountHierarchy,
   calculateKoreanLogisticsNoi,
+  filterFinanceCalculationAccounts,
   FINANCE_WATERFALL_KEYS,
   KOREAN_LOGISTICS_NOI_ACCOUNTS,
 } from "./formulas";
@@ -163,13 +165,23 @@ function SaveState({ state }) {
       ? "저장 중"
       : state === "saved"
         ? "저장 완료"
+        : state === "dirty"
+          ? "저장할 변경 있음"
         : "변경 내용 없음";
   const color =
     state === "saved"
         ? "text-[#7BD5A0]"
+        : state === "dirty"
+          ? "text-[#7DB7FF]"
         : "text-[#86868B]";
   return (
-    <span data-save-state={state || "idle"} className={`text-xs ${color}`}>
+    <span
+      data-save-state={state || "idle"}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className={`text-xs ${color}`}
+    >
       {label}
     </span>
   );
@@ -825,7 +837,16 @@ function percentStoredValue(value) {
   return text === "" ? "" : `${text}%`;
 }
 
-function PresetTextCell({ column, value, disabled, onChange, onCommit }) {
+function PresetTextCell({
+  column,
+  value,
+  disabled,
+  invalid = false,
+  describedBy,
+  rowLabel,
+  onChange,
+  onCommit,
+}) {
   const options = Array.isArray(column.options) ? column.options : [];
   const known = options.includes(value) && value !== "기타";
   const [customMode, setCustomMode] = useState(Boolean(value) && !known);
@@ -833,8 +854,10 @@ function PresetTextCell({ column, value, disabled, onChange, onCommit }) {
   return (
     <div className="grid min-w-[150px] gap-1">
       <select
-        data-autosave-field={column.key}
-        aria-label={`${column.label} 유형`}
+        data-draft-field={column.key}
+        aria-label={`${rowLabel} ${column.label} 유형`}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? describedBy : undefined}
         value={showCustom ? "기타" : value || ""}
         disabled={disabled}
         onChange={(event) => {
@@ -857,8 +880,10 @@ function PresetTextCell({ column, value, disabled, onChange, onCommit }) {
       </select>
       {showCustom ? (
         <input
-          data-autosave-field={column.key}
-          aria-label={`${column.label} 직접 작성`}
+          data-draft-field={column.key}
+          aria-label={`${rowLabel} ${column.label} 직접 작성`}
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? describedBy : undefined}
           type="text"
           value={known ? "" : value || ""}
           onChange={(event) => onChange(event.target.value)}
@@ -872,7 +897,16 @@ function PresetTextCell({ column, value, disabled, onChange, onCommit }) {
   );
 }
 
-function MultiSelectCell({ column, value, disabled, onChange, onCommit }) {
+function MultiSelectCell({
+  column,
+  value,
+  disabled,
+  invalid = false,
+  describedBy,
+  rowLabel,
+  onChange,
+  onCommit,
+}) {
   const [customItem, setCustomItem] = useState("");
   const standardOptions = Array.isArray(column.options) ? column.options : [];
   const selected = normalizeCostTerms(value, standardOptions);
@@ -894,8 +928,23 @@ function MultiSelectCell({ column, value, disabled, onChange, onCommit }) {
     setCustomItem("");
   };
   return (
-    <details className="relative min-w-[190px]" data-autosave-field={column.key}>
-      <summary className="cursor-pointer list-none rounded-[6px] px-2 py-1.5 text-xs text-[#D1D1D6] hover:bg-[#303030] focus:outline-none focus:ring-1 focus:ring-[#5E9EFF]">
+    <details
+      className="relative min-w-[190px]"
+      onToggle={(event) => {
+        if (disabled && event.currentTarget.open) event.currentTarget.open = false;
+      }}
+    >
+      <summary
+        data-draft-field={column.key}
+        aria-label={`${rowLabel} ${column.label}`}
+        aria-disabled={disabled ? "true" : undefined}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? describedBy : undefined}
+        onClick={(event) => {
+          if (disabled) event.preventDefault();
+        }}
+        className="cursor-pointer list-none rounded-[6px] px-2 py-1.5 text-xs text-[#D1D1D6] hover:bg-[#303030] focus:outline-none focus:ring-1 focus:ring-[#5E9EFF] aria-disabled:cursor-not-allowed aria-disabled:opacity-35"
+      >
         {selected.length ? `${selected.length}개 선택` : "항목 선택"}
       </summary>
       <div className="absolute left-0 top-full z-[70] mt-1 w-[300px] rounded-[10px] border border-[#3A3A3C] bg-[#202020] p-3 shadow-2xl">
@@ -977,38 +1026,156 @@ function RentRollPanel({ assetKey }) {
   const [paste, setPaste] = useState("");
   const [saveState, setSaveState] = useState("idle");
   const [error, setError] = useState(null);
+  const [dirtyRowIds, setDirtyRowIds] = useState(() => new Set());
+  const [validationMessages, setValidationMessages] = useState([]);
+  const [draftReady, setDraftReady] = useState(false);
   const [draggedRowId, setDraggedRowId] = useState(null);
   const [dragOverRowId, setDragOverRowId] = useState(null);
+  const draftHydratedRef = useRef(false);
+  const saveReadbackPendingRef = useRef(false);
+  const rowRefs = useRef(new Map());
+  const draftStorageKey = `gate6-rent-roll-draft-${assetKey}`;
   const writeEnabled = resource.data?.write_enabled === true;
+  const rentRollEditingDisabled = !writeEnabled || saveState === "saving";
   useEffect(() => {
+    if (!resource.data) return;
     const source = Array.isArray(resource.data?.rows) ? resource.data.rows : [];
-    setRows(
-      sortRows(
-        source.map((row, index) => ({
-          ...deriveRentRollRow(row),
-          operation: "update",
-          display_order: row.display_order ?? index + 1,
-        })),
-        DEFAULT_SORT,
-      ),
+    const primaryRows = sortRows(
+      source.map((row, index) => ({
+        ...deriveRentRollRow(row),
+        operation: "update",
+        display_order: row.display_order ?? index + 1,
+      })),
+      DEFAULT_SORT,
     );
-    setSort(DEFAULT_SORT);
-  }, [resource.data]);
+    let restoredRows = primaryRows;
+    let restoredSort = DEFAULT_SORT;
+    let restoredDirtyRowIds = new Set();
+    try {
+      const storedDraft = JSON.parse(
+        globalThis.sessionStorage?.getItem(draftStorageKey) || "null",
+      );
+      if (storedDraft && Array.isArray(storedDraft.dirtyRows)) {
+        const dirtyById = new Map(
+          storedDraft.dirtyRows.map((row) => [rowId(row), deriveRentRollRow(row)]),
+        );
+        const primaryById = new Map(primaryRows.map((row) => [rowId(row), row]));
+        const orderedIds = Array.isArray(storedDraft.rowOrder)
+          ? storedDraft.rowOrder
+          : primaryRows.map(rowId);
+        restoredRows = orderedIds
+          .map((id) => dirtyById.get(id) || primaryById.get(id))
+          .filter(Boolean);
+        primaryRows.forEach((row) => {
+          if (!orderedIds.includes(rowId(row))) restoredRows.push(row);
+        });
+        dirtyById.forEach((row, id) => {
+          if (!restoredRows.some((item) => rowId(item) === id)) restoredRows.push(row);
+        });
+        restoredDirtyRowIds = new Set(
+          (storedDraft.dirtyRowIds || []).filter((id) =>
+            restoredRows.some((row) => rowId(row) === id),
+          ),
+        );
+        restoredSort = storedDraft.sort === null || storedDraft.sort?.key
+          ? storedDraft.sort
+          : DEFAULT_SORT;
+      }
+    } catch {
+      // A malformed or unavailable session draft must not block primary data.
+    }
+    setRows(restoredRows);
+    setSort(restoredSort);
+    setDirtyRowIds(restoredDirtyRowIds);
+    setValidationMessages([]);
+    const readbackConfirmed = saveReadbackPendingRef.current;
+    saveReadbackPendingRef.current = false;
+    setSaveState(
+      restoredDirtyRowIds.size ? "dirty" : readbackConfirmed ? "saved" : "idle",
+    );
+    draftHydratedRef.current = true;
+    setDraftReady(true);
+  }, [draftStorageKey, resource.data]);
   const displayedRows = useMemo(() => sortRows(rows, sort), [rows, sort]);
-  const update = (id, field, value) =>
+  useEffect(() => {
+    if (!draftReady || !draftHydratedRef.current) return;
+    try {
+      if (!dirtyRowIds.size) {
+        globalThis.sessionStorage?.removeItem(draftStorageKey);
+        return;
+      }
+      globalThis.sessionStorage?.setItem(draftStorageKey, JSON.stringify({
+        dirtyRowIds: [...dirtyRowIds],
+        dirtyRows: rows.filter((row) => dirtyRowIds.has(rowId(row))),
+        rowOrder: rows.map(rowId),
+        sort,
+      }));
+    } catch {
+      // The in-memory draft remains editable when browser storage is unavailable.
+    }
+  }, [draftReady, draftStorageKey, dirtyRowIds, rows, sort]);
+  useEffect(() => {
+    if (!dirtyRowIds.size) return undefined;
+    const confirmUnsavedDraft = (event) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    globalThis.addEventListener?.("beforeunload", confirmUnsavedDraft);
+    return () => globalThis.removeEventListener?.("beforeunload", confirmUnsavedDraft);
+  }, [dirtyRowIds]);
+  useEffect(() => {
+    if (!saveReadbackPendingRef.current || !resource.error) return;
+    saveReadbackPendingRef.current = false;
+    setError(resource.error);
+    setSaveState("error");
+  }, [resource.error]);
+  const invalidRowIds = useMemo(
+    () => new Set(validationMessages.map((issue) => issue.rowId)),
+    [validationMessages],
+  );
+  const focusRentRollRow = (id) => {
+    const rowNode = rowRefs.current.get(id);
+    const field = rowNode?.querySelector(
+      '[data-draft-field]:not([disabled]):not([aria-disabled="true"])',
+    );
+    field?.focus();
+    rowNode?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  };
+  const markDirty = (...ids) => {
+    setDirtyRowIds((current) => {
+      const next = new Set(current);
+      ids.filter(Boolean).forEach((id) => next.add(id));
+      return next;
+    });
+    setValidationMessages([]);
+    setError(null);
+    setSaveState("dirty");
+  };
+  const update = (id, field, value) => {
     setRows((current) =>
       current.map((row) =>
         rowId(row) === id ? deriveRentRollRow({ ...row, [field]: value }) : row,
       ),
     );
+    markDirty(id);
+  };
   const saveRows = async (targetRows) => {
-    const errors = validateUniversalRentRoll(
-      targetRows.filter((row) => row.operation !== "delete"),
-    );
-    if (errors.length) {
-      setError({ userMessage: errors[0] });
-      setSaveState("error");
-      return;
+    const validationTargets = targetRows.filter((row) => row.operation !== "delete");
+    const issues = validationTargets.flatMap((row) => {
+      const id = rowId(row);
+      const visibleIndex = displayedRows.findIndex((item) => rowId(item) === id);
+      const tenantName = String(row.tenant_name || "").trim();
+      const rowLabel = `${visibleIndex >= 0 ? visibleIndex + 1 : "?"}행${tenantName ? ` (${tenantName})` : ""}`;
+      return validateUniversalRentRoll([row]).map((message, issueIndex) => ({
+        id: `${id}-${issueIndex}`,
+        rowId: id,
+        message: String(message).replace(/^1행:\s*/u, `${rowLabel}: `),
+      }));
+    });
+    if (issues.length) {
+      setValidationMessages(issues);
+      setSaveState("dirty");
+      return false;
     }
     setSaveState("saving");
     setError(null);
@@ -1018,8 +1185,8 @@ function RentRollPanel({ assetKey }) {
         client_request_id: createClientRequestId("rent-roll"),
         expected_revisions: Object.fromEntries(
           targetRows
-            .filter((row) => row.revision)
-            .map((row) => [row.row_key, row.revision]),
+            .filter((row) => row.space_revision ?? row.revision)
+            .map((row) => [row.row_key, row.space_revision ?? row.revision]),
         ),
         rows: targetRows.map((row) =>
           Object.fromEntries(
@@ -1037,26 +1204,36 @@ function RentRollPanel({ assetKey }) {
           ),
         ),
       });
-      setSaveState("saved");
+      setDirtyRowIds((current) => {
+        const next = new Set(current);
+        targetRows.forEach((row) => next.delete(rowId(row)));
+        return next;
+      });
+      setValidationMessages([]);
+      saveReadbackPendingRef.current = true;
+      try {
+        globalThis.sessionStorage?.removeItem(draftStorageKey);
+      } catch {
+        // Browser storage cleanup must never turn a committed API save into failure.
+      }
       resource.reload();
+      return true;
     } catch (cause) {
       setError(cause);
       setSaveState("error");
+      return false;
     }
   };
-  const blurSave = (id) => {
-    const row = rows.find((item) => rowId(item) === id);
-    if (row) void saveRows([row]);
+  const saveDirtyRows = async () => {
+    const targetRows = rows.filter((row) => dirtyRowIds.has(rowId(row)));
+    if (!targetRows.length || saveState === "saving") return;
+    await saveRows(targetRows);
   };
   const commitField = (id, field, value) => {
-    const current = rows.find((row) => rowId(row) === id);
-    if (!current) return;
-    const next = deriveRentRollRow({ ...current, [field]: value });
-    setRows((allRows) => allRows.map((row) => (rowId(row) === id ? next : row)));
-    void saveRows([next]);
+    update(id, field, value);
   };
   const reorderRows = (sourceId, targetId) => {
-    if (!writeEnabled || !sourceId || !targetId || sourceId === targetId) return;
+    if (rentRollEditingDisabled || !sourceId || !targetId || sourceId === targetId) return;
     const ordered = [...displayedRows];
     const sourceIndex = ordered.findIndex((row) => rowId(row) === sourceId);
     const targetIndex = ordered.findIndex((row) => rowId(row) === targetId);
@@ -1072,22 +1249,33 @@ function RentRollPanel({ assetKey }) {
     const changedRange = changed.slice(rangeStart, rangeEnd + 1);
     setRows(changed);
     setSort(null);
-    void saveRows(changedRange);
+    markDirty(...changedRange.map(rowId));
   };
   const archive = (id) => {
-    if (!writeEnabled) return;
+    if (rentRollEditingDisabled) return;
     const row = rows.find((item) => rowId(item) === id);
     if (!row) return;
     const deleted = { ...row, operation: "delete" };
     setRows((current) =>
       current.map((item) => (rowId(item) === id ? deleted : item)),
     );
-    void saveRows([deleted]);
+    markDirty(id);
+  };
+  const undoArchive = (id) => {
+    if (rentRollEditingDisabled) return;
+    setRows((current) => current.map((row) => {
+      if (rowId(row) !== id) return row;
+      const operation = (row.space_revision ?? row.revision) ? "update" : "create";
+      return { ...row, operation };
+    }));
+    markDirty(id);
   };
   const add = () => {
+    if (rentRollEditingDisabled) return;
     const next = { ...emptyRentRollRow(), display_order: rows.length + 1 };
     setRows((current) => [...current, next]);
     setSort(null);
+    markDirty(rowId(next));
   };
   if (!assetKey) return <EmptyText>먼저 자산을 선택해 주세요.</EmptyText>;
   return (
@@ -1100,10 +1288,19 @@ function RentRollPanel({ assetKey }) {
           <div className="flex items-center gap-3">
             <SaveState state={saveState} />
             <button
+              data-testid="rent-roll-save"
+              type="button"
+              onClick={() => void saveDirtyRows()}
+              disabled={!writeEnabled || dirtyRowIds.size === 0 || saveState === "saving"}
+              className="rounded-[8px] bg-[#0A6CFF] px-3 py-2 text-sm font-semibold text-white hover:bg-[#2680FF] disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              변경사항 저장
+            </button>
+            <button
               data-testid="rent-roll-add"
               type="button"
               onClick={add}
-              disabled={!writeEnabled}
+              disabled={rentRollEditingDisabled}
               className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-sm text-white disabled:opacity-35"
             >
               행 추가
@@ -1115,6 +1312,7 @@ function RentRollPanel({ assetKey }) {
           <textarea
             value={paste}
             onChange={(event) => setPaste(event.target.value)}
+            disabled={rentRollEditingDisabled}
             rows={1}
             className="min-w-[320px] flex-1 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 py-2 text-sm text-white outline-none focus:border-[#5E9EFF]"
             placeholder="엑셀 행을 그대로 붙여넣으세요."
@@ -1128,10 +1326,11 @@ function RentRollPanel({ assetKey }) {
                 display_order: rows.length + index + 1,
               }));
               setRows((current) => [...current, ...parsed]);
+              markDirty(...parsed.map(rowId));
               setPaste("");
               setSort(null);
             }}
-            disabled={!writeEnabled}
+            disabled={rentRollEditingDisabled}
             className="rounded-[8px] border border-[#3A3A3C] px-4 py-2 text-sm text-white"
           >
             붙여넣기
@@ -1140,6 +1339,31 @@ function RentRollPanel({ assetKey }) {
             {rows.filter((row) => row.operation !== "delete").length}행
           </span>
         </div>
+        {validationMessages.length ? (
+          <div
+            id="rent-roll-validation-summary"
+            data-testid="rent-roll-validation-summary"
+            role="alert"
+            aria-live="assertive"
+            className="mb-3 rounded-[8px] border border-[#725A28] bg-[#302819] px-3 py-2 text-xs text-[#F2CF75]"
+          >
+            <p className="font-semibold">저장할 행의 필수값을 확인해 주세요.</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-4">
+              {validationMessages.map((issue) => (
+                <li key={issue.id}>
+                  <button
+                    type="button"
+                    data-validation-row-id={issue.rowId}
+                    onClick={() => focusRentRollRow(issue.rowId)}
+                    className="text-left underline decoration-[#A98B45] underline-offset-2 hover:text-white focus:outline-none focus:ring-1 focus:ring-[#F2CF75]"
+                  >
+                    {issue.message}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className="custom-scrollbar h-[calc(100vh-190px)] overflow-auto rounded-[12px] border border-[#333333]">
           <table
             data-testid="rent-roll-table"
@@ -1221,11 +1445,20 @@ function RentRollPanel({ assetKey }) {
               {displayedRows.map((sourceRow, index) => {
                 const row = deriveRentRollRow(sourceRow);
                 const id = rowId(row);
+                const rowInvalid = invalidRowIds.has(id);
+                const rowLabel = `${index + 1}행 ${row.tenant_name || row.floor_label || "미입력"}`;
+                const rowEditingDisabled = rentRollEditingDisabled || row.operation === "delete";
                 return (
                   <tr
                     key={id}
+                    ref={(node) => {
+                      if (node) rowRefs.current.set(id, node);
+                      else rowRefs.current.delete(id);
+                    }}
+                    data-rent-roll-row-id={id}
+                    aria-invalid={rowInvalid || undefined}
                     onDragOver={(event) => {
-                      if (!writeEnabled || !draggedRowId || draggedRowId === id) return;
+                      if (rentRollEditingDisabled || !draggedRowId || draggedRowId === id) return;
                       event.preventDefault();
                       event.dataTransfer.dropEffect = "move";
                       setDragOverRowId(id);
@@ -1244,8 +1477,8 @@ function RentRollPanel({ assetKey }) {
                         <button
                           data-testid="rent-roll-drag-handle"
                           type="button"
-                          draggable={writeEnabled && row.operation !== "delete"}
-                          disabled={!writeEnabled || row.operation === "delete"}
+                          draggable={!rowEditingDisabled}
+                          disabled={rowEditingDisabled}
                           aria-label={`${row.tenant_name || row.floor_label || `${index + 1}행`} 순서 이동`}
                           aria-grabbed={draggedRowId === id}
                           title="드래그하여 순서 이동"
@@ -1304,13 +1537,15 @@ function RentRollPanel({ assetKey }) {
                         return (
                           <td key={column.key} className={cellClass}>
                             <select
-                              data-autosave-field={column.key}
+                              data-draft-field={column.key}
+                              aria-label={`${rowLabel} ${column.label}`}
+                              aria-invalid={rowInvalid || undefined}
+                              aria-describedby={rowInvalid ? "rent-roll-validation-summary" : undefined}
                               value={row[column.key] || ""}
                               onChange={(event) =>
                                 update(id, column.key, event.target.value)
                               }
-                              onBlur={() => blurSave(id)}
-                              disabled={!writeEnabled}
+                              disabled={rowEditingDisabled}
                               className={INPUT_CLASS}
                             >
                               {column.options.map(([value, label]) => (
@@ -1327,7 +1562,10 @@ function RentRollPanel({ assetKey }) {
                             <PresetTextCell
                               column={column}
                               value={row[column.key]}
-                              disabled={!writeEnabled}
+                              disabled={rowEditingDisabled}
+                              invalid={rowInvalid}
+                              describedBy="rent-roll-validation-summary"
+                              rowLabel={rowLabel}
                               onChange={(value) => update(id, column.key, value)}
                               onCommit={(value) => commitField(id, column.key, value)}
                             />
@@ -1339,7 +1577,10 @@ function RentRollPanel({ assetKey }) {
                             <MultiSelectCell
                               column={column}
                               value={row[column.key]}
-                              disabled={!writeEnabled}
+                              disabled={rowEditingDisabled}
+                              invalid={rowInvalid}
+                              describedBy="rent-roll-validation-summary"
+                              rowLabel={rowLabel}
                               onChange={(value) => update(id, column.key, value)}
                               onCommit={(value) => commitField(id, column.key, value)}
                             />
@@ -1350,16 +1591,17 @@ function RentRollPanel({ assetKey }) {
                           <td key={column.key} className={cellClass}>
                             <div className="flex items-center gap-1">
                               <input
-                                data-autosave-field={column.key}
-                                aria-label={column.label}
+                                data-draft-field={column.key}
+                                aria-label={`${rowLabel} ${column.label}`}
+                                aria-invalid={rowInvalid || undefined}
+                                aria-describedby={rowInvalid ? "rent-roll-validation-summary" : undefined}
                                 type="number"
                                 min="0"
                                 max="100"
                                 step="0.01"
                                 value={percentInputValue(row[column.key])}
                                 onChange={(event) => update(id, column.key, percentStoredValue(event.target.value))}
-                                onBlur={(event) => commitField(id, column.key, percentStoredValue(event.currentTarget.value))}
-                                disabled={!writeEnabled}
+                                disabled={rowEditingDisabled}
                                 className={`${INPUT_CLASS} text-right tabular-nums`}
                               />
                               <span className="pr-1 text-xs text-[#86868B]">%</span>
@@ -1370,22 +1612,27 @@ function RentRollPanel({ assetKey }) {
                         <td key={column.key} className={cellClass}>
                           {column.key === "tenant_name" ? (
                             <input
-                              data-autosave-field="tenant_name"
+                              data-draft-field="tenant_name"
+                              aria-label={`${rowLabel} ${column.label}`}
+                              aria-invalid={rowInvalid || undefined}
+                              aria-describedby={rowInvalid ? "rent-roll-validation-summary" : undefined}
                               type="text"
                               value={row.tenant_name ?? ""}
                               onChange={(event) =>
                                 update(id, "tenant_name", event.target.value)
                               }
-                              onBlur={() => blurSave(id)}
                               disabled={
-                                !writeEnabled ||
+                                rowEditingDisabled ||
                                 row.occupancy_status === "vacant"
                               }
                               className={INPUT_CLASS}
                             />
                           ) : (
                             <input
-                              data-autosave-field={column.key}
+                              data-draft-field={column.key}
+                              aria-label={`${rowLabel} ${column.label}`}
+                              aria-invalid={rowInvalid || undefined}
+                              aria-describedby={rowInvalid ? "rent-roll-validation-summary" : undefined}
                               type={
                                 column.kind === "number"
                                   ? "number"
@@ -1397,8 +1644,7 @@ function RentRollPanel({ assetKey }) {
                               onChange={(event) =>
                                 update(id, column.key, event.target.value)
                               }
-                              onBlur={() => blurSave(id)}
-                              disabled={!writeEnabled}
+                              disabled={rowEditingDisabled}
                               className={`${INPUT_CLASS} ${column.kind === "number" ? "text-right tabular-nums" : ""}`}
                             />
                           )}
@@ -1407,13 +1653,13 @@ function RentRollPanel({ assetKey }) {
                     })}
                     <td className="sticky right-0 z-20 border-b border-l border-[#333333] bg-[#252524] px-2 text-center">
                       <button
-                        data-testid="rent-roll-archive"
+                        data-testid={row.operation === "delete" ? "rent-roll-archive-undo" : "rent-roll-archive"}
                         type="button"
-                        onClick={() => archive(id)}
-                        disabled={!writeEnabled || row.operation === "delete"}
+                        onClick={() => (row.operation === "delete" ? undoArchive(id) : archive(id))}
+                        disabled={rentRollEditingDisabled}
                         className="text-xs text-[#86868B] hover:text-[#FF9B9B] disabled:cursor-not-allowed disabled:opacity-30"
                       >
-                        삭제
+                        {row.operation === "delete" ? "삭제 취소" : "삭제"}
                       </button>
                       <button
                         data-testid="rent-roll-detail-toggle"
@@ -1429,14 +1675,6 @@ function RentRollPanel({ assetKey }) {
             </tbody>
           </table>
         </div>
-        <button
-          data-testid="rent-roll-save"
-          type="button"
-          disabled
-          className="sr-only"
-        >
-          자동 저장
-        </button>
       </Section>
     </div>
   );
@@ -1581,8 +1819,20 @@ function FinancePanel({ assetKey, assets }) {
   const [entries, setEntries] = useState([]);
   const [saveState, setSaveState] = useState("idle");
   const [error, setError] = useState(null);
+  const [accountSelectionAnnouncement, setAccountSelectionAnnouncement] = useState("");
+  const accountToggleRefs = useRef(new Map());
+  const pendingAccountFocusRef = useRef(null);
+  const accountSelectionStorageKey = `gate6-finance-accounts-${assetKey}`;
   const [selectedAccountCodes, setSelectedAccountCodes] = useState(
-    () => new Set(KOREAN_LOGISTICS_NOI_ACCOUNTS.filter((account) => account.defaultVisible).map((account) => account.code)),
+    () => {
+      try {
+        const stored = JSON.parse(globalThis.localStorage?.getItem(accountSelectionStorageKey) || "null");
+        if (Array.isArray(stored)) return new Set(stored);
+      } catch {
+        // A malformed local preference must not block the statement.
+      }
+      return new Set(KOREAN_LOGISTICS_NOI_ACCOUNTS.filter((account) => account.defaultVisible).map((account) => account.code));
+    },
   );
   const payload = {
     asset_key: assetKey,
@@ -1608,6 +1858,19 @@ function FinancePanel({ assetKey, assets }) {
         : [],
     );
   }, [resource.data]);
+  useEffect(() => {
+    try {
+      globalThis.localStorage?.setItem(accountSelectionStorageKey, JSON.stringify([...selectedAccountCodes]));
+    } catch {
+      // The table remains usable when browser storage is unavailable.
+    }
+  }, [accountSelectionStorageKey, selectedAccountCodes]);
+  useEffect(() => {
+    const accountCode = pendingAccountFocusRef.current;
+    if (!accountCode) return;
+    accountToggleRefs.current.get(accountCode)?.focus({ preventScroll: true });
+    pendingAccountFocusRef.current = null;
+  }, [selectedAccountCodes]);
   const serverAccounts = Array.isArray(resource.data?.accounts)
     ? resource.data.accounts
     : [];
@@ -1617,22 +1880,38 @@ function FinancePanel({ assetKey, assets }) {
   const accounts = serverAccounts
     .filter((account) => definitions.has(account.account_code))
     .sort((a, b) => Number(a.display_order) - Number(b.display_order));
-  const visibleAccounts = accounts.filter((account) => selectedAccountCodes.has(account.account_code));
+  const financeHierarchy = buildFinanceAccountHierarchy(accounts, selectedAccountCodes);
+  const calculationAccounts = filterFinanceCalculationAccounts(accounts, selectedAccountCodes);
   const months = monthsBetween(start, end);
-  const series = buildFinanceSeries(entries, accounts, months, aggregation);
+  const series = buildFinanceSeries(entries, calculationAccounts, months, aggregation);
   const comparisonEntries = Array.isArray(comparison.data?.entries)
     ? comparison.data.entries
     : [];
+  const comparisonAccounts = filterFinanceCalculationAccounts(
+    Array.isArray(comparison.data?.accounts) ? comparison.data.accounts : accounts,
+    selectedAccountCodes,
+  );
   const comparisonSeries = buildFinanceSeries(
     comparisonEntries,
-    Array.isArray(comparison.data?.accounts)
-      ? comparison.data.accounts
-      : accounts,
+    comparisonAccounts,
     months,
     aggregation,
   );
   const periods = series.map((row) => row.period);
   const writeEnabled = resource.data?.write_enabled === true;
+  const toggleFinanceAccount = (row) => {
+    const nextActive = !row.active;
+    pendingAccountFocusRef.current = row.key;
+    setSelectedAccountCodes((current) => {
+      const next = new Set(current);
+      if (nextActive) next.add(row.key);
+      else next.delete(row.key);
+      return next;
+    });
+    setAccountSelectionAnnouncement(
+      `${row.label} 계정을 ${nextActive ? "활성화" : "비활성화"}했습니다. ${nextActive ? "NOI 계산에 포함됩니다." : "저장된 금액은 유지되고 NOI 계산에서는 제외됩니다."}`,
+    );
+  };
   const accountEntries = (code, month, source = entries) =>
     source.filter(
       (entry) =>
@@ -1758,14 +2037,20 @@ function FinancePanel({ assetKey, assets }) {
     after_debt_service_cash_flow: "부채상환 후 현금흐름",
   });
   const rows = [];
-  const sectionOrder = ["potential_income", "income_loss", "operating_expense", "below_noi", "debt_service"];
-  sectionOrder.forEach((section) => {
-    const sectionAccounts = visibleAccounts.filter((account) => definitions.get(account.account_code)?.section === section);
-    if (!sectionAccounts.length) return;
-    rows.push({ kind: "section", key: section, label: definitions.get(sectionAccounts[0].account_code).sectionLabel });
-    sectionAccounts.forEach((account) => {
-      const definition = definitions.get(account.account_code);
-      rows.push({ kind: "account", key: account.account_code, label: definition.label, account });
+  financeHierarchy.forEach(({ key: section, label, accounts: sectionAccounts }) => {
+    rows.push({ kind: "section", key: section, label });
+    const firstInactiveIndex = sectionAccounts.findIndex((account) => !account.active);
+    sectionAccounts.forEach((account, index) => {
+      if (index === firstInactiveIndex) {
+        rows.push({ kind: "inactive-divider", key: `${section}-inactive`, label: "미사용 계정" });
+      }
+      rows.push({
+        kind: "account",
+        key: account.account_code,
+        label: account.label,
+        account,
+        active: account.active,
+      });
     });
     if (section === "potential_income") rows.push({ kind: "metric", key: "potential_gross_income", label: "영업수익 소계" });
     if (section === "income_loss") rows.push({ kind: "metric", key: "effective_gross_income", label: "유효총수입(EGI)" });
@@ -1776,10 +2061,10 @@ function FinancePanel({ assetKey, assets }) {
     if (section === "below_noi") rows.push({ kind: "metric", key: "asset_net_cash_flow", label: "자산 순현금흐름(NCF)" });
     if (section === "debt_service") rows.push({ kind: "metric", key: "after_debt_service_cash_flow", label: "부채상환 후 현금흐름" });
   });
-  if (!visibleAccounts.some((account) => definitions.get(account.account_code)?.section === "below_noi")) {
+  if (!financeHierarchy.some((section) => section.key === "below_noi")) {
     rows.push({ kind: "metric", key: "asset_net_cash_flow", label: "자산 순현금흐름(NCF)" });
   }
-  if (!visibleAccounts.some((account) => definitions.get(account.account_code)?.section === "debt_service")) {
+  if (!financeHierarchy.some((section) => section.key === "debt_service")) {
     rows.push({ kind: "metric", key: "after_debt_service_cash_flow", label: "부채상환 후 현금흐름" });
   }
   if (!assetKey) return <EmptyText>먼저 자산을 선택해 주세요.</EmptyText>;
@@ -1864,34 +2149,15 @@ function FinancePanel({ assetKey, assets }) {
         title="물류센터 NOI 손익표"
         action={<SaveState state={saveState} />}
       >
-        <details
-          data-testid="finance-account-picker"
-          className="mb-3 rounded-[10px] border border-[#333333] bg-[#202020] px-3 py-2"
+        <p
+          id="finance-account-selection-status"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
         >
-          <summary className="cursor-pointer text-xs font-semibold text-[#A1A1AA]">표시 항목 선택</summary>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {accounts.map((account) => {
-              const definition = definitions.get(account.account_code);
-              return (
-                <label key={account.account_code} className="flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-xs text-[#D1D1D6] hover:bg-[#292929]">
-                  <input
-                    data-testid="finance-account-toggle"
-                    type="checkbox"
-                    checked={selectedAccountCodes.has(account.account_code)}
-                    onChange={() => setSelectedAccountCodes((current) => {
-                      const next = new Set(current);
-                      if (next.has(account.account_code)) next.delete(account.account_code);
-                      else next.add(account.account_code);
-                      return next;
-                    })}
-                    className="accent-[#5E9EFF]"
-                  />
-                  <span>{definition.label}</span>
-                </label>
-              );
-            })}
-          </div>
-        </details>
+          {accountSelectionAnnouncement}
+        </p>
         <div
           data-testid="finance-statement-scroll"
           className="custom-scrollbar overflow-x-auto rounded-[10px] border border-[#333333]"
@@ -1902,8 +2168,8 @@ function FinancePanel({ assetKey, assets }) {
           >
             <thead>
               <tr>
-                <th className="sticky left-0 top-0 z-20 min-w-[224px] border-b border-r border-[#333333] bg-[#202020] px-3 py-2.5 text-left text-xs text-[#A1A1AA]">
-                  구분 / 계정과목
+                <th className="sticky left-0 top-0 z-20 min-w-[264px] border-b border-r border-[#333333] bg-[#202020] px-3 py-2.5 text-left text-xs text-[#A1A1AA]">
+                  구분 / 계정 선택
                 </th>
                 {periods.map((period) => (
                   <th
@@ -1917,7 +2183,10 @@ function FinancePanel({ assetKey, assets }) {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={`${row.kind}-${row.key}`}>
+                <tr
+                  key={`${row.kind}-${row.key}`}
+                  data-finance-account-active={row.kind === "account" ? String(row.active) : undefined}
+                >
                   {row.kind === "section" ? (
                     <>
                       <th className="sticky left-0 z-10 border-b border-r border-[#414145] bg-[#1D1D1D] px-3 py-2 text-left text-xs font-semibold text-[#9A9AA0]">
@@ -1930,12 +2199,38 @@ function FinancePanel({ assetKey, assets }) {
                         />
                       ))}
                     </>
+                  ) : row.kind === "inactive-divider" ? (
+                    <>
+                      <th className="sticky left-0 z-10 border-b border-r border-[#333333] bg-[#202020] px-7 py-1.5 text-left text-[10px] font-medium uppercase tracking-[0.08em] text-[#68686D]">
+                        미사용 계정 · NOI 제외
+                      </th>
+                      {periods.map((period) => (
+                        <td key={period} className="border-b border-[#333333] bg-[#202020]" />
+                      ))}
+                    </>
                   ) : (
                     <>
                       <th
-                        className={`sticky left-0 z-10 border-b border-r border-[#333333] px-3 py-2 text-left ${row.kind === "metric" ? "bg-[#17314E] font-semibold text-[#9AD7FF]" : "bg-[#252524] text-[#D1D1D6]"}`}
+                        className={`sticky left-0 z-10 border-b border-r border-[#333333] px-3 py-2 text-left ${row.kind === "metric" ? "bg-[#17314E] font-semibold text-[#9AD7FF]" : row.active ? "bg-[#252524] text-[#D1D1D6]" : "bg-[#202020] text-[#68686D]"}`}
                       >
-                        {row.label}
+                        {row.kind === "account" ? (
+                          <label data-testid="finance-account-row" className="flex cursor-pointer items-center gap-2 pl-3">
+                            <input
+                              ref={(node) => {
+                                if (node) accountToggleRefs.current.set(row.key, node);
+                                else accountToggleRefs.current.delete(row.key);
+                              }}
+                              data-testid="finance-account-toggle"
+                              type="checkbox"
+                              checked={row.active}
+                              disabled={!writeEnabled}
+                              aria-describedby="finance-account-selection-status"
+                              onChange={() => toggleFinanceAccount(row)}
+                              className="h-3.5 w-3.5 accent-[#5E9EFF] disabled:cursor-not-allowed disabled:opacity-35"
+                            />
+                            <span>{row.label}</span>
+                          </label>
+                        ) : row.label}
                       </th>
                       {periods.map((period, periodIndex) => {
                         if (row.kind === "metric")
@@ -1951,7 +2246,7 @@ function FinancePanel({ assetKey, assets }) {
                           return (
                             <td
                               key={period}
-                              className="border-b border-[#333333] bg-[#252524] px-3 py-2 text-right tabular-nums text-white"
+                              className={`border-b border-[#333333] px-3 py-2 text-right tabular-nums ${row.active ? "bg-[#252524] text-white" : "bg-[#202020] text-[#68686D]"}`}
                             >
                               {amount(aggregateAccount(row.key, period))}
                             </td>
@@ -1960,7 +2255,7 @@ function FinancePanel({ assetKey, assets }) {
                         return (
                           <td
                             key={period}
-                            className="border-b border-[#333333] bg-[#222A32] px-2 py-1"
+                            className={`border-b border-[#333333] px-2 py-1 ${row.active ? "bg-[#222A32]" : "bg-[#202020]"}`}
                           >
                             <input
                               data-autosave-field={`${row.key}-${period}`}
@@ -1975,8 +2270,8 @@ function FinancePanel({ assetKey, assets }) {
                                 setCell(row.account, period, event.target.value)
                               }
                               onBlur={(event) => void saveCell(row.account, period, event.currentTarget.value)}
-                              disabled={!writeEnabled}
-                              className="w-full rounded-[6px] border border-transparent bg-transparent px-2 py-1.5 text-right tabular-nums text-white outline-none hover:border-[#35414E] focus:border-[#5E9EFF]"
+                              disabled={!writeEnabled || !row.active}
+                              className="w-full rounded-[6px] border border-transparent bg-transparent px-2 py-1.5 text-right tabular-nums text-white outline-none hover:border-[#35414E] focus:border-[#5E9EFF] disabled:cursor-not-allowed disabled:text-[#5C5C61]"
                             />
                           </td>
                         );

@@ -450,9 +450,16 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
     if (!sessionAdoption.ok) {
       throw new Error(`Supabase browser session adoption failed: ${sessionAdoption.reason || 'unknown error'}`);
     }
+    if (isDataPlatform) {
+      // setSession emits an auth-state event. The application deliberately hides
+      // the platform shell while the server permission profile is revalidated,
+      // so wait for the selected navigation item to return before measuring it.
+      await page.locator(`[data-testid="${route.navTestId}"][aria-current="page"]`)
+        .waitFor({ state: 'visible', timeout: timeoutMs });
+    }
     const directPath = normalizedPathname(page.url());
     const directSelectedTab = isDataPlatform
-      ? await page.locator('[data-testid^="data-platform-"][aria-current="page"]').count()
+      ? await page.locator(`[data-testid="${route.navTestId}"][aria-current="page"]`).count()
       : 0;
     const directLegacySurfaceSeen = await page.evaluate(() => Boolean(window.__gate6LegacySurfaceSeen));
     const refreshResponse = await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });

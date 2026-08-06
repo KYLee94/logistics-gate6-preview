@@ -5,6 +5,7 @@ const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
 const edgeSource = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 'index.ts'), 'utf8');
+const v2ContractsSource = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 'v2', 'contracts.ts'), 'utf8');
 const workspaceSource = fs.readFileSync(path.join(ROOT, 'src', 'components', 'system', 'workspace', 'WorkspaceLogistics.jsx'), 'utf8');
 const authSetupSource = fs.readFileSync(path.join(ROOT, 'src', 'components', 'system', 'AuthSetup.jsx'), 'utf8');
 const authQaSource = fs.readFileSync(path.join(ROOT, 'scripts', 'qa', 'logistics-auth-permission-matrix.cjs'), 'utf8');
@@ -121,7 +122,16 @@ function sourceBlock(source, marker, nextMarker) {
 }
 
 function directDispatcherActions(source) {
-  return [...new Set([...source.matchAll(/action\s*===\s*'([^']+)'/gu)].map((match) => match[1]))].sort();
+  const directActions = [...source.matchAll(/action\s*===\s*'([^']+)'/gu)].map((match) => match[1]);
+  const routedV2Actions = source.includes('isV2PublicAction(action)')
+    ? v2PublicActions(v2ContractsSource)
+    : [];
+  return [...new Set([...directActions, ...routedV2Actions])].sort();
+}
+
+function v2PublicActions(source) {
+  const block = sourceBlock(source, 'export const V2_PUBLIC_ACTIONS =', '] as const);');
+  return [...new Set([...block.matchAll(/'([^']+)'/gu)].map((match) => match[1]))].sort();
 }
 
 function actionManifestActions(source) {
@@ -193,6 +203,35 @@ test('dispatcher action은 최신 source에서 재계산되며 permissions/evalu
   assert.equal(directActions.includes('weekly-assets/latest-preview'), false);
   assert.deepEqual(directActions.filter((action) => !manifestActions.includes(action)), []);
   assert.deepEqual(manifestActions.filter((action) => !directActions.includes(action)), []);
+});
+
+test('v2 data-platform actions are authenticated asset-scoped RPC contracts', () => {
+  const v2Actions = v2PublicActions(v2ContractsSource);
+  const actionManifest = sourceBlock(edgeSource, 'const ACTION_MANIFEST =', ']);');
+  const scopeManifest = sourceBlock(edgeSource, 'const ACTION_SCOPE_MANIFEST =', ']);');
+  const handlerContracts = sourceBlock(edgeSource, 'const ACTION_SCOPE_HANDLER_CONTRACTS =', ']);');
+  const dispatcher = sourceBlock(edgeSource, 'if (isV2PublicAction(action)) {', "if (action === 'health')");
+
+  assert.deepEqual(v2Actions, [
+    'v2/calculations/explain',
+    'v2/finance/batch-save',
+    'v2/finance/read',
+    'v2/home/batch-save',
+    'v2/home/read',
+    'v2/maturities/read',
+    'v2/rent-roll/batch-save',
+    'v2/rent-roll/read',
+  ]);
+  for (const action of v2Actions) {
+    assert.match(actionManifest, new RegExp(`'${action.replaceAll('/', '\\/')}'`, 'u'));
+    assert.match(scopeManifest, new RegExp(`'${action.replaceAll('/', '\\/')}'`, 'u'));
+    assert.match(handlerContracts, new RegExp(`'${action.replaceAll('/', '\\/')}'`, 'u'));
+  }
+  assert.match(actionManifest, /v2\/home\/read[\s\S]*?\]\.map\(\(action\) => \[action, 'authenticated'\]/u);
+  assert.match(scopeManifest, /v2\/home\/read[\s\S]*?\]\.map\(\(action\) => \[action, 'asset'\]/u);
+  assert.match(handlerContracts, /v2\/home\/read[\s\S]*?\]\.map\(\(action\) => \[action, 'asset'\]/u);
+  assert.match(dispatcher, /authMode: 'anon-key-user-jwt'/u);
+  assert.match(dispatcher, /client: ctx\.userRpcClient/u);
 });
 
 test('ACTION_MANIFEST의 public endpoint는 지도 설정, 로그인 상태, 제한된 최초 접속 기록만 허용한다', () => {

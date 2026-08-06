@@ -23,8 +23,26 @@ test('월별 NOI 입력표가 요약 시각화보다 먼저 나오고 기본 12�
   assert.ok(statementIndex > 0, '월별 NOI 입력표가 필요합니다.');
   assert.ok(summaryIndex > statementIndex, '누계 요약은 월별 입력표 뒤에 있어야 합니다.');
   assert.ok(trendIndex > summaryIndex, '시계열 차트는 누계 요약과 함께 입력표 뒤에 있어야 합니다.');
-  assert.match(source, /min-w-\[224px\]/u);
+  assert.match(source, /min-w-\[264px\]/u);
   assert.match(source, /min-w-\[104px\]/u);
   assert.doesNotMatch(source, /min-w-\[250px\]/u);
   assert.doesNotMatch(source, /min-w-\[135px\]/u);
+});
+
+test('NOI 계정 선택은 별도 선택칸이 아니라 손익표 첫 열에서 직접 수행한다', () => {
+  const statementStart = source.indexOf('data-testid="finance-statement-table"');
+  const statementEnd = source.indexOf('</table>', statementStart);
+  const statement = source.slice(statementStart, statementEnd);
+
+  assert.doesNotMatch(source, /data-testid="finance-account-picker"/u);
+  assert.match(statement, /data-testid="finance-account-toggle"/u);
+  assert.match(statement, /data-finance-account-active=/u);
+  assert.match(statement, /미사용 계정/u);
+  assert.match(statement, /disabled=\{!writeEnabled \|\| !row\.active\}/u);
+  assert.match(source, /accountToggleRefs/u);
+  assert.match(source, /pendingAccountFocusRef/u);
+  assert.match(source, /finance-account-selection-status/u);
+  assert.match(source, /filterFinanceCalculationAccounts/u);
+  assert.match(source, /buildFinanceSeries\(entries, calculationAccounts/u);
+  assert.doesNotMatch(statement, /setEntries[\s\S]{0,160}finance-account-toggle/u);
 });

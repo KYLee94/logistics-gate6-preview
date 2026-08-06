@@ -19,6 +19,39 @@ test('루트와 로그인 완료의 기본 진입점은 데이터 플랫폼 홈�
   assert.match(routes, /LOGISTICS_DATA_PLATFORM_HOME/u);
 });
 
+test('플랫폼 shell은 Auth 사용자와 서버 권한 프로필이 같은 활성 subject로 검증된 뒤에만 렌더링한다', () => {
+  const app = read('src/App.jsx');
+
+  assert.match(
+    app,
+    /const\s+\{\s*user,\s*memberInfo,\s*loading,\s*permissionsLoading,\s*recoveryMode\s*\}\s*=\s*useAuth\(\)/u,
+  );
+  assert.match(
+    app,
+    /const\s+hasVerifiedPlatformAccess\s*=\s*Boolean\([\s\S]*?user[\s\S]*?!permissionsLoading[\s\S]*?memberInfo\?\.account_status\s*===\s*['"]active['"][\s\S]*?memberInfo\?\.auth_subject\s*===\s*user\.id[\s\S]*?\)/u,
+  );
+  assert.match(
+    app,
+    /const\s+isAuthResolving\s*=\s*isPlatformRoute[\s\S]*?\(loading\s*\|\|\s*permissionsLoading\)/u,
+  );
+  assert.match(
+    app,
+    /const\s+shouldShowAuthSetup[\s\S]*?recoveryMode[\s\S]*?!hasVerifiedPlatformAccess/u,
+  );
+  assert.match(
+    app,
+    /const\s+renderedPage[\s\S]*?isPlatformRoute\s*&&\s*!hasVerifiedPlatformAccess[\s\S]*?['"]auth-setup['"]/u,
+  );
+  assert.match(
+    app,
+    /!loading\s*&&\s*!permissionsLoading\s*&&\s*!hasVerifiedPlatformAccess\s*&&\s*isPlatformRoute/u,
+  );
+  assert.match(
+    app,
+    /!loading\s*&&\s*!permissionsLoading\s*&&\s*hasVerifiedPlatformAccess\s*&&\s*currentPage\s*===\s*['"]auth-setup['"]/u,
+  );
+});
+
 test('로그인 이력 버튼·모달·새로고침·저장 조회 계약은 그대로 유지한다', () => {
   const nav = read('src/components/system/IotaLeftNav.jsx');
   for (const token of [

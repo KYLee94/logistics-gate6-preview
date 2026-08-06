@@ -7,6 +7,102 @@ const { pathToFileURL } = require('node:url');
 const ROOT = path.resolve(__dirname, '..');
 const API_PATH = path.join(ROOT, 'src', 'features', 'logistics-data-platform', 'api.js');
 
+test('렌트롤 read와 batch-save는 공간·계약·연결·임대료 조건 revision을 같은 계약으로 검증한다', () => {
+  const migrations = fs.readdirSync(path.join(ROOT, 'supabase', 'migrations'))
+    .filter((name) => name.includes('rent_roll_revision_contract'))
+    .sort();
+  assert.ok(migrations.length, '렌트롤 revision 계약 보정 migration이 필요합니다.');
+  const sql = fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', migrations.at(-1)), 'utf8');
+
+  for (const field of ['space_revision', 'contract_revision', 'allocation_revision', 'rent_term_revision']) {
+    assert.match(sql, new RegExp(field, 'u'));
+  }
+  assert.match(sql, /REVISION_CONFLICT/u);
+  assert.match(sql, /expected_revision/u);
+  assert.match(sql, /jsonb_set\(row_record, '\{expected_revision\}'/u);
+});
+
+test('렌트롤 저장은 기존 행의 모든 component revision을 null 상태까지 필수 검증한다', () => {
+  const sql = fs.readFileSync(
+    path.join(ROOT, 'supabase', 'migrations', '20260806062529_rent_roll_revision_contract.sql'),
+    'utf8',
+  );
+
+  assert.match(sql, /COMPONENT_REVISIONS_REQUIRED/u);
+  for (const field of ['space_revision', 'contract_revision', 'allocation_revision', 'rent_term_revision']) {
+    assert.match(sql, new RegExp(`row_record\\s*\\?\\s*'${field}'`, 'u'));
+  }
+  assert.match(sql, /expected_revision\s+is\s+distinct\s+from\s+v_contract_revision/iu);
+  assert.match(sql, /expected_revision\s+is\s+distinct\s+from\s+v_allocation_revision/iu);
+  assert.match(sql, /expected_revision\s+is\s+distinct\s+from\s+v_rent_term_revision/iu);
+  assert.doesNotMatch(sql, /expected_revision\s+is\s+not\s+null\s+and\s+expected_revision\s+is\s+distinct/iu);
+});
+
+test('렌트롤 security definer writer는 잠금 전 권한을 검증하고 delete 권한을 별도로 적용한다', () => {
+  const sql = fs.readFileSync(
+    path.join(ROOT, 'supabase', 'migrations', '20260806062529_rent_roll_revision_contract.sql'),
+    'utf8',
+  );
+  const writer = sql.slice(sql.indexOf('create or replace function logistics_core.rent_roll_batch_save_entry('));
+  const routeCheck = writer.indexOf('assert_v2_writer_route');
+  const permissionCheck = writer.indexOf('assert_asset_permission');
+  const assetLock = writer.indexOf('for update;');
+
+  assert.ok(routeCheck >= 0 && permissionCheck >= 0 && assetLock >= 0);
+  assert.ok(routeCheck < assetLock, 'writer-route 검증은 잠금보다 먼저여야 합니다.');
+  assert.ok(permissionCheck < assetLock, '행별 권한 검증은 잠금보다 먼저여야 합니다.');
+  assert.match(writer, /operation_name\s*=\s*'delete'[\s\S]{0,180}permission_operation\s*:=\s*'delete'/iu);
+  assert.match(writer, /assert_asset_permission\(actor_id,\s*resolved_asset_id,\s*permission_operation\)/iu);
+});
+
+test('렌트롤 writer는 자산별 직렬화와 component 소유권 재검증으로 교착·타 자산 key를 차단한다', () => {
+  const sql = fs.readFileSync(
+    path.join(ROOT, 'supabase', 'migrations', '20260806062529_rent_roll_revision_contract.sql'),
+    'utf8',
+  );
+  const writer = sql.slice(sql.indexOf('create or replace function logistics_core.rent_roll_batch_save_entry('));
+
+  assert.match(writer, /from\s+logistics_core\.assets[\s\S]{0,180}for\s+update/iu);
+  assert.match(writer, /RENT_ROLL_COMPONENT_SCOPE_MISMATCH/u);
+  assert.match(writer, /CROSS_ASSET_COMPONENT_KEY/u);
+  assert.match(writer, /base_response\s*:=\s*logistics_core\.rent_roll_batch_save_entry_v4[\s\S]+RENT_ROLL_COMPONENT_SCOPE_MISMATCH/iu);
+  assert.match(writer, /allocation\.space_id\s*=\s*v_space_id/iu);
+  assert.match(writer, /term\.contract_space_id\s*=\s*v_allocation_id/iu);
+});
+
+test('렌트롤 동일 요청 재시도는 stale revision 검사 전 저장된 최종 응답을 반환한다', () => {
+  const sql = fs.readFileSync(
+    path.join(ROOT, 'supabase', 'migrations', '20260806062529_rent_roll_revision_contract.sql'),
+    'utf8',
+  );
+  const writer = sql.slice(sql.indexOf('create or replace function logistics_core.rent_roll_batch_save_entry('));
+  const cachedReturn = writer.indexOf('return existing_request.response');
+  const componentCheck = writer.indexOf('COMPONENT_REVISIONS_REQUIRED');
+
+  assert.ok(cachedReturn >= 0 && componentCheck >= 0 && cachedReturn < componentCheck);
+  assert.match(writer, /request_hash\([\s\S]{0,180}transformed_payload/iu);
+  assert.match(writer, /update\s+logistics_core\.api_idempotency_keys[\s\S]{0,180}set\s+request_hash\s*=\s*request_digest[\s\S]{0,120}response\s*=\s*final_response/iu);
+});
+
+test('렌트롤 저장 생명주기는 저장 중 편집 잠금과 세션 초안 복구를 함께 보장한다', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'src', 'features', 'logistics-data-platform', 'LogisticsDataPlatform.jsx'),
+    'utf8',
+  );
+  const rentRollSource = source.slice(
+    source.indexOf('function RentRollPanel'),
+    source.indexOf('function periodFor'),
+  );
+
+  assert.match(rentRollSource, /saveState === ["']saving["']/u);
+  assert.match(rentRollSource, /rentRollEditingDisabled/u);
+  assert.match(rentRollSource, /saveReadbackPendingRef/u);
+  assert.match(rentRollSource, /sessionStorage\?\.setItem\(draftStorageKey/u);
+  assert.match(rentRollSource, /sessionStorage\?\.removeItem\(draftStorageKey/u);
+  assert.match(rentRollSource, /addEventListener\?\.\(["']beforeunload["']/u);
+  assert.match(rentRollSource, /operation === ["']delete["']/u);
+});
+
 class MemoryStorage {
   constructor() {
     this.values = new Map();

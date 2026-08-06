@@ -64,7 +64,10 @@ test('workspace retains a verified screen during permission refresh without rein
 
   assert.match(source, /function hasVerifiedActiveMemberInfo\(memberInfo\)[\s\S]*account_status[\s\S]*auth_subject/u);
   assert.match(readBridge, /const \{ memberInfo, permissionsLoading \} = useAuth\(\);[\s\S]*const retainVerifiedPermissionRead = permissionsLoading && hasVerifiedActiveMemberInfo\(memberInfo\)/u);
-  assert.match(readBridge, /if \(authFailure && retainVerifiedPermissionRead\) return;/u);
+  assert.match(
+    readBridge,
+    /if \(authFailure && retainVerifiedPermissionRead\) \{[\s\S]{0,360}setState\(\(current\) => \(\{[\s\S]{0,120}\.\.\.current[\s\S]{0,220}return;[\s\S]{0,40}\}/u,
+  );
   assert.match(source, /export default function WorkspaceLogistics\(\{ currentPath = '' \}\) \{[\s\S]*const \{ memberInfo, permissionsLoading \} = useAuth\(\);[\s\S]*const canReadWorkspace = canUseAnyAssetPermission\(permission, 'read'\) \|\| retainVerifiedPermissionRead/u);
   assert.match(source, /function DashboardShell\(\{ activeModule \}\) \{[\s\S]*const \{ memberInfo, permissionsLoading \} = useAuth\(\);[\s\S]*const canOpenRequestedModule = \(canUseAnyAssetPermission\(permission, 'read'\) \|\| retainVerifiedPermissionRead\)/u);
   assert.doesNotMatch(source, /logisticsPermissionData\.json|import\.meta\.glob\('\.\/logistics(?:Asset|Company)Data/u);

@@ -62,6 +62,55 @@ export const KOREAN_LOGISTICS_NOI_ACCOUNTS = Object.freeze([
   defaultVisible: DEFAULT_VISIBLE_NOI_CODES.has(code),
 })));
 
+export const FINANCE_SECTION_ORDER = Object.freeze([
+  'potential_income',
+  'income_loss',
+  'operating_expense',
+  'below_noi',
+  'debt_service',
+]);
+
+export const FINANCE_SECTION_LABELS = Object.freeze({
+  potential_income: '영업수익',
+  income_loss: '수입 손실',
+  operating_expense: '운영비용',
+  below_noi: 'NOI 하단 조정',
+  debt_service: '부채상환',
+});
+
+export function buildFinanceAccountHierarchy(accounts = [], selectedAccountCodes = new Set()) {
+  const selected = selectedAccountCodes instanceof Set
+    ? selectedAccountCodes
+    : new Set(selectedAccountCodes || []);
+  const serverByCode = new Map(accounts.map((account) => [account.account_code, account]));
+
+  return FINANCE_SECTION_ORDER.map((section) => {
+    const sectionAccounts = KOREAN_LOGISTICS_NOI_ACCOUNTS
+      .filter((definition) => definition.section === section && serverByCode.has(definition.code))
+      .map((definition) => ({
+        ...serverByCode.get(definition.code),
+        label: definition.label,
+        active: selected.has(definition.code),
+      }))
+      .sort((left, right) => Number(left.display_order || 0) - Number(right.display_order || 0));
+    return {
+      key: section,
+      label: FINANCE_SECTION_LABELS[section],
+      accounts: [
+        ...sectionAccounts.filter((account) => account.active),
+        ...sectionAccounts.filter((account) => !account.active),
+      ],
+    };
+  }).filter((section) => section.accounts.length);
+}
+
+export function filterFinanceCalculationAccounts(accounts = [], selectedAccountCodes = new Set()) {
+  const selected = selectedAccountCodes instanceof Set
+    ? selectedAccountCodes
+    : new Set(selectedAccountCodes || []);
+  return accounts.filter((account) => selected.has(account.account_code));
+}
+
 export function calculateKoreanLogisticsNoi(input = {}) {
   const potentialGrossIncome = Number(input.potential_income) || 0;
   const incomeLoss = Math.abs(Number(input.income_loss) || 0);
