@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { invokeDashboardApi } from '../../utils/supabaseSession';
+import { invokeDashboardApi } from '../../utils/supabaseSession.js';
 
 export const DATA_PLATFORM_ACTIONS = Object.freeze({
   homeRead: 'v2/home/read',
@@ -21,6 +21,63 @@ export class DataPlatformResponseError extends Error {
   }
 }
 
+function dataPlatformErrorChain(error) {
+  const queue = [error];
+  const seen = new Set();
+  const chain = [];
+  while (queue.length && chain.length < 8) {
+    const candidate = queue.shift();
+    if (!candidate || (typeof candidate !== 'object' && typeof candidate !== 'function') || seen.has(candidate)) {
+      continue;
+    }
+    seen.add(candidate);
+    chain.push(candidate);
+    for (const nested of [candidate.cause, candidate.reason]) {
+      if (nested && !seen.has(nested)) queue.push(nested);
+    }
+  }
+  return chain;
+}
+
+function dataPlatformErrorStatus(candidate) {
+  const value = Number(
+    candidate?.status
+      || candidate?.statusCode
+      || candidate?.httpStatus
+      || candidate?.context?.status
+      || 0,
+  );
+  return Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * A resource read may be cancelled because React unmounted it, the resource
+ * became inactive, or a newer asset/filter request superseded it. Those are
+ * lifecycle events, not user-visible failures. HTTP failures and timeouts are
+ * deliberately excluded even if a transport wrapper also mentions aborting.
+ */
+export function isDataPlatformRequestCancellation(error, signal = null) {
+  const chain = dataPlatformErrorChain(error);
+  const statuses = chain.map(dataPlatformErrorStatus).filter(Boolean);
+  if (statuses.some((status) => status >= 400 && status !== 499)) return false;
+  if (signal?.aborted) return true;
+
+  return chain.some((candidate) => {
+    const name = String(candidate?.name || '').toLowerCase();
+    const code = String(candidate?.code || '').toLowerCase();
+    const message = String(candidate?.message || '').toLowerCase();
+    return dataPlatformErrorStatus(candidate) === 499
+      || name === 'aborterror'
+      || name === 'cancelederror'
+      || name === 'cancellationerror'
+      || code === 'abort_err'
+      || code === 'err_canceled'
+      || code === 'err_cancelled'
+      || Number(candidate?.code) === 20
+      || /\b(?:aborted|cancelled|canceled)\b/u.test(message);
+  });
+}
+
 export function friendlyDataPlatformError(error) {
   const status = Number(error?.status || error?.cause?.status || 0);
   if (status === 401) return '로그인이 만료되었습니다. 다시 로그인한 뒤 시도해 주세요.';
@@ -30,6 +87,11 @@ export function friendlyDataPlatformError(error) {
   if (status >= 500) return '서버에서 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
   if (error?.name === 'AbortError') return '요청이 취소되었습니다. 다시 시도해 주세요.';
   return '데이터를 처리하지 못했습니다. 입력값과 연결 상태를 확인한 뒤 다시 시도해 주세요.';
+}
+
+export function inactivePrimaryResourceState(current) {
+  if (!current.loading && current.error === null) return current;
+  return { ...current, loading: false, error: null };
 }
 
 export async function invokeDataPlatform(action, payload = {}, { signal = null } = {}) {
@@ -77,7 +139,11 @@ export function usePrimaryResource(action, payload, { enabled = true } = {}) {
   const payloadKey = useMemo(() => JSON.stringify(payload || {}), [payload]);
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!enabled) {
+      generation.current += 1;
+      setState(inactivePrimaryResourceState);
+      return undefined;
+    }
     const controller = new AbortController();
     const requestGeneration = ++generation.current;
     setState((current) => ({ ...current, loading: true, error: null }));
@@ -95,6 +161,10 @@ export function usePrimaryResource(action, payload, { enabled = true } = {}) {
       })
       .catch((error) => {
         if (controller.signal.aborted || requestGeneration !== generation.current) return;
+        if (isDataPlatformRequestCancellation(error, controller.signal)) {
+          setState((current) => ({ ...current, loading: false, error: null }));
+          return;
+        }
         setState((current) => ({ ...current, loading: false, error }));
       });
 

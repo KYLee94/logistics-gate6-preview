@@ -11,8 +11,10 @@ import {
   calculateRentRollENoc,
   deriveRentRollRow,
   emptyRentRollRow,
+  normalizeCostTerms,
   RENT_ROLL_COLUMNS,
   RENT_ROLL_PASTE_COLUMNS,
+  serializeCostTerms,
   validateUniversalRentRoll,
 } from "./rentRollSchema";
 import {
@@ -20,6 +22,10 @@ import {
   FINANCE_WATERFALL_KEYS,
   KOREAN_LOGISTICS_NOI_ACCOUNTS,
 } from "./formulas";
+import {
+  maturityDetailRows,
+  maturityDisplayName,
+} from "./maturityPresentation";
 
 const TITLES = Object.freeze({
   home: "홈",
@@ -266,45 +272,100 @@ export function buildHomeOperations(original, draft) {
 }
 
 function MaturityList({ rows, limit = 5 }) {
+  const [selected, setSelected] = useState(null);
+  const typeLabel = {
+    lease: "임대차",
+    fund: "펀드",
+    loan: "대출",
+  };
+  const detailValue = (value, format) => {
+    if (format === "amount") return value == null || value === "" ? "—" : `${amount(value)}원`;
+    if (format === "area") return area(value);
+    if (format === "percentRatio") {
+      if (value == null || value === "" || !Number.isFinite(Number(value))) return "—";
+      const numeric = Number(value);
+      return `${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 2 }).format(Math.abs(numeric) <= 1 ? numeric * 100 : numeric)}%`;
+    }
+    return display(value);
+  };
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      {[
-        ["lease", "임대차"],
-        ["fund", "펀드"],
-        ["loan", "대출"],
-      ].map(([type, label]) => {
-        const items = rows
-          .filter((row) => (row.type || row.kind) === type)
-          .slice(0, limit);
-        return (
-          <div key={type}>
-            <p className="mb-2 text-xs font-semibold text-[#A1A1AA]">
-              {label} 만기
-            </p>
-            {items.length ? (
-              items.map((row) => (
-                <div
-                  key={
-                    row.maturity_key ||
-                    `${type}-${row.official_date}-${row.target_name}`
-                  }
-                  className="flex justify-between gap-3 border-b border-[#333333] py-2.5 text-sm"
-                >
-                  <span className="truncate text-[#D1D1D6]">
-                    {display(row.target_name || row.title)}
-                  </span>
-                  <time className="shrink-0 tabular-nums text-white">
-                    {display(row.official_date || row.maturity_date)}
-                  </time>
-                </div>
-              ))
-            ) : (
-              <p className="py-2 text-sm text-[#6E6E73]">—</p>
-            )}
-          </div>
-        );
-      })}
-    </div>
+    <>
+      <div className="grid gap-4 lg:grid-cols-3">
+        {Object.entries(typeLabel).map(([type, label]) => {
+          const items = rows
+            .filter((row) => (row.type || row.kind) === type)
+            .slice(0, limit);
+          return (
+            <div key={type}>
+              <p className="mb-2 text-xs font-semibold text-[#A1A1AA]">
+                {label} 만기
+              </p>
+              {items.length ? (
+                items.map((row) => (
+                  <button
+                    data-testid="maturity-row"
+                    type="button"
+                    key={row.maturity_key || `${type}-${row.official_date}`}
+                    onClick={() => setSelected(row)}
+                    className="flex w-full items-center justify-between gap-3 border-b border-[#333333] py-2.5 text-left text-sm outline-none hover:bg-[#2B2B2A] focus-visible:ring-1 focus-visible:ring-[#5E9EFF]"
+                  >
+                    <span className="truncate text-[#D1D1D6]">
+                      {maturityDisplayName(row)}
+                    </span>
+                    <time className="shrink-0 tabular-nums text-white">
+                      {display(row.official_date || row.maturity_date)}
+                    </time>
+                  </button>
+                ))
+              ) : (
+                <p className="py-2 text-sm text-[#6E6E73]">—</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {selected ? (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="maturity-detail-title"
+            data-testid="maturity-detail-dialog"
+            className="max-h-[82vh] w-full max-w-[620px] overflow-y-auto rounded-[16px] border border-[#3A3A3C] bg-[#252524] p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold text-[#86868B]">
+                  {typeLabel[selected.type || selected.kind]} 만기 상세
+                </p>
+                <h2 id="maturity-detail-title" className="mt-1 text-lg font-semibold text-white">
+                  {maturityDisplayName(selected)}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-xs font-semibold text-white hover:bg-[#303030]"
+              >
+                닫기
+              </button>
+            </div>
+            <dl className="mt-5 grid grid-cols-[minmax(120px,0.38fr)_1fr] border-t border-[#3A3A3C] text-sm">
+              {maturityDetailRows(selected).map(([label, value, format]) => (
+                <React.Fragment key={label}>
+                  <dt className="border-b border-[#333333] bg-[#202020] px-3 py-2.5 text-[#86868B]">
+                    {label}
+                  </dt>
+                  <dd className="whitespace-pre-wrap border-b border-[#333333] px-3 py-2.5 text-white">
+                    {detailValue(value, format)}
+                  </dd>
+                </React.Fragment>
+              ))}
+            </dl>
+          </section>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -345,10 +406,28 @@ function HomePanel({ assetKey, resource, maturities }) {
     { enabled: Boolean(assetKey) },
   );
   const rows = Array.isArray(rent.data?.rows) ? rent.data.rows : [];
-  const activeRows = rows.filter((row) => row.occupancy_status !== "vacant");
+  const occupiedRows = rows.filter((row) => row.occupancy_status === "occupied");
+  const plannedRows = rows.filter((row) => row.occupancy_status === "planned");
+  const vacantRows = rows.filter((row) => row.occupancy_status === "vacant");
   const tenants = [
-    ...new Set(activeRows.map((row) => row.tenant_name).filter(Boolean)),
+    ...new Set(occupiedRows.map((row) => row.tenant_name).filter(Boolean)),
   ];
+  const occupiedArea = occupiedRows.reduce(
+    (sum, row) => sum + Number(row.leased_area_sqm || 0),
+    0,
+  );
+  const leasableArea = Number(asset?.leasable_area_sqm || 0);
+  const occupancyRate = leasableArea > 0 ? (occupiedArea / leasableArea) * 100 : null;
+  const monthlyRent = occupiedRows.reduce(
+    (sum, row) => sum + Number(row.monthly_rent_total_krw || 0),
+    0,
+  );
+  const monthlyCam = occupiedRows.reduce(
+    (sum, row) => sum + Number(row.monthly_cam_total_krw || 0),
+    0,
+  );
+  const occupiedAreaPy = occupiedArea * 0.3025;
+  const averageEnoc = occupiedAreaPy > 0 ? (monthlyRent + monthlyCam) / occupiedAreaPy : null;
   const homeOperations = useMemo(
     () => buildHomeOperations(sourceData, homeDraft),
     [homeDraft, sourceData],
@@ -399,19 +478,19 @@ function HomePanel({ assetKey, resource, maturities }) {
   };
   const writeEnabled = resource.data?.write_enabled === true;
   const assetFields = [
-    ["name", "자산명", "text"],
-    ["address", "주소", "text"],
-    ["asset_code", "자산 코드", "text"],
-    ["sector", "섹터", "text"],
-    ["land_area_sqm", "대지면적(㎡)", "number"],
-    ["gross_area_sqm", "연면적(㎡)", "number"],
-    ["leasable_area_sqm", "임대가능면적(㎡)", "number"],
-    ["floor_count", "층수", "text"],
-    ["manager_name", "담당자", "text"],
-    ["manager_team", "담당팀", "text"],
-    ["acquisition_cost", "취득가", "number"],
-    ["current_valuation", "현재 평가액", "number"],
-    ["currency_code", "기준 통화", "text"],
+    { key: "name", label: "자산명", type: "text", group: "identity", span: "col-span-12 md:col-span-5" },
+    { key: "address", label: "주소", type: "text", group: "identity", span: "col-span-12 md:col-span-7" },
+    { key: "asset_code", label: "자산 코드", type: "text", group: "identity", span: "col-span-6 md:col-span-3" },
+    { key: "sector", label: "섹터", type: "text", group: "identity", span: "col-span-6 md:col-span-3" },
+    { key: "floor_count", label: "층수", type: "text", group: "scale", span: "col-span-6 md:col-span-3" },
+    { key: "currency_code", label: "기준 통화", type: "text", group: "value-management", span: "col-span-6 md:col-span-3" },
+    { key: "land_area_sqm", label: "대지면적", type: "number", group: "scale", span: "col-span-12 md:col-span-4", format: "area" },
+    { key: "gross_area_sqm", label: "연면적", type: "number", group: "scale", span: "col-span-12 md:col-span-4", format: "area" },
+    { key: "leasable_area_sqm", label: "임대가능면적", type: "number", group: "scale", span: "col-span-12 md:col-span-4", format: "area" },
+    { key: "acquisition_cost", label: "취득가", type: "number", group: "value-management", span: "col-span-6 md:col-span-3", suffix: "원" },
+    { key: "current_valuation", label: "현재 평가액", type: "number", group: "value-management", span: "col-span-6 md:col-span-3", suffix: "원" },
+    { key: "manager_name", label: "담당자", type: "text", group: "value-management", span: "col-span-6 md:col-span-3" },
+    { key: "manager_team", label: "담당팀", type: "text", group: "value-management", span: "col-span-6 md:col-span-3" },
   ];
   if (!assetKey) return <EmptyText>조회 가능한 자산이 없습니다.</EmptyText>;
   return (
@@ -452,32 +531,36 @@ function HomePanel({ assetKey, resource, maturities }) {
         }
       >
         {asset ? (
-          <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
-            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-[#333333] bg-[#333333] md:grid-cols-3 xl:grid-cols-4">
-              {assetFields.map(([key, label, type]) => (
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <dl
+              data-testid="home-asset-overview-grid"
+              className="grid grid-cols-12 gap-px overflow-hidden rounded-[10px] border border-[#333333] bg-[#333333]"
+            >
+              {assetFields.map(({ key, label, type, group, span, format, suffix }) => (
                 <div
                   key={key}
-                  className={`${key === "name" || key === "address" ? "col-span-2" : ""} bg-[#222221] px-3 py-2`}
+                  data-home-group={group}
+                  className={`${span} min-w-0 bg-[#222221] px-3 py-2`}
                 >
-                  <dt className="text-[11px] text-[#86868B]">
-                    {label}
-                    {[
-                      "land_area_sqm",
-                      "gross_area_sqm",
-                      "leasable_area_sqm",
-                    ].includes(key) && asset[key]
-                      ? ` · ${(Number(asset[key]) * 0.3025).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}평`
-                      : ""}
-                  </dt>
+                  <dt className="text-[11px] text-[#86868B]">{label}</dt>
                   <dd>
-                    <HomeValue
-                      ariaLabel={label}
-                      value={asset[key]}
-                      type={type}
-                      editing={isHomeEditing}
-                      onChange={(value) => updateHomeDraft("asset", asset.asset_key, key, value)}
-                      align={type === "number" ? "right" : "left"}
-                    />
+                    {!isHomeEditing && format === "area" ? (
+                      <span className="block min-h-8 px-2 py-1.5 text-right text-sm text-white tabular-nums">
+                        {area(asset[key])}
+                      </span>
+                    ) : (
+                      <HomeValue
+                        ariaLabel={label}
+                        value={asset[key]}
+                        type={type}
+                        editing={isHomeEditing}
+                        onChange={(value) => updateHomeDraft("asset", asset.asset_key, key, value)}
+                        align={type === "number" ? "right" : "left"}
+                      />
+                    )}
+                    {!isHomeEditing && suffix && asset[key] != null ? (
+                      <span className="sr-only">{suffix}</span>
+                    ) : null}
                   </dd>
                 </div>
               ))}
@@ -486,41 +569,36 @@ function HomePanel({ assetKey, resource, maturities }) {
               data-testid="home-tenant-summary"
               className="rounded-[12px] border border-[#333333] bg-[#202020] p-4"
             >
-              <h3 className="mb-3 text-sm font-semibold text-white">
-                임차 현황
-              </h3>
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <h3 className="text-sm font-semibold text-white">임차 현황</h3>
+                <p className="text-right text-2xl font-semibold tracking-tight text-white tabular-nums">
+                  {occupancyRate == null ? "—" : `${occupancyRate.toFixed(1)}%`}
+                  <span className="ml-1 text-[11px] font-normal text-[#86868B]">임대율</span>
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[8px] bg-[#333333]">
                 {[
+                  ["임대율", occupancyRate == null ? "—" : `${occupancyRate.toFixed(1)}%`],
                   ["임차인", `${tenants.length}개사`],
+                  ["점유 공간", `${occupiedRows.length}개`],
                   [
-                    "임대 / 공실",
-                    `${activeRows.length} / ${rows.length - activeRows.length}개`,
+                    "공실 · 예정",
+                    `${vacantRows.length} · ${plannedRows.length}개`,
                   ],
-                  [
-                    "임대면적",
-                    area(
-                      activeRows.reduce(
-                        (sum, row) => sum + Number(row.leased_area_sqm || 0),
-                        0,
-                      ),
-                    ),
-                  ],
-                  [
-                    "임대율",
-                    asset.leasable_area_sqm
-                      ? `${((activeRows.reduce((sum, row) => sum + Number(row.leased_area_sqm || 0), 0) / Number(asset.leasable_area_sqm)) * 100).toFixed(1)}%`
-                      : "—",
-                  ],
+                  ["임대면적", area(occupiedArea)],
+                  ["월 임대료", `${amount(monthlyRent)}원`],
+                  ["월 관리비", `${amount(monthlyCam)}원`],
+                  ["평균 E.NOC/평", averageEnoc == null ? "—" : `${amount(averageEnoc)}원`],
                 ].map(([label, value]) => (
-                  <div key={label} className="bg-[#252524] p-3">
+                  <div key={label} className="min-w-0 bg-[#252524] px-3 py-2.5">
                     <p className="text-[11px] text-[#86868B]">{label}</p>
-                    <p className="mt-1 text-sm font-semibold text-white">
+                    <p className="mt-1 truncate text-sm font-semibold text-white tabular-nums" title={value}>
                       {value}
                     </p>
                   </div>
                 ))}
               </div>
-              <p className="mt-3 line-clamp-3 text-xs leading-5 text-[#A1A1AA]">
+              <p data-testid="home-tenant-names" className="mt-3 line-clamp-3 text-xs leading-5 text-[#A1A1AA]">
                 {tenants.join(" · ") || "—"}
               </p>
             </aside>
@@ -716,6 +794,10 @@ function sortRows(rows, sort) {
         left = floorValue(left);
         right = floorValue(right);
       }
+      if (column.kind === "multi_select") {
+        left = normalizeCostTerms(left, column.options).join(", ");
+        right = normalizeCostTerms(right, column.options).join(", ");
+      }
       if (column.kind === "number" || column.kind === "readonly") {
         left = left === "" || left == null ? null : Number(left);
         right = right === "" || right == null ? null : Number(right);
@@ -733,6 +815,133 @@ function sortRows(rows, sort) {
     })
     .map(({ row }) => row);
 }
+
+function percentInputValue(value) {
+  return String(value ?? "").replace(/%/gu, "").trim();
+}
+
+function percentStoredValue(value) {
+  const text = String(value ?? "").trim();
+  return text === "" ? "" : `${text}%`;
+}
+
+function PresetTextCell({ column, value, disabled, onChange, onCommit }) {
+  const options = Array.isArray(column.options) ? column.options : [];
+  const known = options.includes(value) && value !== "기타";
+  const [customMode, setCustomMode] = useState(Boolean(value) && !known);
+  const showCustom = customMode || (Boolean(value) && !known);
+  return (
+    <div className="grid min-w-[150px] gap-1">
+      <select
+        data-autosave-field={column.key}
+        aria-label={`${column.label} 유형`}
+        value={showCustom ? "기타" : value || ""}
+        disabled={disabled}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (next === "기타") {
+            setCustomMode(true);
+            if (known) onChange("");
+            return;
+          }
+          setCustomMode(false);
+          onChange(next);
+          onCommit(next);
+        }}
+        className={INPUT_CLASS}
+      >
+        <option value="">선택</option>
+        {options.map((option) => (
+          <option key={option} value={option}>{option}</option>
+        ))}
+      </select>
+      {showCustom ? (
+        <input
+          data-autosave-field={column.key}
+          aria-label={`${column.label} 직접 작성`}
+          type="text"
+          value={known ? "" : value || ""}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={(event) => onCommit(event.currentTarget.value)}
+          disabled={disabled}
+          placeholder="직접 작성"
+          className={INPUT_CLASS}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function MultiSelectCell({ column, value, disabled, onChange, onCommit }) {
+  const [customItem, setCustomItem] = useState("");
+  const standardOptions = Array.isArray(column.options) ? column.options : [];
+  const selected = normalizeCostTerms(value, standardOptions);
+  const customItems = selected.filter((item) => !standardOptions.includes(item));
+  const apply = (items) => {
+    const serialized = serializeCostTerms(value, items);
+    onChange(serialized);
+    onCommit(serialized);
+  };
+  const toggle = (item) => apply(
+    selected.includes(item)
+      ? selected.filter((valueItem) => valueItem !== item)
+      : [...selected, item],
+  );
+  const addCustom = () => {
+    const next = customItem.trim();
+    if (!next) return;
+    apply([...selected, next]);
+    setCustomItem("");
+  };
+  return (
+    <details className="relative min-w-[190px]" data-autosave-field={column.key}>
+      <summary className="cursor-pointer list-none rounded-[6px] px-2 py-1.5 text-xs text-[#D1D1D6] hover:bg-[#303030] focus:outline-none focus:ring-1 focus:ring-[#5E9EFF]">
+        {selected.length ? `${selected.length}개 선택` : "항목 선택"}
+      </summary>
+      <div className="absolute left-0 top-full z-[70] mt-1 w-[300px] rounded-[10px] border border-[#3A3A3C] bg-[#202020] p-3 shadow-2xl">
+        <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
+          {standardOptions.map((option) => (
+            <label key={option} className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs text-[#E5E5E5] hover:bg-white/5">
+              <input
+                type="checkbox"
+                checked={selected.includes(option)}
+                onChange={() => toggle(option)}
+                disabled={disabled}
+                className="mt-0.5"
+              />
+              <span>{option}</span>
+            </label>
+          ))}
+          {customItems.map((item) => (
+            <div key={item} className="flex items-start justify-between gap-2 rounded bg-white/[0.04] px-2 py-1.5 text-xs text-[#D1D1D6]">
+              <span className="break-all">{item}</span>
+              <button type="button" aria-label={`${item} 삭제`} onClick={() => toggle(item)} disabled={disabled} className="shrink-0 text-[#FF9B9B]">×</button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 flex gap-1">
+          <input
+            type="text"
+            aria-label={`${column.label} 사용자 항목`}
+            value={customItem}
+            onChange={(event) => setCustomItem(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addCustom();
+              }
+            }}
+            disabled={disabled}
+            placeholder="사용자 항목 추가"
+            className={INPUT_CLASS}
+          />
+          <button type="button" onClick={addCustom} disabled={disabled || !customItem.trim()} className="shrink-0 rounded-[6px] border border-[#3A3A3C] px-2 text-xs text-white disabled:opacity-35">추가</button>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 function parsePaste(text) {
   return String(text || "")
     .split(/\r?\n/u)
@@ -741,11 +950,19 @@ function parsePaste(text) {
       const row = emptyRentRollRow(`paste-${Date.now()}-${index}`);
       line.split("\t").forEach((value, columnIndex) => {
         const key = RENT_ROLL_PASTE_COLUMNS[columnIndex];
-        if (key) row[key] = value.trim();
+        if (!key) return;
+        const column = RENT_ROLL_COLUMNS.find((item) => item.key === key);
+        const trimmed = value.trim();
+        row[key] = column?.kind === "multi_select"
+          ? serializeCostTerms({}, trimmed ? [trimmed] : [])
+          : column?.kind === "percent"
+            ? percentStoredValue(trimmed.replace(/%/gu, ""))
+            : trimmed;
       });
       if (row.occupancy_status === "임대") row.occupancy_status = "occupied";
       if (row.occupancy_status === "공실") row.occupancy_status = "vacant";
-      return row;
+      if (row.occupancy_status === "예정") row.occupancy_status = "planned";
+      return deriveRentRollRow(row);
     });
 }
 
@@ -760,6 +977,8 @@ function RentRollPanel({ assetKey }) {
   const [paste, setPaste] = useState("");
   const [saveState, setSaveState] = useState("idle");
   const [error, setError] = useState(null);
+  const [draggedRowId, setDraggedRowId] = useState(null);
+  const [dragOverRowId, setDragOverRowId] = useState(null);
   const writeEnabled = resource.data?.write_enabled === true;
   useEffect(() => {
     const source = Array.isArray(resource.data?.rows) ? resource.data.rows : [];
@@ -829,21 +1048,34 @@ function RentRollPanel({ assetKey }) {
     const row = rows.find((item) => rowId(item) === id);
     if (row) void saveRows([row]);
   };
-  const move = (id, delta) => {
+  const commitField = (id, field, value) => {
+    const current = rows.find((row) => rowId(row) === id);
+    if (!current) return;
+    const next = deriveRentRollRow({ ...current, [field]: value });
+    setRows((allRows) => allRows.map((row) => (rowId(row) === id ? next : row)));
+    void saveRows([next]);
+  };
+  const reorderRows = (sourceId, targetId) => {
+    if (!writeEnabled || !sourceId || !targetId || sourceId === targetId) return;
     const ordered = [...displayedRows];
-    const index = ordered.findIndex((row) => rowId(row) === id);
-    const target = index + delta;
-    if (target < 0 || target >= ordered.length) return;
-    [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+    const sourceIndex = ordered.findIndex((row) => rowId(row) === sourceId);
+    const targetIndex = ordered.findIndex((row) => rowId(row) === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [moved] = ordered.splice(sourceIndex, 1);
+    ordered.splice(targetIndex, 0, moved);
     const changed = ordered.map((row, rowIndex) => ({
       ...row,
       display_order: rowIndex + 1,
     }));
+    const rangeStart = Math.min(sourceIndex, targetIndex);
+    const rangeEnd = Math.max(sourceIndex, targetIndex);
+    const changedRange = changed.slice(rangeStart, rangeEnd + 1);
     setRows(changed);
     setSort(null);
-    void saveRows([changed[index], changed[target]]);
+    void saveRows(changedRange);
   };
   const archive = (id) => {
+    if (!writeEnabled) return;
     const row = rows.find((item) => rowId(item) === id);
     if (!row) return;
     const deleted = { ...row, operation: "delete" };
@@ -992,25 +1224,55 @@ function RentRollPanel({ assetKey }) {
                 return (
                   <tr
                     key={id}
-                    className={`hover:bg-[#292929] ${row.operation === "delete" ? "opacity-35" : ""}`}
+                    onDragOver={(event) => {
+                      if (!writeEnabled || !draggedRowId || draggedRowId === id) return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      setDragOverRowId(id);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      const sourceId = event.dataTransfer.getData("text/plain") || draggedRowId;
+                      reorderRows(sourceId, id);
+                      setDraggedRowId(null);
+                      setDragOverRowId(null);
+                    }}
+                    className={`hover:bg-[#292929] ${dragOverRowId === id ? "outline outline-1 outline-[#5E9EFF]" : ""} ${row.operation === "delete" ? "opacity-35" : ""}`}
                   >
                     <td className="sticky left-0 z-20 border-b border-r border-[#333333] bg-[#252524] px-1">
                       <div className="flex justify-center">
                         <button
-                          data-testid="rent-roll-move-up"
+                          data-testid="rent-roll-drag-handle"
                           type="button"
-                          onClick={() => move(id, -1)}
-                          disabled={index === 0}
+                          draggable={writeEnabled && row.operation !== "delete"}
+                          disabled={!writeEnabled || row.operation === "delete"}
+                          aria-label={`${row.tenant_name || row.floor_label || `${index + 1}행`} 순서 이동`}
+                          aria-grabbed={draggedRowId === id}
+                          title="드래그하여 순서 이동"
+                          onDragStart={(event) => {
+                            event.dataTransfer.effectAllowed = "move";
+                            event.dataTransfer.setData("text/plain", id);
+                            setDraggedRowId(id);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedRowId(null);
+                            setDragOverRowId(null);
+                          }}
+                          onKeyDown={(event) => {
+                            if (!event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+                            event.preventDefault();
+                            const targetIndex = index + (event.key === "ArrowUp" ? -1 : 1);
+                            if (targetIndex >= 0 && targetIndex < displayedRows.length) {
+                              reorderRows(id, rowId(displayedRows[targetIndex]));
+                            }
+                          }}
+                          className="flex h-8 w-8 cursor-grab items-center justify-center rounded-[6px] text-[#86868B] hover:bg-[#303030] hover:text-white active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-30"
                         >
-                          ↑
-                        </button>
-                        <button
-                          data-testid="rent-roll-move-down"
-                          type="button"
-                          onClick={() => move(id, 1)}
-                          disabled={index === displayedRows.length - 1}
-                        >
-                          ↓
+                          <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor">
+                            <circle cx="5" cy="3" r="1.25" /><circle cx="11" cy="3" r="1.25" />
+                            <circle cx="5" cy="8" r="1.25" /><circle cx="11" cy="8" r="1.25" />
+                            <circle cx="5" cy="13" r="1.25" /><circle cx="11" cy="13" r="1.25" />
+                          </svg>
                         </button>
                       </div>
                     </td>
@@ -1033,7 +1295,9 @@ function RentRollPanel({ assetKey }) {
                           >
                             {column.key === "current_total_cost_per_py_krw"
                               ? amount(calculateRentRollENoc(row))
-                              : display(row[column.key])}
+                              : /_krw$|pallet_rack_fee_per_py/u.test(column.key)
+                                ? amount(row[column.key])
+                                : display(row[column.key])}
                           </td>
                         );
                       if (column.kind === "select")
@@ -1055,6 +1319,51 @@ function RentRollPanel({ assetKey }) {
                                 </option>
                               ))}
                             </select>
+                          </td>
+                        );
+                      if (column.kind === "preset_text")
+                        return (
+                          <td key={column.key} className={cellClass}>
+                            <PresetTextCell
+                              column={column}
+                              value={row[column.key]}
+                              disabled={!writeEnabled}
+                              onChange={(value) => update(id, column.key, value)}
+                              onCommit={(value) => commitField(id, column.key, value)}
+                            />
+                          </td>
+                        );
+                      if (column.kind === "multi_select")
+                        return (
+                          <td key={column.key} className={cellClass}>
+                            <MultiSelectCell
+                              column={column}
+                              value={row[column.key]}
+                              disabled={!writeEnabled}
+                              onChange={(value) => update(id, column.key, value)}
+                              onCommit={(value) => commitField(id, column.key, value)}
+                            />
+                          </td>
+                        );
+                      if (column.kind === "percent")
+                        return (
+                          <td key={column.key} className={cellClass}>
+                            <div className="flex items-center gap-1">
+                              <input
+                                data-autosave-field={column.key}
+                                aria-label={column.label}
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={percentInputValue(row[column.key])}
+                                onChange={(event) => update(id, column.key, percentStoredValue(event.target.value))}
+                                onBlur={(event) => commitField(id, column.key, percentStoredValue(event.currentTarget.value))}
+                                disabled={!writeEnabled}
+                                className={`${INPUT_CLASS} text-right tabular-nums`}
+                              />
+                              <span className="pr-1 text-xs text-[#86868B]">%</span>
+                            </div>
                           </td>
                         );
                       return (
@@ -1101,7 +1410,8 @@ function RentRollPanel({ assetKey }) {
                         data-testid="rent-roll-archive"
                         type="button"
                         onClick={() => archive(id)}
-                        className="text-xs text-[#86868B] hover:text-[#FF9B9B]"
+                        disabled={!writeEnabled || row.operation === "delete"}
+                        className="text-xs text-[#86868B] hover:text-[#FF9B9B] disabled:cursor-not-allowed disabled:opacity-30"
                       >
                         삭제
                       </button>
@@ -1433,6 +1743,20 @@ function FinancePanel({ assetKey, assets }) {
     series.reduce((sum, row) => sum + Number(row[key] || 0), 0);
   const comparisonTotal = (key) =>
     comparisonSeries.reduce((sum, row) => sum + Number(row[key] || 0), 0);
+  const selectedAssetName =
+    assets.find((asset) => asset.asset_key === assetKey)?.name || "선택 자산";
+  const comparisonAssetName = comparisonKey
+    ? assets.find((asset) => asset.asset_key === comparisonKey)?.name || "비교 자산"
+    : "비교 자산";
+  const summaryLabels = Object.freeze({
+    potential_gross_income: "잠재총수입",
+    total_income_loss: "수입손실",
+    effective_gross_income: "유효총수입",
+    total_operating_expense: "운영비용",
+    net_operating_income: "순영업소득(NOI)",
+    asset_net_cash_flow: "자산 NCF",
+    after_debt_service_cash_flow: "부채상환 후 현금흐름",
+  });
   const rows = [];
   const sectionOrder = ["potential_income", "income_loss", "operating_expense", "below_noi", "debt_service"];
   sectionOrder.forEach((section) => {
@@ -1535,86 +1859,6 @@ function FinancePanel({ assetKey, assets }) {
               ))}
           </select>
         </label>
-        <SaveState state={saveState} />
-      </div>
-      <section
-        data-testid="finance-kpi-strip"
-        className="grid grid-cols-2 gap-px overflow-hidden rounded-[14px] border border-[#333333] bg-[#333333] lg:grid-cols-5"
-      >
-        {[
-          ["잠재총수입", "potential_gross_income"],
-          ["유효총수입", "effective_gross_income"],
-          ["운영비용", "total_operating_expense"],
-          ["순영업소득(NOI)", "net_operating_income"],
-          ["자산 NCF", "asset_net_cash_flow"],
-        ].map(([label, key]) => (
-          <div
-            key={key}
-            className={`bg-[#242423] px-4 py-3 ${key === "net_operating_income" ? "shadow-[inset_0_2px_0_#5E9EFF]" : ""}`}
-          >
-            <p className="text-[11px] text-[#86868B]">{label}</p>
-            <p
-              className={`mt-1 text-lg font-semibold tabular-nums ${key === "net_operating_income" ? "text-[#9AD7FF]" : "text-white"}`}
-            >
-              {amount(total(key))}
-            </p>
-            {comparisonKey ? (
-              <p className="mt-1 text-[11px] text-[#A1A1AA]">
-                비교 {amount(comparisonTotal(key))}
-              </p>
-            ) : null}
-          </div>
-        ))}
-      </section>
-      <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
-        <Section title="NOI·NCF 시계열">
-          <FinanceTrend series={series} comparison={comparisonSeries} />
-        </Section>
-        <Section title="자산 비교">
-          <table
-            data-testid="finance-comparison-table"
-            className="w-full text-sm"
-          >
-            <thead>
-              <tr className="text-[11px] text-[#86868B]">
-                <th className="py-2 text-left">지표</th>
-                <th className="text-right">선택</th>
-                <th className="text-right">비교</th>
-                <th className="text-right">차이</th>
-              </tr>
-            </thead>
-            <tbody>
-              {FINANCE_WATERFALL_KEYS.map((key) => (
-                <tr key={key}>
-                  <td className="border-t border-[#333333] py-2 text-[#D1D1D6]">
-                    {
-                      {
-                        potential_gross_income: "잠재총수입",
-                        total_income_loss: "수입손실",
-                        effective_gross_income: "유효총수입",
-                        total_operating_expense: "운영비용",
-                        net_operating_income: "NOI",
-                        asset_net_cash_flow: "자산 NCF",
-                        after_debt_service_cash_flow: "부채상환 후 CF",
-                      }[key]
-                    }
-                  </td>
-                  <td className="border-t border-[#333333] text-right tabular-nums text-white">
-                    {amount(total(key))}
-                  </td>
-                  <td className="border-t border-[#333333] text-right tabular-nums text-[#A1A1AA]">
-                    {comparisonKey ? amount(comparisonTotal(key)) : "—"}
-                  </td>
-                  <td className="border-t border-[#333333] text-right tabular-nums text-[#A1A1AA]">
-                    {comparisonKey
-                      ? amount(total(key) - comparisonTotal(key))
-                      : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Section>
       </div>
       <Section
         title="물류센터 NOI 손익표"
@@ -1658,13 +1902,13 @@ function FinancePanel({ assetKey, assets }) {
           >
             <thead>
               <tr>
-                <th className="sticky left-0 top-0 z-20 min-w-[250px] border-b border-r border-[#333333] bg-[#202020] px-3 py-2.5 text-left text-xs text-[#A1A1AA]">
+                <th className="sticky left-0 top-0 z-20 min-w-[224px] border-b border-r border-[#333333] bg-[#202020] px-3 py-2.5 text-left text-xs text-[#A1A1AA]">
                   구분 / 계정과목
                 </th>
                 {periods.map((period) => (
                   <th
                     key={period}
-                    className="min-w-[135px] border-b border-[#333333] bg-[#202020] px-3 py-2.5 text-right text-xs text-[#A1A1AA]"
+                    className="min-w-[104px] border-b border-[#333333] bg-[#202020] px-2 py-2.5 text-right text-xs text-[#A1A1AA]"
                   >
                     {period}
                   </th>
@@ -1753,6 +1997,60 @@ function FinancePanel({ assetKey, assets }) {
           자동 저장
         </button>
       </Section>
+      <div className="grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
+        <Section title="기간 누계 · 자산 비교" className="p-4">
+          <div className="overflow-hidden rounded-[10px] border border-[#333333]">
+            <table
+              data-testid="finance-period-summary"
+              className="w-full table-fixed text-xs"
+            >
+              <colgroup>
+                <col className="w-[34%]" />
+                <col className="w-[22%]" />
+                <col className="w-[22%]" />
+                <col className="w-[22%]" />
+              </colgroup>
+              <thead className="bg-[#202020] text-[10px] text-[#86868B]">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">항목</th>
+                  <th className="truncate px-2 py-2 text-right font-medium" title={selectedAssetName}>
+                    {selectedAssetName}
+                  </th>
+                  <th className="truncate px-2 py-2 text-right font-medium" title={comparisonAssetName}>
+                    {comparisonKey ? comparisonAssetName : "비교 안 함"}
+                  </th>
+                  <th className="px-2 py-2 text-right font-medium">차이</th>
+                </tr>
+              </thead>
+              <tbody>
+                {FINANCE_WATERFALL_KEYS.map((key) => {
+                  const isKeyResult = key === "net_operating_income" || key === "asset_net_cash_flow";
+                  const difference = total(key) - comparisonTotal(key);
+                  return (
+                    <tr key={key} className={isKeyResult ? "bg-[#17314E]" : "bg-[#252524]"}>
+                      <th className={`border-t border-[#333333] px-3 py-2 text-left ${isKeyResult ? "font-semibold text-[#9AD7FF]" : "font-medium text-[#D1D1D6]"}`}>
+                        {summaryLabels[key]}
+                      </th>
+                      <td className={`border-t border-[#333333] px-2 py-2 text-right tabular-nums ${isKeyResult ? "font-semibold text-[#9AD7FF]" : "text-white"}`}>
+                        {amount(total(key))}
+                      </td>
+                      <td className="border-t border-[#333333] px-2 py-2 text-right tabular-nums text-[#A1A1AA]">
+                        {comparisonKey ? amount(comparisonTotal(key)) : "—"}
+                      </td>
+                      <td className="border-t border-[#333333] px-2 py-2 text-right tabular-nums text-[#A1A1AA]">
+                        {comparisonKey ? `${difference > 0 ? "+" : ""}${amount(difference)}` : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+        <Section title="NOI·NCF 시계열" className="p-4">
+          <FinanceTrend series={series} comparison={comparisonSeries} />
+        </Section>
+      </div>
     </div>
   );
 }

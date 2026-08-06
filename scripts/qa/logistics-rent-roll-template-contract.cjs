@@ -15,7 +15,7 @@ async function main() {
   const schema = await import(`${pathToFileURL(modulePath).href}?contract=${Date.now()}`);
 
   assert.equal(Array.isArray(schema.RENT_ROLL_COLUMNS), true);
-  assert.equal(schema.RENT_ROLL_COLUMNS.length >= 55, true, 'the workbook-derived flat schema must be complete');
+  assert.equal(schema.RENT_ROLL_COLUMNS.length >= 50, true, 'the approved workbook-derived flat schema must be complete');
   assert.deepEqual(schema.RENT_ROLL_DETAIL_FIELDS, [], 'all rent-roll fields must stay in one grid');
 
   const visibleFields = new Set(schema.RENT_ROLL_COLUMNS.map(({ key }) => key));
@@ -25,7 +25,6 @@ async function main() {
     'tenant_name',
     'business_registration_number',
     'temperature_type',
-    'use_category',
     'goods_type',
     'floor_label',
     'zone_label',
@@ -66,6 +65,10 @@ async function main() {
     assert.equal(visibleFields.has(internalField), false, `internal ID must not be visible: ${internalField}`);
   }
   assert.equal(schema.RENT_ROLL_COLUMNS.find(({ key }) => key === 'tenant_name')?.kind, 'text');
+  assert.equal(schema.RENT_ROLL_COLUMNS.find(({ key }) => key === 'temperature_type')?.label, '용도');
+  for (const removed of ['use_category', 'construction_start_date', 'completion_date', 'rent_calculation_method']) {
+    assert.equal(visibleFields.has(removed), false, `removed rent-roll field must stay absent: ${removed}`);
+  }
   assert.equal(schema.RENT_ROLL_COLUMNS.every(({ label, kind, width }) => label && kind && width), true);
 
   const vacant = schema.emptyRentRollRow('vacant-1');

@@ -230,6 +230,42 @@ async function main() {
     );
   }
 
+  let allFinanceEmptyReadback = null;
+  if (hasArg('all-finance-empty-readback')) {
+    const dimensions = [];
+    let activeEntries = 0;
+    for (const readableAsset of assets) {
+      for (const scenario of ['actual', 'budget', 'forecast']) {
+        for (const accountingBasis of ['accrual', 'cash']) {
+          const assetFinance = await invoke('v2/finance/read', auth.token, {
+            asset_key: readableAsset.asset_key,
+            start_month: '2000-01',
+            end_month: '2100-12',
+            scenario,
+            accounting_basis: accountingBasis,
+          });
+          const entries = Array.isArray(assetFinance.data.entries)
+            ? assetFinance.data.entries
+            : [];
+          activeEntries += entries.length;
+          dimensions.push({
+            asset_key: readableAsset.asset_key,
+            scenario,
+            accounting_basis: accountingBasis,
+            active_entries: entries.length,
+          });
+        }
+      }
+    }
+    allFinanceEmptyReadback = {
+      assets_checked: assets.length,
+      dimensions_checked: dimensions.length,
+      active_entries: activeEntries,
+      dimensions,
+    };
+    assert.equal(allFinanceEmptyReadback.active_entries, 0, 'NOI values remain in at least one asset or dimension');
+  }
+
   const writeEvidence = [];
   if (validateSafeWrites) {
     assert.equal(expectedWriteState, 'enabled', 'Safe write validation requires --expect-write enabled');
@@ -302,14 +338,9 @@ async function main() {
       accounting_basis: 'accrual',
     });
     const projectedRows = financeReadback.data.entries || [];
-    assert.equal(
-      projectedRows.every((entry) => entry.source_kind === 'rent_roll_calculation'
-        && ['POTENTIAL_BASE_RENT', 'POTENTIAL_CAM_INCOME'].includes(entry.account_code)),
-      true,
-      'Finance readback contains rows outside the approved rent-roll projection',
-    );
+    assert.equal(projectedRows.length, 0, 'Empty finance save or rent-roll projection recreated NOI values');
     writeEvidence.push({
-      action: 'finance_empty_batch_with_rent_roll_projection',
+      action: 'finance_empty_batch_manual_entry_only',
       revision: financeSave.revision,
       active_rows: projectedRows.length,
     });
@@ -334,6 +365,7 @@ async function main() {
       maturities: maturityRows.length,
     },
     all_asset_rent_roll_readback: allAssetReadback,
+    all_finance_empty_readback: allFinanceEmptyReadback,
     write_evidence: writeEvidence,
   }, null, 2)}\n`);
 }

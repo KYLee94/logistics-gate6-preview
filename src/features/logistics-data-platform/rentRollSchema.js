@@ -1,5 +1,47 @@
 const PY_PER_SQM = 0.3025;
 
+export const TENANT_COST_OPTIONS = Object.freeze([
+  '전기·수도·가스 등 공과금',
+  '임차인 설치시설·영업상 수선',
+  '시설 변경·설치 비용',
+  '추가 제세공과금·보험료',
+  '화재·배상책임보험',
+  '전용부 미화·보안·방역',
+  '교통유발·과밀부담금',
+  '법정검사·시설관리비',
+]);
+export const LANDLORD_COST_OPTIONS = Object.freeze([
+  '구조체·기본설비 유지보수',
+  '재산종합·화재보험',
+  '소유 관련 제세공과금',
+  '공용부 미화·보안·조경',
+  '승강기·전기·소방 유지관리',
+  '도로점용·단지관리비',
+  '임차인 귀책 외 수선비',
+]);
+
+const RENEWAL_PRESETS = Object.freeze([
+  '없음',
+  '만기 전 서면 통지',
+  '상호 합의 갱신',
+  '연장 옵션',
+  '기타',
+]);
+const TERMINATION_PRESETS = Object.freeze([
+  '중도해지 불가',
+  '임차인 중도해지권',
+  '임대인·임차인 중도해지권',
+  '의무임대차기간 후 중도해지',
+  '기타',
+]);
+const RESTORATION_PRESETS = Object.freeze([
+  '임차인 책임·비용으로 원상복구',
+  '자연마모 제외 원상복구',
+  '일부 시설 원상복구 제외',
+  '원상복구기간 제공',
+  '기타',
+]);
+
 const column = (key, label, group, kind = 'text', width = 128, extra = {}) => Object.freeze({
   key, label, group, kind, width, ...extra,
 });
@@ -10,7 +52,6 @@ export const RENT_ROLL_COLUMNS = Object.freeze([
   column('tenant_name', '임차인', '임차인', 'text', 190),
   column('business_registration_number', '사업자등록번호', '임차인', 'text', 142),
   column('temperature_type', '용도', '공간', 'select', 94, { options: [['저온', '저온'], ['상온', '상온'], ['복합', '복합'], ['사무실', '사무실']] }),
-  column('use_category', '세부 용도', '공간', 'text', 116),
   column('goods_type', '취급 화물', '공간', 'text', 118),
   column('floor_label', '층', '공간', 'text', 72),
   column('zone_label', '구역', '공간', 'text', 96),
@@ -28,20 +69,17 @@ export const RENT_ROLL_COLUMNS = Object.freeze([
   column('expiry_date', '임대 만기일', '계약 기간', 'date', 124),
   column('contract_months', '계약기간(개월)', '계약 기간', 'readonly', 112),
   column('wale_years', '잔존기간(년)', '계약 기간', 'readonly', 104),
-  column('construction_start_date', '공사 착공일', '계약 기간', 'date', 124),
-  column('completion_date', '준공일', '계약 기간', 'date', 124),
   column('operation_start_date', '운영 개시일', '계약 기간', 'date', 124),
   column('deposit_total_krw', '보증금 합계', '보증금', 'number', 140),
-  column('deposit_per_py_krw', '보증금/평', '보증금', 'number', 116),
-  column('security_type', '담보 방식', '보증금', 'text', 116),
+  column('deposit_per_py_krw', '보증금/평', '보증금', 'readonly', 116),
+  column('security_type', '담보 방식', '보증금', 'preset_text', 158, { options: ['보증보험', '근저당권', '없음', '기타'] }),
   column('security_ratio', '담보 비율(%)', '보증금', 'number', 112),
-  column('rent_calculation_method', '임대료 산정', '임대료', 'text', 130),
   column('monthly_rent_total_krw', '월 임대료', '임대료', 'number', 140),
-  column('rent_per_py_krw', '임대료/평', '임대료', 'number', 116),
+  column('rent_per_py_krw', '임대료/평', '임대료', 'readonly', 116),
   column('monthly_cam_total_krw', '월 관리비', '임대료', 'number', 136),
-  column('cam_per_py_krw', '관리비/평', '임대료', 'number', 116),
+  column('cam_per_py_krw', '관리비/평', '임대료', 'readonly', 116),
   column('pallet_rack_fee', '랙 사용료', '임대료', 'number', 124),
-  column('pallet_rack_fee_per_py', '랙 사용료/평', '임대료', 'number', 120),
+  column('pallet_rack_fee_per_py', '랙 사용료/평', '임대료', 'readonly', 120),
   column('current_total_cost_per_py_krw', 'E.NOC/평', '임대료', 'readonly', 122),
   column('rent_free_months', '렌트프리(개월)', '무상·지원', 'number', 118),
   column('rent_free_start_date', '렌트프리 시작', '무상·지원', 'date', 124),
@@ -52,18 +90,18 @@ export const RENT_ROLL_COLUMNS = Object.freeze([
   column('tenant_improvement_amount', 'TI 지원금', '무상·지원', 'number', 128),
   column('deposit_escalation_first_date', '보증금 인상일', '인상 조건', 'date', 124),
   column('deposit_escalation_interval_months', '보증금 주기(개월)', '인상 조건', 'number', 126),
-  column('deposit_escalation_rate', '보증금 인상률', '인상 조건', 'text', 120),
+  column('deposit_escalation_rate', '보증금 인상률', '인상 조건', 'percent', 120),
   column('rent_escalation_first_date', '임대료 인상일', '인상 조건', 'date', 124),
   column('rent_escalation_interval_months', '임대료 주기(개월)', '인상 조건', 'number', 126),
-  column('rent_escalation_rate', '임대료 인상률', '인상 조건', 'text', 120),
+  column('rent_escalation_rate', '임대료 인상률', '인상 조건', 'percent', 120),
   column('cam_escalation_first_date', '관리비 인상일', '인상 조건', 'date', 124),
   column('cam_escalation_interval_months', '관리비 주기(개월)', '인상 조건', 'number', 126),
-  column('cam_escalation_rate', '관리비 인상률', '인상 조건', 'text', 120),
-  column('tenant_cost_terms', '임차인 부담비용', '권리·비용', 'text', 180),
-  column('landlord_cost_terms', '임대인 부담비용', '권리·비용', 'text', 180),
-  column('renewal_terms', '연장·갱신권', '권리·비용', 'text', 180),
-  column('termination_terms', '중도해지권', '권리·비용', 'text', 180),
-  column('restoration_terms', '원상복구', '권리·비용', 'text', 180),
+  column('cam_escalation_rate', '관리비 인상률', '인상 조건', 'percent', 120),
+  column('tenant_cost_terms', '임차인 부담비용', '권리·비용', 'multi_select', 210, { options: TENANT_COST_OPTIONS }),
+  column('landlord_cost_terms', '임대인 부담비용', '권리·비용', 'multi_select', 210, { options: LANDLORD_COST_OPTIONS }),
+  column('renewal_terms', '연장·갱신권', '권리·비용', 'preset_text', 220, { options: RENEWAL_PRESETS }),
+  column('termination_terms', '중도해지권', '권리·비용', 'preset_text', 220, { options: TERMINATION_PRESETS }),
+  column('restoration_terms', '원상복구', '권리·비용', 'preset_text', 220, { options: RESTORATION_PRESETS }),
   column('notes', '비고', '기타', 'text', 220),
 ]);
 
@@ -77,6 +115,59 @@ const numberOrNull = (value) => {
   const parsed = Number(String(value).replaceAll(',', ''));
   return Number.isFinite(parsed) ? parsed : null;
 };
+
+const uniqueTextItems = (values) => [...new Set((Array.isArray(values) ? values : [])
+  .map((value) => String(value || '').trim()).filter(Boolean))];
+
+const COST_TERM_PATTERNS = Object.freeze([
+  ['전기·수도·가스 등 공과금', /전기[\s\S]*수도[\s\S]*가스|제반\s*공과금/iu],
+  ['임차인 설치시설·영업상 수선', /임차인\s*설치|영업상\s*필요|임차인.*귀책/iu],
+  ['시설 변경·설치 비용', /시설.*(?:변경|개조|설치)/iu],
+  ['추가 제세공과금·보험료', /추가.*(?:제세공과금|보험료)|증가.*(?:제세공과금|보험료)/iu],
+  ['화재·배상책임보험', /화재보험|배상책임보험|종합보험/iu],
+  ['전용부 미화·보안·방역', /미화|보안|방역|구서|구충/iu],
+  ['교통유발·과밀부담금', /교통유발부담금|과밀부담금/iu],
+  ['법정검사·시설관리비', /법정검사|시설.*관리비/iu],
+  ['구조체·기본설비 유지보수', /구조물|기본적\s*설비|배관|보일러/iu],
+  ['재산종합·화재보험', /재산종합보험|화재보험/iu],
+  ['소유 관련 제세공과금', /소유.*제세공과금|재산세|종합부동산세|취득세/iu],
+  ['공용부 미화·보안·조경', /공용부.*미화|정문.*보안|조경/iu],
+  ['승강기·전기·소방 유지관리', /승강기|전기\s*안전관리|소방안전관리/iu],
+  ['도로점용·단지관리비', /도로점용료|단지관리비/iu],
+  ['임차인 귀책 외 수선비', /귀책사유.*제외|수선에\s*관한\s*비용/iu],
+]);
+
+export function normalizeCostTerms(value, availableOptions = null) {
+  const allowed = Array.isArray(availableOptions) ? new Set(availableOptions) : null;
+  const matchRawText = (rawText) => {
+    const matched = COST_TERM_PATTERNS
+      .filter(([label, pattern]) => (!allowed || allowed.has(label)) && pattern.test(rawText))
+      .map(([label]) => label);
+    return matched.length ? uniqueTextItems(matched) : [rawText];
+  };
+  if (Array.isArray(value)) return uniqueTextItems(value);
+  if (value && typeof value === 'object') {
+    if (Object.prototype.hasOwnProperty.call(value, 'items')) return uniqueTextItems(value.items);
+    const alternate = value.selected_items || value.selected || value.values;
+    if (Array.isArray(alternate)) return uniqueTextItems(alternate);
+    const rawText = String(value.raw_text || value.text || '').trim();
+    if (!rawText) return [];
+    return matchRawText(rawText);
+  }
+  const rawText = String(value || '').trim();
+  if (!rawText) return [];
+  return matchRawText(rawText);
+}
+
+export function serializeCostTerms(original, items) {
+  const base = original && typeof original === 'object' && !Array.isArray(original)
+    ? { ...original }
+    : String(original || '').trim() ? { raw_text: String(original).trim() } : {};
+  return { ...base, items: uniqueTextItems(items) };
+}
+
+const perPy = (total, leasedAreaPy) => total === null || !(leasedAreaPy > 0)
+  ? null : Math.round((total / leasedAreaPy) * 100) / 100;
 
 export function calculateRentRollENoc(row) {
   const area = numberOrNull(row?.leased_area_sqm);
@@ -97,17 +188,26 @@ export function deriveRentRollRow(row) {
   const remainingYears = expiry
     ? Math.max(0, (expiry - new Date()) / 31_557_600_000) : null;
   const rent = numberOrNull(row?.monthly_rent_total_krw);
+  const deposit = numberOrNull(row?.deposit_total_krw);
+  const cam = numberOrNull(row?.monthly_cam_total_krw);
+  const palletRackFee = numberOrNull(row?.pallet_rack_fee);
   const rentFreeMonths = numberOrNull(row?.rent_free_months);
   const effectiveRent = rent !== null && contractMonths > 0 && rentFreeMonths !== null
     ? Math.round((rent * Math.max(0, contractMonths - rentFreeMonths) / contractMonths) * 100) / 100 : null;
+  const leasedAreaPyRaw = leased === null ? null : leased * PY_PER_SQM;
+  const leasedAreaPy = leasedAreaPyRaw === null ? null : Math.round(leasedAreaPyRaw * 100) / 100;
   return {
     ...row,
     exclusive_area_py: exclusive === null ? null : Math.round(exclusive * PY_PER_SQM * 100) / 100,
     common_area_py: common === null ? null : Math.round(common * PY_PER_SQM * 100) / 100,
-    leased_area_py: leased === null ? null : Math.round(leased * PY_PER_SQM * 100) / 100,
+    leased_area_py: leasedAreaPy,
     efficiency_ratio: leased > 0 && exclusive !== null ? Math.round((exclusive / leased) * 10000) / 100 : null,
     contract_months: contractMonths,
     wale_years: remainingYears === null ? null : Math.round(remainingYears * 100) / 100,
+    deposit_per_py_krw: perPy(deposit, leasedAreaPyRaw),
+    rent_per_py_krw: perPy(rent, leasedAreaPyRaw),
+    cam_per_py_krw: perPy(cam, leasedAreaPyRaw),
+    pallet_rack_fee_per_py: perPy(palletRackFee, leasedAreaPyRaw),
     effective_rent: effectiveRent,
     current_total_cost_per_py_krw: calculateRentRollENoc(row),
   };
@@ -127,11 +227,14 @@ export function emptyRentRollRow(draftId) {
   };
   RENT_ROLL_COLUMNS.forEach(({ key: fieldKey }) => { row[fieldKey] = ''; });
   row.occupancy_status = 'occupied';
+  row.tenant_cost_terms = { items: [] };
+  row.landlord_cost_terms = { items: [] };
   return row;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/u;
 const NUMERIC_FIELDS = new Set(RENT_ROLL_COLUMNS.filter(({ kind }) => kind === 'number').map(({ key }) => key));
+const PERCENT_FIELDS = RENT_ROLL_COLUMNS.filter(({ kind }) => kind === 'percent').map(({ key }) => key);
 const DATE_FIELDS = RENT_ROLL_COLUMNS.filter(({ kind }) => kind === 'date').map(({ key }) => key);
 
 export function validateUniversalRentRoll(rows) {
@@ -154,6 +257,11 @@ export function validateUniversalRentRoll(rows) {
       if (row[field] !== '' && row[field] !== null && row[field] !== undefined && (value === null || value < 0)) {
         errors.push(`${rowLabel}: ${field}는 0 이상의 숫자여야 합니다.`);
       }
+    });
+    PERCENT_FIELDS.forEach((field) => {
+      if (row[field] === '' || row[field] === null || row[field] === undefined) return;
+      const value = numberOrNull(String(row[field]).replace('%', ''));
+      if (value === null || value < 0 || value > 100) errors.push(`${rowLabel}: ${field}는 0~100 사이의 % 값이어야 합니다.`);
     });
   });
   return errors;

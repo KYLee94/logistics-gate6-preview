@@ -47,21 +47,24 @@ assert.match(ui, /sessionStorage/u);
 for (const field of [
   'tenant_name', 'business_registration_number', 'temperature_type', 'goods_type', 'subtenant_name',
   'exclusive_area_sqm', 'common_area_sqm', 'leased_area_sqm', 'signed_date', 'commencement_date',
-  'expiry_date', 'construction_start_date', 'completion_date', 'monthly_rent_total_krw',
+  'expiry_date', 'monthly_rent_total_krw',
   'monthly_cam_total_krw', 'rent_free_start_date', 'rent_free_end_date',
   'deposit_escalation_first_date', 'deposit_escalation_interval_months', 'deposit_escalation_rate',
   'rent_escalation_first_date', 'rent_escalation_interval_months', 'rent_escalation_rate',
   'cam_escalation_first_date', 'cam_escalation_interval_months', 'cam_escalation_rate',
   'current_total_cost_per_py_krw', 'tenant_cost_terms', 'landlord_cost_terms', 'renewal_terms',
 ]) assert.ok(rentSchema.includes(field), `missing rent-roll field: ${field}`);
+for (const removed of ['use_category', 'construction_start_date', 'completion_date', 'rent_calculation_method']) {
+  assert.equal(rentSchema.includes(`column('${removed}'`), false, `removed rent-roll field returned: ${removed}`);
+}
 assert.match(rentSchema, /kind:\s*'text'[\s\S]{0,80}tenant_name|tenant_name[\s\S]{0,80}'text'/u);
 assert.match(rentSchema, /0\.3025/u);
 assert.doesNotMatch(rentSchema, /kind:\s*['"](?:area|moneyPair|period|summary|tenant)['"]/u);
 assert.match(ui, /data-testid=["']rent-roll-table["']/u);
 assert.match(ui, /custom-scrollbar h-\[calc\(100vh-190px\)\] overflow-auto/u);
 assert.match(ui, /tenant_name[\s\S]{0,500}<input/u);
-assert.match(ui, /rent-roll-move-up/u);
-assert.match(ui, /rent-roll-move-down/u);
+assert.match(ui, /data-testid=["']rent-roll-drag-handle["']/u);
+assert.match(ui, /draggable=/u);
 
 for (const label of ['대지면적', '연면적', '임대가능면적', '임차 현황', '약정액', '투입액', 'Coupon', 'All-in']) {
   assert.ok(ui.includes(label), `missing home field: ${label}`);
@@ -86,7 +89,7 @@ for (const token of ['bg-[#1F1F1E]', 'bg-[#252524]', 'border-[#333333]', 'rounde
 
 async function verifyModules() {
   const rent = await import(`${pathToFileURL(path.join(root, 'src/features/logistics-data-platform/rentRollSchema.js')).href}?qa=${Date.now()}`);
-  assert.ok(rent.RENT_ROLL_COLUMNS.length >= 55);
+  assert.ok(rent.RENT_ROLL_COLUMNS.length >= 50);
   assert.equal(rent.RENT_ROLL_COLUMNS.find((column) => column.key === 'tenant_name').kind, 'text');
   assert.equal(rent.calculateRentRollENoc({ leased_area_sqm: 1000, monthly_rent_total_krw: 10_000_000, monthly_cam_total_krw: 2_000_000 }), 39669.42);
   const finance = await import(`${pathToFileURL(path.join(root, 'src/features/logistics-data-platform/financeSchema.js')).href}?qa=${Date.now()}`);

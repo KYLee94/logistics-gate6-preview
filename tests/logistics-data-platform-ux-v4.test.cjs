@@ -33,10 +33,7 @@ test('렌트롤 용도는 네 가지 운영 용도만 선택한다', async () =>
     ['복합', '복합'],
     ['사무실', '사무실'],
   ]);
-  assert.equal(
-    schema.RENT_ROLL_COLUMNS.find((column) => column.key === 'use_category')?.label,
-    '세부 용도',
-  );
+  assert.equal(schema.RENT_ROLL_COLUMNS.some((column) => column.key === 'use_category'), false);
 });
 
 test('NOI 기본 본표는 MECE 핵심 계정만 보이고 세부 계정은 선택할 수 있다', async () => {

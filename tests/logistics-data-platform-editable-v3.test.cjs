@@ -25,13 +25,28 @@ test('렌트롤은 한 셀 한 값의 평면 컬럼과 직접 입력 임차인�
   assert.equal(keys.includes('subtenant_name'), true);
   assert.equal(keys.includes('free_area_type'), true);
   assert.equal(keys.includes('signed_date'), true);
-  assert.equal(keys.includes('construction_start_date'), true);
-  assert.equal(keys.includes('completion_date'), true);
+  assert.equal(keys.includes('use_category'), false, '참고 렌트롤에 없는 세부 용도 열은 제거합니다.');
+  assert.equal(keys.includes('construction_start_date'), false, '사용자 요청에 따라 착공일을 제거합니다.');
+  assert.equal(keys.includes('completion_date'), false, '사용자 요청에 따라 준공일을 제거합니다.');
+  assert.equal(keys.includes('rent_calculation_method'), false, '근거가 불명확한 임대료 산정 열은 제거합니다.');
   assert.equal(keys.includes('rent_escalation_rate'), true);
   assert.equal(keys.includes('rent_escalation_interval_months'), true);
   assert.equal(keys.includes('rent_escalation_first_date'), true);
   assert.equal(keys.includes('cam_escalation_rate'), true);
   assert.equal(keys.includes('current_total_cost_per_py_krw'), true);
+  for (const key of ['deposit_per_py_krw', 'rent_per_py_krw', 'cam_per_py_krw', 'pallet_rack_fee_per_py']) {
+    assert.equal(byKey.get(key)?.kind, 'readonly', `${key}는 임대면적 기준 자동계산이어야 합니다.`);
+  }
+  assert.equal(byKey.get('security_type')?.kind, 'preset_text');
+  assert.deepEqual(byKey.get('security_type')?.options, ['보증보험', '근저당권', '없음', '기타']);
+  for (const key of ['deposit_escalation_rate', 'rent_escalation_rate', 'cam_escalation_rate']) {
+    assert.equal(byKey.get(key)?.kind, 'percent', `${key}는 % 입력이어야 합니다.`);
+  }
+  assert.equal(byKey.get('tenant_cost_terms')?.kind, 'multi_select');
+  assert.equal(byKey.get('landlord_cost_terms')?.kind, 'multi_select');
+  for (const key of ['renewal_terms', 'termination_terms', 'restoration_terms']) {
+    assert.equal(byKey.get(key)?.kind, 'preset_text', `${key}는 프리셋과 직접 작성을 함께 지원해야 합니다.`);
+  }
 });
 
 test('E.NOC는 기존 Supabase 0.3025 공식과 결측 계약을 따른다', async () => {
@@ -47,6 +62,45 @@ test('E.NOC는 기존 Supabase 0.3025 공식과 결측 계약을 따른다', asy
     monthly_cam_total_krw: 2_000_000,
   }), null);
   assert.equal(schema.calculateRentRollENoc({ leased_area_sqm: 1000 }), null);
+});
+
+test('보증금과 모든 평단가는 임대면적 평을 기준으로 자동 계산한다', async () => {
+  const schema = await importFresh('src/features/logistics-data-platform/rentRollSchema.js');
+  const row = schema.deriveRentRollRow({
+    leased_area_sqm: 1_000,
+    deposit_total_krw: 10_000_000,
+    monthly_rent_total_krw: 10_000_000,
+    monthly_cam_total_krw: 2_000_000,
+    pallet_rack_fee: 100_000,
+  });
+  assert.equal(row.leased_area_py, 302.5);
+  assert.equal(row.deposit_per_py_krw, 33057.85);
+  assert.equal(row.rent_per_py_krw, 33057.85);
+  assert.equal(row.cam_per_py_krw, 6611.57);
+  assert.equal(row.pallet_rack_fee_per_py, 330.58);
+  assert.equal(row.current_total_cost_per_py_krw, 39669.42);
+  const irregular = schema.deriveRentRollRow({ leased_area_sqm: 123.45, deposit_total_krw: 10_000_000 });
+  assert.equal(
+    irregular.deposit_per_py_krw,
+    Math.round((10_000_000 / (123.45 * 0.3025)) * 100) / 100,
+    '표시용 임대면적(평) 반올림값이 아니라 Supabase의 원본 ㎡×0.3025를 사용해야 합니다.',
+  );
+});
+
+test('부담비용 다중선택은 기존 jsonb 원문과 출처 메타데이터를 보존한다', async () => {
+  const schema = await importFresh('src/features/logistics-data-platform/rentRollSchema.js');
+  const legacy = {
+    raw_text: '전기, 수도, 가스요금 등 제반 공과금',
+    source_table: 'public.ll_leases',
+    source_column: 'tenant_cost_burden',
+  };
+  assert.deepEqual(schema.normalizeCostTerms(legacy), ['전기·수도·가스 등 공과금']);
+  const serialized = schema.serializeCostTerms(legacy, ['전기·수도·가스 등 공과금', '사용자 추가 항목']);
+  assert.equal(serialized.raw_text, legacy.raw_text);
+  assert.equal(serialized.source_table, legacy.source_table);
+  assert.equal(serialized.source_column, legacy.source_column);
+  assert.deepEqual(serialized.items, ['전기·수도·가스 등 공과금', '사용자 추가 항목']);
+  assert.deepEqual(schema.normalizeCostTerms(serialized), serialized.items);
 });
 
 test('한국 물류센터 NOI는 PGI, EGI, NOI, NCF, 부채상환 후 현금흐름을 분리한다', async () => {
@@ -81,6 +135,19 @@ test('data-platform UI는 자동저장 필드, 기존 표 스크롤, 내부 세�
   assert.match(source, /custom-scrollbar/u);
   assert.match(source, /tenant_name[\s\S]{0,400}<input/iu);
   assert.doesNotMatch(source, /tenant_name[\s\S]{0,400}<select/iu);
+  assert.match(source, /data-testid=["']rent-roll-drag-handle["']/u);
+  assert.match(source, /draggable=/u);
+  assert.match(source, /onDragStart/u);
+  assert.match(source, /onDrop/u);
+  assert.doesNotMatch(source, /rent-roll-move-up|rent-roll-move-down/u);
+  assert.match(source, /const changedRange = changed\.slice\(rangeStart, rangeEnd \+ 1\)/u);
+  assert.match(source, /saveRows\(changedRange\)/u);
+  assert.match(source, /draggable=\{writeEnabled && row\.operation !== ["']delete["']\}/u);
+  assert.match(source, /disabled=\{!writeEnabled \|\| row\.operation === ["']delete["']\}/u);
+  assert.match(source, /MultiSelectCell/u);
+  assert.match(source, /PresetTextCell/u);
+  assert.match(source, /column\?\.kind === ["']multi_select["'][\s\S]{0,160}serializeCostTerms/u);
+  assert.match(source, /column\?\.kind === ["']percent["'][\s\S]{0,160}percentStoredValue/u);
   assert.doesNotMatch(source, /finance-statement-scroll[\s\S]{0,160}max-h/iu);
 });
 
