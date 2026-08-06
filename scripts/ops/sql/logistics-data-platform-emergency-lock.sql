@@ -16,6 +16,7 @@ set writer_mode = 'locked',
     revision = revision + 1
 where writer_mode is distinct from 'locked';
 
+revoke execute on function logistics_api.home_batch_save(uuid, text, jsonb, jsonb) from authenticated;
 revoke execute on function logistics_api.rent_roll_batch_save(uuid, text, jsonb, jsonb) from authenticated;
 revoke execute on function logistics_api.finance_batch_save(uuid, text, jsonb, jsonb) from authenticated;
 

@@ -3,6 +3,7 @@ import { invokeDashboardApi } from '../../utils/supabaseSession';
 
 export const DATA_PLATFORM_ACTIONS = Object.freeze({
   homeRead: 'v2/home/read',
+  homeBatchSave: 'v2/home/batch-save',
   rentRollRead: 'v2/rent-roll/read',
   rentRollBatchSave: 'v2/rent-roll/batch-save',
   financeRead: 'v2/finance/read',

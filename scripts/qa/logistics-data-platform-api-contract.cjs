@@ -9,6 +9,7 @@ const EDGE_INDEX = path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 
 const MIGRATIONS_DIR = path.join(ROOT, 'supabase', 'migrations');
 const EXPECTED_ACTIONS = Object.freeze([
   'v2/home/read',
+  'v2/home/batch-save',
   'v2/rent-roll/read',
   'v2/rent-roll/batch-save',
   'v2/finance/read',
@@ -18,6 +19,7 @@ const EXPECTED_ACTIONS = Object.freeze([
 ]);
 const EXPECTED_RPCS = Object.freeze([
   'home_read',
+  'home_batch_save',
   'rent_roll_read',
   'rent_roll_batch_save',
   'finance_read',
@@ -33,6 +35,7 @@ const READ_RPCS = Object.freeze([
   'calculations_explain',
 ]);
 const MUTATION_RPCS = Object.freeze([
+  'home_batch_save',
   'rent_roll_batch_save',
   'finance_batch_save',
 ]);
@@ -47,7 +50,7 @@ function sourceFiles(directory) {
 
 function migrationSource() {
   const files = fs.readdirSync(MIGRATIONS_DIR)
-    .filter((name) => /^20260804\d{6}_logistics_data_platform.*\.sql$/u.test(name))
+    .filter((name) => /^2026080[46]\d{6}_(?:logistics_data_platform|editable_noi_rent_roll).*\.sql$/u.test(name))
     .sort();
   assert.ok(files.length > 0, 'data-platform migration is missing');
   return files.map((name) => fs.readFileSync(path.join(MIGRATIONS_DIR, name), 'utf8')).join('\n');
@@ -90,7 +93,7 @@ async function main() {
   });
 
   if (contracts && router) {
-    await check('exactly-seven-public-actions', () => {
+    await check('exactly-eight-public-actions', () => {
       assert.deepEqual([...contracts.V2_PUBLIC_ACTIONS], EXPECTED_ACTIONS);
       const actionStrings = [...new Set(sourceFiles(V2_DIR).flatMap((file) => {
         const source = fs.readFileSync(file, 'utf8');
@@ -302,10 +305,10 @@ async function main() {
       assert.match(source, new RegExp(`grant execute on function logistics_api\\.${rpc}\\(`, 'iu'));
     }
     for (const rpc of MUTATION_RPCS) {
-      assert.doesNotMatch(
+      assert.match(
         source,
         new RegExp(`grant execute on function logistics_api\\.${rpc}\\([\\s\\S]{0,180}to authenticated`, 'iu'),
-        `${rpc} must remain ungranted in the production-shadow base migration`,
+        `${rpc} must be granted to authenticated writers after pilot unlock`,
       );
     }
     assert.doesNotMatch(
@@ -315,7 +318,7 @@ async function main() {
     assert.match(source, /revoke all on schema logistics_api from public, anon/iu);
     assert.match(source, /grant usage on schema logistics_api to authenticated/iu);
     const apiFunctionBlocks = source.match(/create or replace function logistics_api\.[\s\S]*?\$function\$;/giu) || [];
-    assert.equal(apiFunctionBlocks.length, 7);
+    assert.equal(apiFunctionBlocks.length, EXPECTED_RPCS.length);
     apiFunctionBlocks.forEach((block) => {
       assert.match(block, /security definer/iu);
       assert.match(block, /set search_path = ''/iu);

@@ -1,5 +1,6 @@
 export const V2_PUBLIC_ACTIONS = Object.freeze([
   'v2/home/read',
+  'v2/home/batch-save',
   'v2/rent-roll/read',
   'v2/rent-roll/batch-save',
   'v2/finance/read',

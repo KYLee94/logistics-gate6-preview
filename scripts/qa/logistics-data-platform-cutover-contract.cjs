@@ -28,22 +28,24 @@ check('pilot-unlock-is-transactional-and-guarded', () => {
   assert.match(unlock, /locked_route_count\s*<>\s*active_asset_count/iu);
 }, 'exactly three pilots, validated backfill, zero critical errors, empty finance, and locked routes');
 
-check('pilot-unlock-opens-only-two-v2-writers', () => {
+check('pilot-unlock-opens-all-three-v2-writers', () => {
   const grants = [...unlock.matchAll(/grant execute on function\s+([^;]+)\s+to authenticated;/giu)]
     .map((match) => match[1].replace(/\s+/gu, ' ').trim());
   assert.deepEqual(grants, [
+    'logistics_api.home_batch_save(uuid, text, jsonb, jsonb)',
     'logistics_api.rent_roll_batch_save(uuid, text, jsonb, jsonb)',
     'logistics_api.finance_batch_save(uuid, text, jsonb, jsonb)',
   ]);
   assert.match(unlock, /set writer_mode = 'v2'/iu);
   assert.match(unlock, /set v2_write_enabled = true/iu);
   assert.match(unlock, /'pilot_write_unlock'/u);
-}, 'only rent-roll and finance mutation RPCs are granted and audited');
+}, 'home, rent-roll, and finance mutation RPCs are granted and audited');
 
 check('emergency-lock-reverses-write-access', () => {
   assert.match(emergencyLock, /^begin;/iu);
   assert.match(emergencyLock, /set v2_write_enabled = false/iu);
   assert.match(emergencyLock, /set writer_mode = 'locked'/iu);
+  assert.match(emergencyLock, /revoke execute on function logistics_api\.home_batch_save\(uuid, text, jsonb, jsonb\) from authenticated;/iu);
   assert.match(emergencyLock, /revoke execute on function logistics_api\.rent_roll_batch_save\(uuid, text, jsonb, jsonb\) from authenticated;/iu);
   assert.match(emergencyLock, /revoke execute on function logistics_api\.finance_batch_save\(uuid, text, jsonb, jsonb\) from authenticated;/iu);
   assert.match(emergencyLock, /'emergency_write_lock'/u);

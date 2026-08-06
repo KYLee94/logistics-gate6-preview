@@ -8,6 +8,7 @@ import {
 
 const ACTION_TO_RPC: Readonly<Record<V2PublicAction, string>> = Object.freeze({
   'v2/home/read': 'home_read',
+  'v2/home/batch-save': 'home_batch_save',
   'v2/rent-roll/read': 'rent_roll_read',
   'v2/rent-roll/batch-save': 'rent_roll_batch_save',
   'v2/finance/read': 'finance_read',
@@ -17,8 +18,9 @@ const ACTION_TO_RPC: Readonly<Record<V2PublicAction, string>> = Object.freeze({
 });
 
 const WRITE_ACTIONS: ReadonlySet<V2PublicAction> = new Set([
-  V2_PUBLIC_ACTIONS[2],
-  V2_PUBLIC_ACTIONS[4],
+  'v2/home/batch-save',
+  'v2/rent-roll/batch-save',
+  'v2/finance/batch-save',
 ]);
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -125,6 +127,11 @@ export function buildRpcArguments(
     if ((Array.isArray(rows) && rows.length > 500) || (Array.isArray(operations) && operations.length > 500)) {
       throw new Error('BATCH_LIMIT_EXCEEDED');
     }
+  }
+  if (action === 'v2/home/batch-save') {
+    const operations = request.payload?.operations;
+    if (!Array.isArray(operations)) throw new Error('HOME_OPERATIONS_ARRAY_REQUIRED');
+    if (operations.length > 200) throw new Error('BATCH_LIMIT_EXCEEDED');
   }
   const rpcPayload = action === 'v2/finance/batch-save'
     ? normalizeFinancePayload(request.payload ?? {}, request.client_request_id as string)

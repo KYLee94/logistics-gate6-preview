@@ -1,15 +1,15 @@
 const MONTH_PATTERN = /^\d{4}-\d{2}$/u;
 
-export function emptyManualFinanceEntry({ draftId, month, accountingBasis = 'accrual' }) {
+export function emptyManualFinanceEntry({ draftId, month, accountingBasis = 'accrual', scenario = 'actual' }) {
   return {
     _draft_id: draftId,
     operation: 'create',
     month,
     account_code: '',
     amount: '',
-    scenario: 'actual',
+    scenario,
     accounting_basis: accountingBasis,
-    reason: '',
+    reason: 'NOI 손익표 직접 수정',
   };
 }
 
@@ -24,7 +24,6 @@ const SERVER_OWNED_FINANCE_FIELDS = new Set([
 export function financeEntryForSave(row) {
   return {
     ...Object.fromEntries(Object.entries(row).filter(([key]) => !SERVER_OWNED_FINANCE_FIELDS.has(key))),
-    scenario: 'actual',
   };
 }
 
@@ -43,7 +42,7 @@ export function validateManualFinanceEntries(rows, accounts = []) {
     } else if (!Number.isFinite(Number(String(row.amount).replaceAll(',', '')))) {
       errors.push(`${label}: 금액은 숫자여야 합니다.`);
     }
-    if (row.scenario !== 'actual') errors.push(`${label}: 1단계에서는 실적만 입력할 수 있습니다.`);
+    if (!['actual', 'budget', 'forecast'].includes(row.scenario)) errors.push(`${label}: 실적, 예산 또는 전망을 선택해 주세요.`);
     if (!['accrual', 'cash'].includes(row.accounting_basis)) errors.push(`${label}: 발생 또는 현금 기준을 선택해 주세요.`);
     if (!String(row.reason || '').trim()) errors.push(`${label}: 입력 근거 또는 메모를 작성해 주세요.`);
   });

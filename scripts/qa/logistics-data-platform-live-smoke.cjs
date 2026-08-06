@@ -87,6 +87,7 @@ async function invoke(action, token, request = {}) {
   if (response.status !== 200) {
     const rpcName = {
       'v2/home/read': 'home_read',
+      'v2/home/batch-save': 'home_batch_save',
       'v2/rent-roll/read': 'rent_roll_read',
       'v2/rent-roll/batch-save': 'rent_roll_batch_save',
       'v2/finance/read': 'finance_read',
@@ -225,6 +226,26 @@ async function main() {
   const writeEvidence = [];
   if (validateSafeWrites) {
     assert.equal(expectedWriteState, 'enabled', 'Safe write validation requires --expect-write enabled');
+    const homeAsset = home.data.asset;
+    assert.ok(homeAsset?.asset_key && homeAsset?.name && Number(homeAsset?.revision) > 0, 'Home asset is unavailable for no-op validation');
+    const homeSave = await invoke('v2/home/batch-save', auth.token, {
+      asset_key: assetKey,
+      client_request_id: randomUUID(),
+      expected_revisions: { [homeAsset.asset_key]: Number(homeAsset.revision) },
+      operations: [{
+        entity: 'asset',
+        entity_key: homeAsset.asset_key,
+        field: 'name',
+        value: homeAsset.name,
+        expected_revision: Number(homeAsset.revision),
+        reason: 'release_validation_no_business_value_change',
+      }],
+    });
+    const homeReadback = await invoke('v2/home/read', auth.token, { asset_key: assetKey });
+    assert.equal(homeReadback.data.asset.name, homeAsset.name, 'Home no-op validation changed the asset name');
+    assert.ok(Number(homeReadback.data.asset.revision) > Number(homeAsset.revision), 'Home no-op validation did not advance revision');
+    writeEvidence.push({ action: 'home_noop_update', revision: homeSave.revision, readback_revision: homeReadback.data.asset.revision });
+
     const beforeRows = Array.isArray(rentRoll.data.rows) ? rentRoll.data.rows : [];
     const before = beforeRows.find((row) => row?.space_key && Number(row?.revision) > 0);
     assert.ok(before, 'No existing rent-roll row is available for no-op validation');
@@ -262,8 +283,18 @@ async function main() {
       scenario: 'actual',
       accounting_basis: 'accrual',
     });
-    assert.deepEqual(financeReadback.data.entries, [], 'Finance safe validation created a business row');
-    writeEvidence.push({ action: 'finance_empty_batch', revision: financeSave.revision, active_rows: 0 });
+    const projectedRows = financeReadback.data.entries || [];
+    assert.equal(
+      projectedRows.every((entry) => entry.source_kind === 'rent_roll_calculation'
+        && ['POTENTIAL_BASE_RENT', 'POTENTIAL_CAM_INCOME'].includes(entry.account_code)),
+      true,
+      'Finance readback contains rows outside the approved rent-roll projection',
+    );
+    writeEvidence.push({
+      action: 'finance_empty_batch_with_rent_roll_projection',
+      revision: financeSave.revision,
+      active_rows: projectedRows.length,
+    });
   }
 
   process.stdout.write(`${JSON.stringify({

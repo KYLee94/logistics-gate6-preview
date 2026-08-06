@@ -59,6 +59,7 @@ begin
 end;
 $guard$;
 
+grant execute on function logistics_api.home_batch_save(uuid, text, jsonb, jsonb) to authenticated;
 grant execute on function logistics_api.rent_roll_batch_save(uuid, text, jsonb, jsonb) to authenticated;
 grant execute on function logistics_api.finance_batch_save(uuid, text, jsonb, jsonb) to authenticated;
 

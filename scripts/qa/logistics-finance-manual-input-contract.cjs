@@ -4,53 +4,78 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 async function main() {
-  const modulePath = path.resolve(__dirname, '..', '..', 'src', 'features', 'logistics-data-platform', 'financeSchema.js');
+  const modulePath = path.resolve(
+    __dirname,
+    '..',
+    '..',
+    'src',
+    'features',
+    'logistics-data-platform',
+    'financeSchema.js',
+  );
   const finance = await import(`${pathToFileURL(modulePath).href}?contract=${Date.now()}`);
   const accounts = [
-    { account_code: 'RENT_INCOME', manual_entry_allowed: true },
-    { account_code: 'DEBT_PRINCIPAL', manual_entry_allowed: false },
+    { account_code: 'POTENTIAL_BASE_RENT', manual_entry_allowed: true },
+    { account_code: 'PROPERTY_TAX_PUBLIC_DUES', manual_entry_allowed: true },
+    { account_code: 'NET_OPERATING_INCOME', manual_entry_allowed: false },
   ];
 
   const row = finance.emptyManualFinanceEntry({ draftId: 'manual-1', month: '2026-08' });
-  let errors = finance.validateManualFinanceEntries([row], accounts).join('\n');
-  assert.match(errors, /계정/u);
-  assert.match(errors, /금액/u);
-  assert.match(errors, /입력 근거/u);
+  let errors = finance.validateManualFinanceEntries([row], accounts);
+  assert.equal(errors.length, 2, 'account and amount are required; a default audit reason is supplied');
 
-  Object.assign(row, { account_code: 'RENT_INCOME', amount: 0, reason: '해당 월 실제 수납 없음', accounting_basis: 'cash' });
+  Object.assign(row, {
+    account_code: 'POTENTIAL_BASE_RENT',
+    amount: 0,
+    scenario: 'actual',
+    accounting_basis: 'cash',
+  });
   assert.deepEqual(finance.validateManualFinanceEntries([row], accounts), [], 'explicit zero must be accepted');
 
   row.amount = '';
-  assert.match(finance.validateManualFinanceEntries([row], accounts).join('\n'), /입력하지 않은 값과 0/u);
+  assert.equal(finance.validateManualFinanceEntries([row], accounts).length, 1, 'blank and zero must remain distinct');
 
-  Object.assign(row, { amount: 100, account_code: 'DEBT_PRINCIPAL' });
-  assert.match(finance.validateManualFinanceEntries([row], accounts).join('\n'), /기존 원장/u);
+  Object.assign(row, { amount: -100, account_code: 'NET_OPERATING_INCOME' });
+  assert.equal(
+    finance.validateManualFinanceEntries([row], accounts).length,
+    1,
+    'derived statement lines must not be manually overwritten',
+  );
 
-  Object.assign(row, { account_code: 'RENT_INCOME', scenario: 'budget' });
-  assert.match(finance.validateManualFinanceEntries([row], accounts).join('\n'), /실적만/u);
+  for (const scenario of ['actual', 'budget', 'forecast']) {
+    Object.assign(row, { account_code: 'PROPERTY_TAX_PUBLIC_DUES', scenario });
+    assert.deepEqual(finance.validateManualFinanceEntries([row], accounts), [], `${scenario} must be writable`);
+  }
 
-  const apiMigration = fs.readFileSync(
-    path.resolve(__dirname, '..', '..', 'supabase', 'migrations', '20260804091000_logistics_data_platform_api.sql'),
+  const serialized = finance.financeEntryForSave({
+    ...row,
+    source_kind: 'projection',
+    source_ref: 'server-owned',
+    data_status: 'provided',
+  });
+  assert.equal(serialized.scenario, 'forecast');
+  assert.equal(serialized.source_kind, undefined);
+  assert.equal(serialized.source_ref, undefined);
+  assert.equal(serialized.data_status, undefined);
+
+  const migration = fs.readFileSync(
+    path.resolve(
+      __dirname,
+      '..',
+      '..',
+      'supabase',
+      'migrations',
+      '20260806024935_editable_noi_rent_roll_home.sql',
+    ),
     'utf8',
   );
-  const mutation = apiMigration.match(
-    /create or replace function logistics_core\.finance_batch_save_entry[\s\S]*?\$body\$;/iu,
-  )?.[0] || '';
-  assert.ok(mutation, 'finance mutation SQL must exist');
-  for (const forbiddenField of ['source_ref', 'source_kind', 'data_status']) {
-    assert.match(
-      mutation,
-      new RegExp(`record'\\s*\\?\\s*'${forbiddenField}'[\\s\\S]{0,260}CLIENT_SOURCE_METADATA_FORBIDDEN`, 'iu'),
-      `${forbiddenField} must be rejected when supplied by a client`,
-    );
-  }
-  assert.match(mutation, /source_kind[\s\S]{0,180}'manual_input'/iu);
-  assert.match(mutation, /data_status[\s\S]{0,180}'provided'/iu);
-  assert.match(mutation, /source_ref[\s\S]{0,260}'v2\/finance\/batch-save:'\s*\|\|\s*p_request_id::text/iu);
-  assert.match(mutation, /rollback_export_state/iu);
-  assert.match(mutation, /retained_in_core/iu);
+  assert.match(migration, /FINANCE_DERIVED_ACCOUNT_FORBIDDEN/u);
+  assert.match(migration, /'actual',\s*'budget',\s*'forecast'/u);
+  assert.match(migration, /source_kind[\s\S]{0,180}'manual_input'/u);
+  assert.match(migration, /'manual_input',\s*'v2\/finance\/batch-save:'[\s\S]{0,160}entry_key,\s*'provided'/u);
+  assert.match(migration, /sync_rent_roll_finance/iu);
 
-  console.log('PASS logistics finance manual-input contract');
+  console.log('PASS logistics finance editable NOI contract');
 }
 
 main().catch((error) => {

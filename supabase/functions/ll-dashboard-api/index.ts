@@ -784,7 +784,7 @@ const ACTION_MANIFEST = new Map<string, ActionClassification>([
     'dashboard/company/read', 'dashboard/read', 'ai/search-chat', 'asset-floor-plans/register', 'market-docs/upload',
     'market-docs/ingest', 'market-docs/embed', 'market-docs/status', 'market-docs/search',
     'dashboard-metrics/refresh', 'snapshot-refresh', 'cache-clear',
-    'v2/home/read', 'v2/rent-roll/read', 'v2/rent-roll/batch-save', 'v2/finance/read',
+    'v2/home/read', 'v2/home/batch-save', 'v2/rent-roll/read', 'v2/rent-roll/batch-save', 'v2/finance/read',
     'v2/finance/batch-save', 'v2/maturities/read', 'v2/calculations/explain',
   ].map((action) => [action, 'authenticated'] as const),
 ]);
@@ -804,7 +804,7 @@ const ACTION_SCOPE_MANIFEST = new Map<string, ActionScopeContract>([
     'news/list', 'news/collect-run', 'news/restore-20260617',
     'market-docs/upload', 'market-docs/ingest', 'market-docs/embed', 'market-docs/status', 'market-docs/search',
     'dashboard-metrics/refresh', 'snapshot-refresh', 'cache-clear',
-    'v2/home/read', 'v2/rent-roll/read', 'v2/rent-roll/batch-save', 'v2/finance/read',
+    'v2/home/read', 'v2/home/batch-save', 'v2/rent-roll/read', 'v2/rent-roll/batch-save', 'v2/finance/read',
     'v2/finance/batch-save', 'v2/maturities/read', 'v2/calculations/explain',
   ].map((action) => [action, 'global'] as const),
   ...[
