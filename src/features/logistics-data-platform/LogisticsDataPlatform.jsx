@@ -5,6 +5,7 @@ import {
   createClientRequestId,
   friendlyDataPlatformError,
   invokeDataPlatform,
+  isDataPlatformRevisionConflict,
   usePrimaryResource,
 } from "./api";
 import {
@@ -1539,6 +1540,118 @@ function parsePaste(text) {
     });
 }
 
+function rebaseRentRollDraftRow(latestRow, draftRow, dirtyFields = []) {
+  if (!latestRow || draftRow?.operation === "create" || draftRow?._draft_id) {
+    return deriveRentRollRow(draftRow || {});
+  }
+  const serverOwnedFields = new Set([
+    "row_key",
+    "space_key",
+    "contract_key",
+    "contract_space_key",
+    "rent_term_key",
+    "tenant_key",
+    "space_revision",
+    "contract_revision",
+    "allocation_revision",
+    "rent_term_revision",
+    "revision",
+  ]);
+  const patch = Object.fromEntries(
+    [...new Set(dirtyFields)]
+      .filter((field) => !serverOwnedFields.has(field))
+      .filter((field) => Object.prototype.hasOwnProperty.call(draftRow || {}, field))
+      .map((field) => [field, draftRow[field]]),
+  );
+  return deriveRentRollRow({
+    ...latestRow,
+    ...patch,
+    operation: draftRow?.operation === "delete" ? "delete" : "update",
+  });
+}
+
+function rentRollRevisionConflictFields(baseRow, draftRow, latestRow, dirtyFields = []) {
+  const fields = [...new Set(dirtyFields)].filter(Boolean);
+  if (!latestRow) return fields.length ? fields : ["operation"];
+  if (!baseRow) {
+    const revisionFields = [
+      "space_revision",
+      "contract_revision",
+      "allocation_revision",
+      "rent_term_revision",
+      "revision",
+    ];
+    const revisionChanged = revisionFields.some((field) => (
+      Number(draftRow?.[field] ?? 0) !== Number(latestRow?.[field] ?? 0)
+    ));
+    return revisionChanged ? (fields.length ? fields : ["operation"]) : [];
+  }
+  if (draftRow?.operation === "delete") {
+    const revisionFields = [
+      "space_revision",
+      "contract_revision",
+      "allocation_revision",
+      "rent_term_revision",
+      "revision",
+    ];
+    return revisionFields.some((field) => (
+      Number(baseRow?.[field] ?? 0) !== Number(latestRow?.[field] ?? 0)
+    )) ? ["operation"] : [];
+  }
+  const basePayload = buildRentRollSaveRow({ ...baseRow, operation: "update" }, fields);
+  const draftPayload = buildRentRollSaveRow({ ...draftRow, operation: "update" }, fields);
+  const serverChanged = new Set(
+    rentRollReadbackMismatches([basePayload], [latestRow]).map((issue) => issue.field),
+  );
+  const draftDiffersFromLatest = new Set(
+    rentRollReadbackMismatches([draftPayload], [latestRow]).map((issue) => issue.field),
+  );
+  return [...serverChanged].filter((field) => draftDiffersFromLatest.has(field));
+}
+
+function planRentRollRevisionRecovery(
+  targetRows,
+  latestRows,
+  baseRowsById,
+  dirtyFieldsByRow,
+) {
+  const latestById = new Map(latestRows.map((row) => [rowId(row), row]));
+  const retryRows = [];
+  const conflicts = [];
+  for (const draftRow of targetRows) {
+    const id = rowId(draftRow);
+    if (draftRow.operation === "create" || draftRow._draft_id) {
+      retryRows.push(draftRow);
+      continue;
+    }
+    const latestRow = latestById.get(id);
+    const baseRow = baseRowsById.get(id);
+    const dirtyFields = [...(dirtyFieldsByRow.get(id) || [])];
+    const conflictFields = rentRollRevisionConflictFields(
+      baseRow,
+      draftRow,
+      latestRow,
+      dirtyFields,
+    );
+    conflicts.push(...conflictFields.map((field) => ({
+      rowId: id,
+      field,
+      draftValue: draftRow?.[field],
+      latestValue: latestRow?.[field],
+    })));
+    retryRows.push(rebaseRentRollDraftRow(latestRow, draftRow, dirtyFields));
+  }
+  return { retryRows, conflicts, latestById };
+}
+
+function rentRollRowsFromReadback(readbackRows = []) {
+  return readbackRows.map((row, index) => ({
+    ...deriveRentRollRow(row),
+    operation: "update",
+    display_order: row.display_order ?? index + 1,
+  }));
+}
+
 function RentRollPanel({ assetKey }) {
   const resource = usePrimaryResource(
     DATA_PLATFORM_ACTIONS.rentRollRead,
@@ -1560,6 +1673,8 @@ function RentRollPanel({ assetKey }) {
   const draftHydratedRef = useRef(false);
   const saveReadbackPendingRef = useRef(false);
   const saveInFlightRef = useRef(false);
+  const baseRowsByIdRef = useRef(new Map());
+  const conflictFieldsByRowRef = useRef(new Map());
   const rowRefs = useRef(new Map());
   const draftStorageKey = `gate6-rent-roll-draft-${assetKey}`;
   const writeEnabled = resource.data?.write_enabled === true;
@@ -1579,21 +1694,29 @@ function RentRollPanel({ assetKey }) {
     let restoredSort = DEFAULT_SORT;
     let restoredDirtyRowIds = new Set();
     let restoredDirtyFieldsByRow = new Map();
+    let restoredRevisionConflicts = [];
     try {
       const storedDraft = JSON.parse(
         globalThis.sessionStorage?.getItem(draftStorageKey) || "null",
       );
       if (storedDraft && Array.isArray(storedDraft.dirtyRows)) {
         const primaryById = new Map(primaryRows.map((row) => [rowId(row), row]));
+        const storedFields = new Map(
+          Array.isArray(storedDraft.dirtyFieldsByRow)
+            ? storedDraft.dirtyFieldsByRow
+            : [],
+        );
+        const storedDirtyById = new Map(
+          storedDraft.dirtyRows.map((row) => [rowId(row), row]),
+        );
         const dirtyById = new Map(
           storedDraft.dirtyRows.map((row) => {
             const id = rowId(row);
             const primary = primaryById.get(id);
-            return [id, deriveRentRollRow({
-              ...primary,
-              ...row,
-              operation: row.operation || primary?.operation || (row._draft_id ? "create" : "update"),
-            })];
+            const dirtyFields = Array.isArray(storedFields.get(id))
+              ? storedFields.get(id)
+              : RENT_ROLL_EDITABLE_FIELDS;
+            return [id, rebaseRentRollDraftRow(primary, row, dirtyFields)];
           }),
         );
         const orderedIds = Array.isArray(storedDraft.rowOrder)
@@ -1613,11 +1736,6 @@ function RentRollPanel({ assetKey }) {
             restoredRows.some((row) => rowId(row) === id),
           ),
         );
-        const storedFields = new Map(
-          Array.isArray(storedDraft.dirtyFieldsByRow)
-            ? storedDraft.dirtyFieldsByRow
-            : [],
-        );
         restoredDirtyFieldsByRow = new Map(
           [...restoredDirtyRowIds].map((id) => [
             id,
@@ -1629,15 +1747,57 @@ function RentRollPanel({ assetKey }) {
         restoredSort = storedDraft.sort === null || storedDraft.sort?.key
           ? storedDraft.sort
           : DEFAULT_SORT;
+        const storedBaseRows = new Map(
+          (Array.isArray(storedDraft.baseRows) ? storedDraft.baseRows : [])
+            .map((row) => [rowId(row), row])
+            .filter(([id]) => Boolean(id)),
+        );
+        baseRowsByIdRef.current = new Map(
+          [...restoredDirtyRowIds]
+            .filter((id) => storedBaseRows.has(id))
+            .map((id) => [id, storedBaseRows.get(id)]),
+        );
+        restoredRevisionConflicts = [...restoredDirtyRowIds].flatMap((id) => {
+          const baseRow = storedBaseRows.get(id);
+          const draftRow = storedDirtyById.get(id);
+          const latestRow = primaryById.get(id);
+          const dirtyFields = [...(restoredDirtyFieldsByRow.get(id) || [])];
+          const conflictFields = rentRollRevisionConflictFields(
+            baseRow,
+            draftRow,
+            latestRow,
+            dirtyFields,
+          );
+          if (!baseRow && latestRow && conflictFields.length) {
+            baseRowsByIdRef.current.set(id, deriveRentRollRow(latestRow));
+          }
+          return conflictFields.map((field) => ({ rowId: id, field }));
+        });
       }
     } catch {
       // A malformed or unavailable session draft must not block primary data.
     }
+    if (!restoredDirtyRowIds.size) baseRowsByIdRef.current = new Map();
+    conflictFieldsByRowRef.current = restoredRevisionConflicts.reduce((map, issue) => {
+      const fields = map.get(issue.rowId) || new Set();
+      fields.add(issue.field);
+      map.set(issue.rowId, fields);
+      return map;
+    }, new Map());
     setRows(restoredRows);
     setSort(restoredSort);
     setDirtyRowIds(restoredDirtyRowIds);
     setDirtyFieldsByRow(restoredDirtyFieldsByRow);
-    setValidationMessages([]);
+    setValidationMessages(restoredRevisionConflicts.map(({ rowId: id, field }, index) => {
+      const fieldLabel = RENT_ROLL_COLUMNS.find((column) => column.key === field)?.label || field;
+      return {
+        id: `${id}-restored-revision-${index}`,
+        rowId: id,
+        kind: "revision-conflict",
+        message: `${fieldLabel}: 임시저장 이후 서버에서도 같은 항목이 변경되었습니다. 최신값을 확인한 뒤 이 칸을 다시 입력해 주세요.`,
+      };
+    }));
+    setError(null);
     const readbackConfirmed = saveReadbackPendingRef.current;
     saveReadbackPendingRef.current = false;
     setSaveState(
@@ -1658,6 +1818,9 @@ function RentRollPanel({ assetKey }) {
         dirtyRowIds: [...dirtyRowIds],
         dirtyRows: rows.filter((row) => dirtyRowIds.has(rowId(row))),
         dirtyFieldsByRow: [...dirtyFieldsByRow].map(([id, fields]) => [id, [...fields]]),
+        baseRows: [...baseRowsByIdRef.current]
+          .filter(([id]) => dirtyRowIds.has(id))
+          .map(([, row]) => row),
         rowOrder: rows.map(rowId),
         sort,
       }));
@@ -1692,6 +1855,25 @@ function RentRollPanel({ assetKey }) {
     field?.focus();
     rowNode?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   };
+  const captureBaseRow = (id, sourceRows = rows) => {
+    if (!id || baseRowsByIdRef.current.has(id)) return;
+    const sourceRow = sourceRows.find((row) => rowId(row) === id);
+    if (!sourceRow || sourceRow.operation === "create" || sourceRow._draft_id) return;
+    baseRowsByIdRef.current.set(id, deriveRentRollRow(sourceRow));
+  };
+  const hasUnresolvedRevisionConflicts = () => (
+    [...conflictFieldsByRowRef.current.values()].some((fields) => fields.size > 0)
+  );
+  const resolveConflictFields = (id, fields = []) => {
+    const unresolved = conflictFieldsByRowRef.current.get(id);
+    if (!unresolved) return;
+    fields.filter(Boolean).forEach((field) => unresolved.delete(field));
+    if (!unresolved.size) conflictFieldsByRowRef.current.delete(id);
+    if (!hasUnresolvedRevisionConflicts()) {
+      setValidationMessages([]);
+      setError(null);
+    }
+  };
   const markDirty = (id, fields = []) => {
     setDirtyRowIds((current) => {
       const next = new Set(current);
@@ -1705,11 +1887,15 @@ function RentRollPanel({ assetKey }) {
       if (id) next.set(id, rowFields);
       return next;
     });
-    setValidationMessages([]);
-    setError(null);
+    if (!hasUnresolvedRevisionConflicts()) {
+      setValidationMessages([]);
+      setError(null);
+    }
     setSaveState("dirty");
   };
   const update = (id, field, value) => {
+    captureBaseRow(id);
+    resolveConflictFields(id, [field]);
     setRows((current) =>
       current.map((row) =>
         rowId(row) === id ? deriveRentRollRow({ ...row, [field]: value }) : row,
@@ -1718,12 +1904,46 @@ function RentRollPanel({ assetKey }) {
     markDirty(id, [field]);
   };
   const updateFields = (id, patch) => {
+    captureBaseRow(id);
+    resolveConflictFields(id, Object.keys(patch));
     setRows((current) => current.map((row) => (
       rowId(row) === id ? deriveRentRollRow({ ...row, ...patch }) : row
     )));
     markDirty(id, Object.keys(patch));
   };
+  const applyRevisionConflictPlan = (plan) => {
+    const retryById = new Map(plan.retryRows.map((row) => [rowId(row), row]));
+    setRows((current) => current.map((row) => retryById.get(rowId(row)) || row));
+    plan.latestById.forEach((latestRow, id) => {
+      if (dirtyRowIds.has(id)) {
+        baseRowsByIdRef.current.set(id, deriveRentRollRow(latestRow));
+      }
+    });
+    const unresolved = new Map();
+    plan.conflicts.forEach(({ rowId: id, field }) => {
+      const fields = unresolved.get(id) || new Set();
+      fields.add(field);
+      unresolved.set(id, fields);
+    });
+    conflictFieldsByRowRef.current = unresolved;
+    setValidationMessages(plan.conflicts.map(({ rowId: id, field }, index) => {
+      const fieldLabel = RENT_ROLL_COLUMNS.find((column) => column.key === field)?.label || field;
+      return {
+        id: `${id}-revision-${index}`,
+        rowId: id,
+        kind: "revision-conflict",
+        message: `${fieldLabel}: 다른 사용자가 같은 항목을 변경했습니다. 최신값을 확인한 뒤 이 칸을 다시 입력해 주세요.`,
+      };
+    }));
+    setError(null);
+    setSaveState("dirty");
+  };
   const saveRows = async (targetRows) => {
+    if (hasUnresolvedRevisionConflicts()) {
+      setError(null);
+      setSaveState("dirty");
+      return false;
+    }
     const validationTargets = targetRows.filter((row) => row.operation !== "delete");
     const issues = validationTargets.flatMap((row) => {
       const id = rowId(row);
@@ -1745,16 +1965,46 @@ function RentRollPanel({ assetKey }) {
     setSaveState("saving");
     setError(null);
     try {
-      const payloadRows = targetRows.map((row) => buildRentRollSaveRow(
-        row,
-        [...(dirtyFieldsByRow.get(rowId(row)) || [])],
-      ));
-      const saveResponse = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollBatchSave, {
-        asset_key: assetKey,
-        client_request_id: createClientRequestId("rent-roll"),
-        expected_revisions: buildRentRollExpectedRevisions(targetRows),
-        rows: payloadRows,
-      });
+      let attemptRows = targetRows;
+      let payloadRows = [];
+      let saveResponse = null;
+      let revisionRetryCount = 0;
+      while (true) {
+        payloadRows = attemptRows.map((row) => buildRentRollSaveRow(
+          row,
+          [...(dirtyFieldsByRow.get(rowId(row)) || [])],
+        ));
+        try {
+          saveResponse = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollBatchSave, {
+            asset_key: assetKey,
+            client_request_id: createClientRequestId("rent-roll"),
+            expected_revisions: buildRentRollExpectedRevisions(attemptRows),
+            rows: payloadRows,
+          });
+          break;
+        } catch (cause) {
+          if (!isDataPlatformRevisionConflict(cause) || !(revisionRetryCount < 1)) throw cause;
+          revisionRetryCount += 1;
+          const latestResponse = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollRead, {
+            asset_key: assetKey,
+            limit: 500,
+          });
+          const latestRows = rentRollRowsFromReadback(
+            Array.isArray(latestResponse.data?.rows) ? latestResponse.data.rows : [],
+          );
+          const plan = planRentRollRevisionRecovery(
+            attemptRows,
+            latestRows,
+            baseRowsByIdRef.current,
+            dirtyFieldsByRow,
+          );
+          if (plan.conflicts.length) {
+            applyRevisionConflictPlan(plan);
+            return false;
+          }
+          attemptRows = plan.retryRows;
+        }
+      }
       const readbackResponse = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollRead, {
         asset_key: assetKey,
         limit: 500,
@@ -1772,6 +2022,7 @@ function RentRollPanel({ assetKey }) {
         readbackError.details = readbackMismatches.slice(0, 20);
         throw readbackError;
       }
+      setRows(rentRollRowsFromReadback(readbackRows));
       setDirtyRowIds((current) => {
         const next = new Set(current);
         targetRows.forEach((row) => next.delete(rowId(row)));
@@ -1783,13 +2034,15 @@ function RentRollPanel({ assetKey }) {
         return next;
       });
       setValidationMessages([]);
-      saveReadbackPendingRef.current = true;
+      baseRowsByIdRef.current = new Map();
+      conflictFieldsByRowRef.current = new Map();
+      saveReadbackPendingRef.current = false;
+      setSaveState("saved");
       try {
         globalThis.sessionStorage?.removeItem(draftStorageKey);
       } catch {
         // Browser storage cleanup must never turn a committed API save into failure.
       }
-      resource.reload();
       return true;
     } catch (cause) {
       setError(cause);
@@ -1827,6 +2080,7 @@ function RentRollPanel({ assetKey }) {
     const rangeStart = Math.min(sourceIndex, insertionIndex);
     const rangeEnd = Math.max(sourceIndex, insertionIndex);
     const changedRange = changed.slice(rangeStart, rangeEnd + 1);
+    changedRange.forEach((row) => captureBaseRow(rowId(row), displayedRows));
     setRows(changed);
     setSort(null);
     changedRange.forEach((row) => markDirty(rowId(row), ["display_order"]));
@@ -1835,20 +2089,23 @@ function RentRollPanel({ assetKey }) {
     if (rentRollEditingDisabled) return;
     const row = rows.find((item) => rowId(item) === id);
     if (!row) return;
+    captureBaseRow(id);
+    resolveConflictFields(id, ["operation"]);
     const deleted = { ...row, operation: "delete" };
     setRows((current) =>
       current.map((item) => (rowId(item) === id ? deleted : item)),
     );
-    markDirty(id);
+    markDirty(id, ["operation"]);
   };
   const undoArchive = (id) => {
     if (rentRollEditingDisabled) return;
+    resolveConflictFields(id, ["operation"]);
     setRows((current) => current.map((row) => {
       if (rowId(row) !== id) return row;
       const operation = (row.space_revision ?? row.revision) ? "update" : "create";
       return { ...row, operation };
     }));
-    markDirty(id);
+    markDirty(id, ["operation"]);
   };
   const add = () => {
     if (rentRollEditingDisabled) return;

@@ -19,6 +19,11 @@ test('렌트롤 운영 브라우저 QA는 명시적인 same-value 저장 플래�
   assert.match(source, /--same-value-rent-roll-save requires --require-authenticated/u);
   assert.match(source, /--same-value-rent-roll-save requires --expect-write-enabled/u);
   assert.match(source, /--same-value-rent-roll-save requires --route=data-platform-rent-roll/u);
+  assert.match(source, /hasFlag\('stale-revision-rent-roll-save'\)/u);
+  assert.match(source, /--stale-revision-rent-roll-save requires --require-authenticated/u);
+  assert.match(source, /--stale-revision-rent-roll-save requires --expect-write-enabled/u);
+  assert.match(source, /--stale-revision-rent-roll-save requires --route=data-platform-rent-roll/u);
+  assert.match(source, /cannot be combined/u);
 });
 
 test('렌트롤 same-value 안전 조건은 브라우저나 로컬 서버를 열기 전에 실패한다', () => {
@@ -35,6 +40,29 @@ test('렌트롤 same-value 안전 조건은 브라우저나 로컬 서버를 열
       args: ['--same-value-rent-roll-save', '--require-authenticated', '--expect-write-enabled', '--route', 'data-platform-home'],
       message: '--same-value-rent-roll-save requires --route=data-platform-rent-roll.',
     },
+    {
+      args: ['--stale-revision-rent-roll-save', '--route', 'data-platform-rent-roll'],
+      message: '--stale-revision-rent-roll-save requires --require-authenticated.',
+    },
+    {
+      args: ['--stale-revision-rent-roll-save', '--require-authenticated', '--route', 'data-platform-rent-roll'],
+      message: '--stale-revision-rent-roll-save requires --expect-write-enabled.',
+    },
+    {
+      args: ['--stale-revision-rent-roll-save', '--require-authenticated', '--expect-write-enabled', '--route', 'data-platform-home'],
+      message: '--stale-revision-rent-roll-save requires --route=data-platform-rent-roll.',
+    },
+    {
+      args: [
+        '--same-value-rent-roll-save',
+        '--stale-revision-rent-roll-save',
+        '--require-authenticated',
+        '--expect-write-enabled',
+        '--route',
+        'data-platform-rent-roll',
+      ],
+      message: '--same-value-rent-roll-save and --stale-revision-rent-roll-save cannot be combined.',
+    },
   ];
   for (const fixture of cases) {
     const result = spawnSync(process.execPath, [qaScriptPath, ...fixture.args], {
@@ -44,6 +72,24 @@ test('렌트롤 same-value 안전 조건은 브라우저나 로컬 서버를 열
     assert.notEqual(result.status, 0);
     assert.match(`${result.stdout}\n${result.stderr}`, new RegExp(fixture.message.replaceAll('.', '\\.')));
   }
+});
+
+test('stale revision 브라우저 QA는 no-op으로 409를 만든 뒤 silent retry와 원값 복구를 검증한다', () => {
+  const probeStart = source.indexOf('async function rentRollStaleRevisionSaveProbe');
+  const probeEnd = source.indexOf('async function authenticatedProbe', probeStart);
+  assert.ok(probeStart >= 0 && probeEnd > probeStart, 'stale revision browser probe가 필요하다');
+  const probe = source.slice(probeStart, probeEnd);
+  assert.match(probe, /invokeDataPlatformQa[\s\S]*v2\/rent-roll\/batch-save/u);
+  assert.match(probe, /no_op_api_status/u);
+  assert.match(probe, /temporarySemantic\s*=\s*String\(Number\(candidate\.semantic\) \+ 1\)/u);
+  assert.match(probe, /status\(\)\s*===\s*409/u);
+  assert.match(probe, /v2\/rent-roll\/read/u);
+  assert.match(probe, /status\(\)\s*>=\s*200\s*&&\s*response\.status\(\)\s*<\s*300/u);
+  assert.match(probe, /numericInput\.fill\(candidate\.semantic\)/u);
+  assert.match(probe, /page\.reload/u);
+  assert.match(probe, /data-platform-error-dialog/u);
+  assert.match(probe, /finally/u);
+  assert.match(probe, /rollback/u);
 });
 
 test('렌트롤 same-value 브라우저 QA는 실제 저장 1회와 reload readback을 검증한다', () => {

@@ -660,6 +660,61 @@ html[lang="kr"] .font-light {
 }
 
 /* Gate 6 data platform: reuse the existing logistics dark design system without changing legacy screens. */
+.logistics-data-platform-scroll-host,
+.logistics-data-platform {
+    --data-platform-scrollbar-track: #1F1F1E;
+    --data-platform-scrollbar-thumb: #48484A;
+    --data-platform-scrollbar-thumb-hover: #636366;
+}
+
+.logistics-data-platform-scroll-host,
+.logistics-data-platform,
+.logistics-data-platform * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--data-platform-scrollbar-thumb) var(--data-platform-scrollbar-track);
+}
+
+.logistics-data-platform-scroll-host::-webkit-scrollbar,
+.logistics-data-platform::-webkit-scrollbar,
+.logistics-data-platform *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.logistics-data-platform-scroll-host::-webkit-scrollbar-track,
+.logistics-data-platform::-webkit-scrollbar-track,
+.logistics-data-platform *::-webkit-scrollbar-track {
+    background: var(--data-platform-scrollbar-track);
+}
+
+.logistics-data-platform-scroll-host::-webkit-scrollbar-thumb,
+.logistics-data-platform::-webkit-scrollbar-thumb,
+.logistics-data-platform *::-webkit-scrollbar-thumb {
+    background: var(--data-platform-scrollbar-thumb);
+    border: 2px solid var(--data-platform-scrollbar-track);
+    border-radius: 999px;
+}
+
+.logistics-data-platform-scroll-host::-webkit-scrollbar-thumb:hover,
+.logistics-data-platform::-webkit-scrollbar-thumb:hover,
+.logistics-data-platform *::-webkit-scrollbar-thumb:hover {
+    background: var(--data-platform-scrollbar-thumb-hover);
+}
+
+.logistics-data-platform-scroll-host::-webkit-scrollbar-button,
+.logistics-data-platform::-webkit-scrollbar-button,
+.logistics-data-platform *::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+.logistics-data-platform-scroll-host::-webkit-scrollbar-corner,
+.logistics-data-platform::-webkit-scrollbar-corner,
+.logistics-data-platform *::-webkit-scrollbar-corner {
+    background: var(--data-platform-scrollbar-track);
+}
+
 .logistics-data-platform .bg-white,
 .logistics-data-platform .bg-slate-50 {
     background-color: #252524 !important;

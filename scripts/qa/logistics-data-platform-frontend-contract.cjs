@@ -80,7 +80,7 @@ for (const label of ['잠재총수입', '유효총수입', '순영업소득(NOI)
   assert.ok(ui.includes(label) || formulas.includes(label), `missing NOI subtotal: ${label}`);
 }
 assert.match(ui, /finance-comparison-asset/u);
-assert.match(ui, /finance-aggregation/u);
+assert.doesNotMatch(ui, /data-testid=["']finance-aggregation["']/u);
 assert.match(ui, /finance-trend/u);
 assert.match(ui, /finance-statement-scroll[\s\S]{0,160}custom-scrollbar overflow-x-auto/u);
 assert.doesNotMatch(ui, /finance-statement-scroll[\s\S]{0,160}max-h/u);

@@ -164,6 +164,29 @@ test('data platform request lifecycle contract', async (t) => {
     assert.equal(api.isDataPlatformRequestCancellation(new TypeError('Failed to fetch')), false);
   });
 
+  await t.test('only a 409 REVISION_CONFLICT is eligible for the silent rent-roll rebase', () => {
+    assert.equal(api.isDataPlatformRevisionConflict(new api.DataPlatformResponseError('conflict', {
+      status: 409,
+      code: 'REVISION_CONFLICT',
+    })), true);
+    assert.equal(api.isDataPlatformRevisionConflict(new api.DataPlatformResponseError('idempotency', {
+      status: 409,
+      code: 'IDEMPOTENCY_CONFLICT',
+    })), false);
+    assert.equal(api.isDataPlatformRevisionConflict(new api.DataPlatformResponseError('not revision', {
+      status: 409,
+      code: 'NOT_REVISION_CONFLICT',
+    })), false);
+    assert.equal(api.isDataPlatformRevisionConflict(new api.DataPlatformResponseError('archived revision', {
+      status: 409,
+      code: 'REVISION_CONFLICT_ARCHIVED',
+    })), false);
+    assert.equal(api.isDataPlatformRevisionConflict(new api.DataPlatformResponseError('server', {
+      status: 500,
+      code: 'REVISION_CONFLICT',
+    })), false);
+  });
+
   await t.test('Supabase FunctionsHttpError의 nested HTTP status를 사용자 메시지에 보존한다', () => {
     const conflict = new Error('Edge Function returned a non-2xx status code');
     conflict.context = { status: 409 };

@@ -13,11 +13,19 @@ export const DATA_PLATFORM_ACTIONS = Object.freeze({
 });
 
 export class DataPlatformResponseError extends Error {
-  constructor(message, { status = null, requestId = null, cause = null } = {}) {
+  constructor(message, {
+    status = null,
+    requestId = null,
+    code = null,
+    details = null,
+    cause = null,
+  } = {}) {
     super(message, { cause });
     this.name = 'DataPlatformResponseError';
     this.status = status;
     this.requestId = requestId;
+    this.code = code;
+    this.details = details;
   }
 }
 
@@ -48,6 +56,33 @@ function dataPlatformErrorStatus(candidate) {
       || 0,
   );
   return Number.isFinite(value) ? value : 0;
+}
+
+async function dataPlatformErrorPayload(error) {
+  for (const candidate of dataPlatformErrorChain(error)) {
+    const context = candidate?.context;
+    if (context && typeof context.clone === 'function') {
+      try {
+        return await context.clone().json();
+      } catch {
+        // Continue through wrapped causes when the response has no JSON body.
+      }
+    }
+    if (candidate?.body && typeof candidate.body === 'object') return candidate.body;
+  }
+  return null;
+}
+
+export function isDataPlatformRevisionConflict(error) {
+  const chain = dataPlatformErrorChain(error);
+  const status = chain.map(dataPlatformErrorStatus).find(Boolean) || 0;
+  if (status !== 409) return false;
+  return chain.some((candidate) => [
+    candidate?.code,
+    candidate?.message,
+    candidate?.details?.code,
+    candidate?.details?.message,
+  ].some((value) => String(value || '').trim() === 'REVISION_CONFLICT'));
 }
 
 /**
@@ -109,9 +144,17 @@ export async function invokeDataPlatform(action, payload = {}, { signal = null }
   if (result?.error) {
     const cause = result.error;
     const status = dataPlatformErrorStatus(cause) || null;
+    const payloadError = await dataPlatformErrorPayload(cause);
+    const code = String(payloadError?.message || payloadError?.code || cause?.code || '') || null;
     throw new DataPlatformResponseError(
       friendlyDataPlatformError(cause),
-      { status, cause },
+      {
+        status,
+        requestId: payloadError?.request_id || null,
+        code,
+        details: payloadError?.detail || null,
+        cause,
+      },
     );
   }
 

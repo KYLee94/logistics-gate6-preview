@@ -282,9 +282,9 @@ test('직접 입력 금액과 자동계산값은 콤마 표시하고 실효 임�
 test('UI는 입력 중 원격 저장·오류 팝업을 열지 않고 저장 버튼에서만 허용 payload를 전송한다', () => {
   const source = fs.readFileSync(JSX_PATH, 'utf8');
   const rentRoll = source.slice(source.indexOf('function RentRollPanel'), source.indexOf('function periodFor'));
-  assert.match(rentRoll, /const\s+payloadRows\s*=\s*targetRows\.map\(\(row\)\s*=>\s*buildRentRollSaveRow\([\s\S]*?dirtyFieldsByRow\.get\(rowId\(row\)\)/u);
+  assert.match(rentRoll, /payloadRows\s*=\s*attemptRows\.map\(\(row\)\s*=>\s*buildRentRollSaveRow\([\s\S]*?dirtyFieldsByRow\.get\(rowId\(row\)\)/u);
   assert.match(rentRoll, /rows:\s*payloadRows/u);
-  assert.match(rentRoll, /expected_revisions:\s*buildRentRollExpectedRevisions\(targetRows\)/u);
+  assert.match(rentRoll, /expected_revisions:\s*buildRentRollExpectedRevisions\(attemptRows\)/u);
   assert.match(rentRoll, /onClick=\{\(\)\s*=>\s*void saveDirtyRows\(\)\}/u);
   assert.match(rentRoll, /saveInFlightRef\.current/u);
   assert.match(rentRoll, /DATA_PLATFORM_ACTIONS\.rentRollRead[\s\S]*?rentRollReadbackMismatches\([\s\S]*?payloadRows,[\s\S]*?readbackRows,[\s\S]*?saveResponse\.data\?\.key_mappings/u);

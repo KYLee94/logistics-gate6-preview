@@ -32,6 +32,9 @@ import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath } from './workspace/log
 export default function PlatformCenter({ currentPath = '' }) {
     const scrollRef = useRef(null);
     const normalizedCurrentPath = normalizeLogisticsPath(currentPath);
+    const isDataPlatformPath = normalizedCurrentPath.startsWith(
+        `${LOGISTICS_INTERNAL_BASE}/data-platform/`,
+    );
 
     const handleScroll = () => {
         if (scrollRef.current) {
@@ -130,7 +133,15 @@ export default function PlatformCenter({ currentPath = '' }) {
     if (activeContent) {
         return (
             <div className="flex-1 h-full bg-transparent flex flex-col relative font-sans text-[#1D1D1F] dark:text-[#E5E5E5] overflow-hidden transition-colors duration-300">
-                <div ref={scrollRef} onScroll={handleScroll} className="flex-1 w-full overflow-y-auto hide-scrollbar flex flex-col relative">
+                <div
+                    ref={scrollRef}
+                    onScroll={handleScroll}
+                    className={`flex-1 w-full flex flex-col relative ${
+                        isDataPlatformPath
+                            ? 'overflow-y-scroll logistics-data-platform-scroll-host'
+                            : 'overflow-y-auto hide-scrollbar'
+                    }`}
+                >
                     <div className="flex-1 flex flex-col w-full h-full relative transition-opacity duration-150 ease-out">
                         {activeContent}
                     </div>

@@ -1,4 +1,5 @@
 const assert = require('assert');
+const { randomUUID } = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -530,6 +531,52 @@ function requestAction(request) {
   }
 }
 
+async function invokeDataPlatformQa(auth, action, payload) {
+  const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL').replace(/\/$/u, '');
+  const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
+  const response = await fetch(`${supabaseUrl}/functions/v1/ll-dashboard-api`, {
+    method: 'POST',
+    headers: {
+      apikey: anonKey,
+      authorization: `Bearer ${auth.session.access_token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ action, payload }),
+  });
+  return {
+    status: response.status,
+    ok: response.ok,
+    body: await response.json().catch(() => null),
+  };
+}
+
+function rentRollQaSparseUpdate(row, field, value) {
+  const update = { operation: 'update' };
+  [
+    'row_key',
+    'space_key',
+    'contract_key',
+    'contract_space_key',
+    'rent_term_key',
+    'tenant_key',
+    'space_revision',
+    'contract_revision',
+    'allocation_revision',
+    'rent_term_revision',
+  ].forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(row || {}, key)) update[key] = row[key];
+  });
+  update[field] = value;
+  return update;
+}
+
+function findRentRollReadRow(payloads, rowId) {
+  return [...payloads]
+    .reverse()
+    .flatMap((payload) => (Array.isArray(payload?.data?.rows) ? payload.data.rows : []))
+    .find((row) => String(row?.row_key || row?.space_key || '') === String(rowId || '')) || null;
+}
+
 function rentRollPercentDisplayValue(value) {
   const source = String(value ?? '').trim();
   if (!source) return '';
@@ -739,6 +786,209 @@ async function rentRollSameValueSaveProbe(
   };
 }
 
+async function rentRollStaleRevisionSaveProbe(
+  page,
+  dataPlatformMain,
+  edgeResponses,
+  rentRollReadPayloadPromises,
+  timeoutMs,
+  auth,
+) {
+  const numericCandidates = await dataPlatformMain
+    .locator('input[data-draft-field][inputmode="decimal"]')
+    .evaluateAll((inputs) => inputs.map((input) => {
+      const semantic = input.value.replaceAll(',', '').trim();
+      const numeric = Number(semantic);
+      return {
+        row_id: input.closest('[data-rent-roll-row-id]')?.dataset.rentRollRowId || '',
+        field: input.dataset.draftField || '',
+        semantic,
+        blurred_display: input.value,
+        eligible: !input.disabled
+          && semantic !== ''
+          && Number.isFinite(numeric)
+          && Math.abs(numeric) >= 1000
+          && input.value.includes(','),
+      };
+    }));
+  const candidate = numericCandidates.find((item) => item.eligible && item.row_id && item.field);
+  assert.ok(candidate, 'No existing editable numeric value with a visible thousands separator was found.');
+  const readPayloads = await Promise.all([...rentRollReadPayloadPromises]);
+  const uiSnapshotRow = findRentRollReadRow(readPayloads, candidate.row_id);
+  assert.ok(uiSnapshotRow, `UI snapshot row was not found for ${candidate.row_id}.`);
+  const assetKey = await dataPlatformMain
+    .locator('[data-testid="data-platform-asset-select"]')
+    .inputValue();
+  assert.ok(assetKey, 'A selected asset key is required for stale revision QA.');
+
+  const noOpResponse = await invokeDataPlatformQa(auth, 'v2/rent-roll/batch-save', {
+    asset_key: assetKey,
+    client_request_id: randomUUID(),
+    expected_revisions: {
+      [candidate.row_id]: Number(uiSnapshotRow.space_revision ?? uiSnapshotRow.revision),
+    },
+    rows: [rentRollQaSparseUpdate(
+      uiSnapshotRow,
+      candidate.field,
+      Number(candidate.semantic),
+    )],
+  });
+  const no_op_api_status = noOpResponse.status;
+  assert.ok(
+    noOpResponse.ok && noOpResponse.body?.ok === true && noOpResponse.body?.status === 'primary',
+    `Revision-staling no-op failed (${noOpResponse.status}): ${JSON.stringify(noOpResponse.body)}`,
+  );
+
+  const responseStart = edgeResponses.length;
+  const numericInput = dataPlatformMain.locator(
+    `[data-rent-roll-row-id="${candidate.row_id}"] [data-draft-field="${candidate.field}"]`,
+  );
+  const saveButton = dataPlatformMain.locator('[data-testid="rent-roll-save"]');
+  const temporarySemantic = String(Number(candidate.semantic) + 1);
+  let rollbackRequired = false;
+  let rollback = { attempted: false, ok: true, status: 0 };
+  try {
+    await numericInput.focus();
+    assert.equal(await numericInput.inputValue(), candidate.semantic);
+    await numericInput.fill(temporarySemantic);
+    await numericInput.blur();
+    await page.waitForFunction(
+      () => !document.querySelector('[data-testid="rent-roll-save"]')?.disabled,
+      null,
+      { timeout: timeoutMs },
+    );
+    const conflictResponsePromise = page.waitForResponse(
+      (response) => response.url().includes('/functions/v1/ll-dashboard-api')
+        && requestAction(response.request()) === 'v2/rent-roll/batch-save'
+        && response.status() === 409,
+      { timeout: timeoutMs },
+    );
+    const recoveryReadPromise = page.waitForResponse(
+      (response) => response.url().includes('/functions/v1/ll-dashboard-api')
+        && requestAction(response.request()) === 'v2/rent-roll/read'
+        && response.status() >= 200 && response.status() < 300,
+      { timeout: timeoutMs },
+    );
+    const retryResponsePromise = page.waitForResponse(
+      (response) => response.url().includes('/functions/v1/ll-dashboard-api')
+        && requestAction(response.request()) === 'v2/rent-roll/batch-save'
+        && response.status() >= 200 && response.status() < 300,
+      { timeout: timeoutMs },
+    );
+    await saveButton.click();
+    const conflictResponse = await conflictResponsePromise;
+    assert.equal(conflictResponse.status(), 409, 'The first stale UI save must return HTTP 409.');
+    const conflictBody = await conflictResponse.json().catch(() => null);
+    assert.match(
+      JSON.stringify(conflictBody),
+      /REVISION_CONFLICT/u,
+      'The expected first failure was not a revision conflict.',
+    );
+    await recoveryReadPromise;
+    const retryResponse = await retryResponsePromise;
+    assert.ok(retryResponse.ok(), `Automatic revision retry failed (${retryResponse.status()}).`);
+    rollbackRequired = true;
+    await dataPlatformMain.locator('[data-save-state="saved"]').waitFor({
+      state: 'visible',
+      timeout: timeoutMs,
+    });
+    const popupAfterRetry = await page.locator('[data-testid="data-platform-error-dialog"]')
+      .isVisible()
+      .catch(() => false);
+    assert.equal(popupAfterRetry, false, 'Automatic revision recovery opened an error popup.');
+
+    const recoveryResponses = edgeResponses.slice(responseStart);
+    const recoveryBatchStatuses = recoveryResponses
+      .filter((entry) => entry.action === 'v2/rent-roll/batch-save')
+      .map((entry) => entry.status);
+    const recoveryReadCount = recoveryResponses
+      .filter((entry) => entry.action === 'v2/rent-roll/read' && entry.status >= 200 && entry.status < 300)
+      .length;
+    assert.deepEqual(recoveryBatchStatuses.slice(0, 2), [409, 200]);
+    assert.ok(recoveryReadCount >= 2, 'Revision recovery must fresh-read before retry and read back after commit.');
+    assert.equal(Number((await numericInput.inputValue()).replaceAll(',', '')), Number(temporarySemantic));
+
+    await numericInput.focus();
+    await numericInput.fill(candidate.semantic);
+    await numericInput.blur();
+    await page.waitForFunction(
+      () => !document.querySelector('[data-testid="rent-roll-save"]')?.disabled,
+      null,
+      { timeout: timeoutMs },
+    );
+    const restoreResponsePromise = page.waitForResponse(
+      (response) => response.url().includes('/functions/v1/ll-dashboard-api')
+        && requestAction(response.request()) === 'v2/rent-roll/batch-save'
+        && response.status() >= 200 && response.status() < 300,
+      { timeout: timeoutMs },
+    );
+    await saveButton.click();
+    const restoreResponse = await restoreResponsePromise;
+    assert.ok(restoreResponse.ok(), `Original-value restore failed (${restoreResponse.status()}).`);
+    await dataPlatformMain.locator('[data-save-state="saved"]').waitFor({
+      state: 'visible',
+      timeout: timeoutMs,
+    });
+    rollbackRequired = false;
+
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    await page.locator('[data-testid="data-platform-rent-roll-nav"][aria-current="page"]')
+      .waitFor({ state: 'visible', timeout: timeoutMs });
+    await numericInput.waitFor({ state: 'visible', timeout: timeoutMs });
+    const readback = await numericInput.inputValue();
+    assert.equal(Number(readback.replaceAll(',', '')), Number(candidate.semantic));
+    assert.ok(readback.includes(','), 'Restored reload readback must keep thousands separators.');
+    const popupAfterReload = await page.locator('[data-testid="data-platform-error-dialog"]')
+      .isVisible()
+      .catch(() => false);
+    assert.equal(popupAfterReload, false, 'Restored reload readback opened an error popup.');
+
+    const allProbeResponses = edgeResponses.slice(responseStart);
+    return {
+      checked: true,
+      safety_mode: 'stale-revision-plus-one-restore',
+      row_id: candidate.row_id,
+      field: candidate.field,
+      semantic_value: candidate.semantic,
+      temporary_semantic_value: temporarySemantic,
+      no_op_api_status,
+      ui_batch_statuses: allProbeResponses
+        .filter((entry) => entry.action === 'v2/rent-roll/batch-save')
+        .map((entry) => entry.status),
+      recovery_read_count: allProbeResponses
+        .filter((entry) => entry.action === 'v2/rent-roll/read' && entry.status >= 200 && entry.status < 300)
+        .length,
+      error_popup_visible: popupAfterRetry || popupAfterReload,
+      restored_readback: readback,
+      restored_semantic_matches:
+        Number(readback.replaceAll(',', '')) === Number(candidate.semantic),
+      restored_comma_visible: readback.includes(','),
+      rollback,
+    };
+  } finally {
+    if (rollbackRequired) {
+      rollback.attempted = true;
+      const latestRead = await invokeDataPlatformQa(auth, 'v2/rent-roll/read', {
+        asset_key: assetKey,
+        limit: 500,
+      });
+      const latestRow = findRentRollReadRow([latestRead.body], candidate.row_id);
+      assert.ok(latestRead.ok && latestRow, 'Rollback could not read the latest rent-roll row.');
+      const rollbackResponse = await invokeDataPlatformQa(auth, 'v2/rent-roll/batch-save', {
+        asset_key: assetKey,
+        client_request_id: randomUUID(),
+        expected_revisions: {
+          [candidate.row_id]: Number(latestRow.space_revision ?? latestRow.revision),
+        },
+        rows: [rentRollQaSparseUpdate(latestRow, candidate.field, Number(candidate.semantic))],
+      });
+      rollback.status = rollbackResponse.status;
+      rollback.ok = rollbackResponse.ok && rollbackResponse.body?.ok === true;
+      assert.ok(rollback.ok, `Rollback failed (${rollback.status}): ${JSON.stringify(rollbackResponse.body)}`);
+    }
+  }
+}
+
 async function authenticatedProbe(
   browser,
   baseUrl,
@@ -748,6 +998,7 @@ async function authenticatedProbe(
   expectWriteEnabled,
   screenshotDir = '',
   exerciseRentRollSameValueSave = false,
+  exerciseRentRollStaleRevisionSave = false,
 ) {
   const targetUrl = joinRoute(baseUrl, route.publicPath);
   const expectedPath = normalizedPathname(joinRoute(baseUrl, route.expectedPublicPath ?? route.publicPath));
@@ -772,6 +1023,7 @@ async function authenticatedProbe(
   const page = await context.newPage();
   const errors = [];
   const edgeActions = [];
+  const edgeResponses = [];
   const rentRollReadPayloadPromises = [];
   let documentRequestCount = 0;
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
@@ -787,14 +1039,25 @@ async function authenticatedProbe(
     }
   });
   page.on('response', (response) => {
+    const action = requestAction(response.request());
+    if (response.url().includes('/functions/v1/ll-dashboard-api')) {
+      edgeResponses.push({ action, status: response.status() });
+    }
     if (
       response.url().includes('/functions/v1/ll-dashboard-api')
       && response.status() < 400
-      && requestAction(response.request()) === 'v2/rent-roll/read'
+      && action === 'v2/rent-roll/read'
     ) {
       rentRollReadPayloadPromises.push(response.json().catch(() => null));
     }
-    if (response.url().includes('/functions/v1/ll-dashboard-api') && response.status() >= 400) {
+    const expectedRevisionConflict = exerciseRentRollStaleRevisionSave
+      && action === 'v2/rent-roll/batch-save'
+      && response.status() === 409;
+    if (
+      response.url().includes('/functions/v1/ll-dashboard-api')
+      && response.status() >= 400
+      && !expectedRevisionConflict
+    ) {
       errors.push(`edge ${response.status()} ${response.url()}`);
     }
   });
@@ -1038,6 +1301,7 @@ async function authenticatedProbe(
       && isDataPlatform
       && route.internalPath.endsWith('/rent-roll')
       && !exerciseRentRollSameValueSave
+      && !exerciseRentRollStaleRevisionSave
     ) {
       const tenantInput = page.locator('[data-draft-field="tenant_name"]').first();
       await tenantInput.waitFor({ state: 'visible', timeout: timeoutMs });
@@ -1070,6 +1334,21 @@ async function authenticatedProbe(
         edgeActions,
         rentRollReadPayloadPromises,
         timeoutMs,
+      );
+    }
+    let rentRollStaleRevisionSave = { checked: false };
+    if (
+      exerciseRentRollStaleRevisionSave
+      && isDataPlatform
+      && route.internalPath.endsWith('/rent-roll')
+    ) {
+      rentRollStaleRevisionSave = await rentRollStaleRevisionSaveProbe(
+        page,
+        dataPlatformMain,
+        edgeResponses,
+        rentRollReadPayloadPromises,
+        timeoutMs,
+        auth,
       );
     }
     const darkStyle = isDataPlatform ? await dataPlatformMain.evaluate((main) => {
@@ -1124,6 +1403,7 @@ async function authenticatedProbe(
       home_maturity_alert_ui: homeMaturityAlertUi,
       rent_roll_draft: rentRollDraft,
       rent_roll_same_value_save: rentRollSameValueSave,
+      rent_roll_stale_revision_save: rentRollStaleRevisionSave,
       screenshot_path: screenshotPath,
       errors,
     };
@@ -1181,6 +1461,20 @@ async function authenticatedProbe(
         && rentRollSameValueSave.payload_operation === 'update'
         && (!rentRollSameValueSave.rate_fixture_checked
           || rentRollSameValueSave.rate_display === rentRollSameValueSave.rate_expected_display)
+      ))
+      && (!rentRollStaleRevisionSave.checked || (
+        rentRollStaleRevisionSave.safety_mode === 'stale-revision-plus-one-restore'
+        && rentRollStaleRevisionSave.no_op_api_status >= 200
+        && rentRollStaleRevisionSave.no_op_api_status < 300
+        && rentRollStaleRevisionSave.ui_batch_statuses[0] === 409
+        && rentRollStaleRevisionSave.ui_batch_statuses[1] >= 200
+        && rentRollStaleRevisionSave.ui_batch_statuses[1] < 300
+        && rentRollStaleRevisionSave.ui_batch_statuses[2] >= 200
+        && rentRollStaleRevisionSave.ui_batch_statuses[2] < 300
+        && rentRollStaleRevisionSave.recovery_read_count >= 3
+        && !rentRollStaleRevisionSave.error_popup_visible
+        && rentRollStaleRevisionSave.restored_semantic_matches
+        && rentRollStaleRevisionSave.restored_comma_visible
       ))
       && (!writeUi.checked || writeUi.write_control_enabled)
       && errors.length === 0;
@@ -1259,6 +1553,7 @@ async function main() {
   const requireAuthenticated = hasFlag('require-authenticated');
   const expectWriteEnabled = hasFlag('expect-write-enabled');
   const exerciseRentRollSameValueSave = hasFlag('same-value-rent-roll-save');
+  const exerciseRentRollStaleRevisionSave = hasFlag('stale-revision-rent-roll-save');
   const dataPlatformOnly = hasFlag('data-platform-only');
   const routeKey = flagValue('route');
   const routesUnderTest = routesForScope(dataPlatformOnly, routeKey);
@@ -1270,6 +1565,9 @@ async function main() {
   if (expectWriteEnabled && !requireAuthenticated) {
     throw new Error('--expect-write-enabled requires --require-authenticated.');
   }
+  if (exerciseRentRollSameValueSave && exerciseRentRollStaleRevisionSave) {
+    throw new Error('--same-value-rent-roll-save and --stale-revision-rent-roll-save cannot be combined.');
+  }
   if (exerciseRentRollSameValueSave && !requireAuthenticated) {
     throw new Error('--same-value-rent-roll-save requires --require-authenticated.');
   }
@@ -1278,6 +1576,15 @@ async function main() {
   }
   if (exerciseRentRollSameValueSave && routeKey !== 'data-platform-rent-roll') {
     throw new Error('--same-value-rent-roll-save requires --route=data-platform-rent-roll.');
+  }
+  if (exerciseRentRollStaleRevisionSave && !requireAuthenticated) {
+    throw new Error('--stale-revision-rent-roll-save requires --require-authenticated.');
+  }
+  if (exerciseRentRollStaleRevisionSave && !expectWriteEnabled) {
+    throw new Error('--stale-revision-rent-roll-save requires --expect-write-enabled.');
+  }
+  if (exerciseRentRollStaleRevisionSave && routeKey !== 'data-platform-rent-roll') {
+    throw new Error('--stale-revision-rent-roll-save requires --route=data-platform-rent-roll.');
   }
 
   let localServer = null;
@@ -1304,6 +1611,7 @@ async function main() {
     expected_base_path: expectedBasePath,
     route_scope: dataPlatformOnly ? 'data-platform-only' : 'all',
     rent_roll_same_value_save_requested: exerciseRentRollSameValueSave,
+    rent_roll_stale_revision_save_requested: exerciseRentRollStaleRevisionSave,
     live_example: DEFAULT_LIVE_BASE_URL,
     authenticated: {
       required: requireAuthenticated,
@@ -1348,6 +1656,7 @@ async function main() {
           expectWriteEnabled,
           screenshotDir,
           exerciseRentRollSameValueSave,
+          exerciseRentRollStaleRevisionSave,
         ));
       }
     }
