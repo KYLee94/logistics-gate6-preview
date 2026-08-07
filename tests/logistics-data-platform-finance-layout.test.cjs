@@ -31,16 +31,42 @@ test('NOI·NCF 시계열과 기간 누계 자산 비교가 입력표보다 먼�
   assert.doesNotMatch(source, /min-w-\[135px\]/u);
 });
 
-test('기간 프리셋과 직접 지정, 비교 자산 다중 선택을 지원한다', () => {
+test('기간은 시계열 안에서 선택하고 비교 자산은 누계 비교 안에서 선택한다', () => {
   assert.match(source, /const\s+FINANCE_PERIOD_PRESETS\s*=\s*Object\.freeze/u);
   for (const label of ['최근 1개월', '최근 3개월', '최근 6개월', '최근 1년', '직접 지정']) {
     assert.ok(source.includes(label), `기간 프리셋 누락: ${label}`);
   }
+  const trendSectionIndex = source.indexOf('<Section title="NOI·NCF 시계열"');
+  const periodControlsIndex = source.indexOf('data-testid="finance-period-controls"');
+  const trendIndex = source.indexOf('<FinanceTrend');
+  const comparisonSectionIndex = source.indexOf('title="기간 누계 · 자산 비교"');
+  const comparisonControlsIndex = source.indexOf('data-testid="finance-comparison-controls"');
+  const summaryIndex = source.indexOf('data-testid="finance-period-summary"');
+  assert.ok(trendSectionIndex > 0 && trendSectionIndex < periodControlsIndex);
+  assert.ok(periodControlsIndex < trendIndex, '기간 컨트롤은 시계열 차트 바로 위에 있어야 한다');
+  assert.ok(comparisonControlsIndex > 0 && comparisonControlsIndex < comparisonSectionIndex);
+  assert.ok(comparisonSectionIndex < summaryIndex, '비교 자산 선택은 누계 비교 컴포넌트에 연결돼야 한다');
+  assert.match(source, /const\s+comparisonAction\s*=\s*\([\s\S]*?data-testid=["']finance-comparison-controls["']/u);
+  assert.match(source, /<Section\s+title=["']기간 누계 · 자산 비교["']\s+action=\{comparisonAction\}/u);
+  assert.match(source, /시계열·자산 비교에 함께 적용돼요\./u);
   assert.match(source, /data-testid=["']finance-period-preset["']/u);
   assert.match(source, /const\s+\[comparisonKeys,\s*setComparisonKeys\]/u);
   assert.match(source, /data-testid=["']finance-comparison-asset-toggle["']/u);
   assert.match(source, /type=["']checkbox["']/u);
   assert.match(source, /function\s+FinanceComparisonLoader\s*\(/u);
+});
+
+test('운영 화면은 실적·발생·월 기준으로 고정하고 회계 용어 선택을 노출하지 않는다', () => {
+  const financeSource = source.slice(
+    source.indexOf('function FinancePanel'),
+    source.indexOf('export default function LogisticsDataPlatform'),
+  );
+  assert.match(financeSource, /const\s+scenario\s*=\s*["']actual["']/u);
+  assert.match(financeSource, /const\s+basis\s*=\s*["']accrual["']/u);
+  assert.match(financeSource, /const\s+aggregation\s*=\s*["']month["']/u);
+  assert.doesNotMatch(financeSource, />\s*시나리오\s*</u);
+  assert.doesNotMatch(financeSource, />\s*회계 기준\s*</u);
+  assert.doesNotMatch(financeSource, /data-testid=["']finance-aggregation["']/u);
 });
 
 test('기본 NOI 계정 목록은 하나의 상수 계약으로 초기화한다', () => {

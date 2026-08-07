@@ -5,7 +5,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const DIST_DIR = path.join(ROOT, 'dist');
+const DIST_DIR = path.resolve(process.env.LOGISTICS_QA_DIST_DIR || path.join(ROOT, 'dist'));
 const DEFAULT_DEPLOY_BASE_PATH = '/logistics-gate6-preview/';
 const DEFAULT_LIVE_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -516,7 +516,227 @@ async function homeMaturityAlertProbe(page, dataPlatformMain, edgeActions, timeo
   };
 }
 
-async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expectWriteEnabled, screenshotDir = '') {
+const RENT_ROLL_RATE_FIELDS = Object.freeze([
+  'deposit_escalation_rate',
+  'rent_escalation_rate',
+  'cam_escalation_rate',
+]);
+
+function requestAction(request) {
+  try {
+    return String(request.postDataJSON()?.action || '');
+  } catch {
+    return '';
+  }
+}
+
+function rentRollPercentDisplayValue(value) {
+  const source = String(value ?? '').trim();
+  if (!source) return '';
+  const numeric = Number(source.replace(/%/gu, '').trim());
+  if (!Number.isFinite(numeric)) return '';
+  const percent = !source.includes('%') && numeric > 0 && numeric < 1
+    ? numeric * 100
+    : numeric;
+  return String(Number(percent.toFixed(10)));
+}
+
+function findRentRollRateDisplayFixture(payloads) {
+  for (const payload of payloads) {
+    const rows = Array.isArray(payload?.data?.rows) ? payload.data.rows : [];
+    for (const row of rows) {
+      for (const field of RENT_ROLL_RATE_FIELDS) {
+        const rawValue = row?.[field];
+        const expectedDisplay = rentRollPercentDisplayValue(rawValue);
+        if (expectedDisplay && row.row_key) {
+          return {
+            row_id: String(row.row_key),
+            field,
+            raw_value: rawValue,
+            expected_display: expectedDisplay,
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+async function rentRollSameValueSaveProbe(
+  page,
+  dataPlatformMain,
+  edgeActions,
+  rentRollReadPayloadPromises,
+  timeoutMs,
+) {
+  const rateFixture = findRentRollRateDisplayFixture(
+    await Promise.all([...rentRollReadPayloadPromises]),
+  );
+  let rateUi = { checked: false, value: '', percent_suffix: '' };
+  if (rateFixture) {
+    rateUi = await dataPlatformMain.locator('[data-rent-roll-row-id]').evaluateAll(
+      (rows, fixture) => {
+        const row = rows.find((candidate) => candidate.dataset.rentRollRowId === fixture.row_id);
+        const input = row?.querySelector(`[data-draft-field="${fixture.field}"]`);
+        return {
+          checked: Boolean(input),
+          value: input?.value || '',
+          percent_suffix: input?.nextElementSibling?.textContent?.trim() || '',
+        };
+      },
+      rateFixture,
+    );
+    assert.equal(rateUi.value, rateFixture.expected_display, 'API rate and visible percentage differ.');
+    assert.equal(rateUi.percent_suffix, '%', 'Rate input must expose the percent unit.');
+  }
+
+  const numericCandidates = await dataPlatformMain
+    .locator('input[data-draft-field][inputmode="decimal"]')
+    .evaluateAll((inputs) => inputs.map((input, index) => {
+      const semantic = input.value.replaceAll(',', '').trim();
+      const numeric = Number(semantic);
+      return {
+        index,
+        row_id: input.closest('[data-rent-roll-row-id]')?.dataset.rentRollRowId || '',
+        field: input.dataset.draftField || '',
+        semantic,
+        blurred_display: input.value,
+        eligible: !input.disabled
+          && semantic !== ''
+          && Number.isFinite(numeric)
+          && Math.abs(numeric) >= 1000
+          && input.value.includes(','),
+      };
+    }));
+  const candidate = numericCandidates.find((item) => item.eligible && item.row_id && item.field);
+  assert.ok(candidate, 'No existing editable numeric value with a visible thousands separator was found.');
+
+  const numericInput = dataPlatformMain
+    .locator('input[data-draft-field][inputmode="decimal"]')
+    .nth(candidate.index);
+  await numericInput.focus();
+  const focusedValue = await numericInput.inputValue();
+  assert.equal(focusedValue, candidate.semantic, 'Focused numeric input must expose the ungrouped semantic value.');
+  const temporarySemantic = String(Number(candidate.semantic) + 1);
+  await numericInput.fill(temporarySemantic);
+  assert.equal(await numericInput.inputValue(), temporarySemantic);
+  await numericInput.fill(candidate.semantic);
+  await numericInput.blur();
+  const blurredDisplay = await numericInput.inputValue();
+  assert.ok(blurredDisplay.includes(','), 'Blurred numeric input must restore thousands separators.');
+  assert.equal(Number(blurredDisplay.replaceAll(',', '')), Number(candidate.semantic));
+
+  const saveButton = dataPlatformMain.locator('[data-testid="rent-roll-save"]');
+  await saveButton.waitFor({ state: 'visible', timeout: timeoutMs });
+  await page.waitForFunction(
+    () => !document.querySelector('[data-testid="rent-roll-save"]')?.disabled,
+    null,
+    { timeout: timeoutMs },
+  );
+  const saveActionStart = edgeActions.length;
+  const saveResponsePromise = page.waitForResponse(
+    (response) => response.url().includes('/functions/v1/ll-dashboard-api')
+      && requestAction(response.request()) === 'v2/rent-roll/batch-save',
+    { timeout: timeoutMs },
+  );
+  await saveButton.click();
+  const saveResponse = await saveResponsePromise;
+  assert.ok(saveResponse.ok(), `Same-value batch-save failed (${saveResponse.status()}).`);
+  const saveRequestBody = saveResponse.request().postDataJSON();
+  assert.equal(saveRequestBody?.action, 'v2/rent-roll/batch-save');
+  assert.equal(saveRequestBody?.rows?.length, 1, 'Same-value QA must save exactly one existing row.');
+  assert.equal(saveRequestBody.rows[0]?.operation, 'update', 'Same-value QA must never create or delete a row.');
+  assert.equal(
+    Number(saveRequestBody.rows[0]?.[candidate.field]),
+    Number(candidate.semantic),
+    'Batch-save payload changed the selected numeric value.',
+  );
+  await dataPlatformMain.locator('[data-save-state="saved"]').waitFor({
+    state: 'visible',
+    timeout: timeoutMs,
+  });
+  await page.waitForTimeout(300);
+  const saveRequestCount = edgeActions
+    .slice(saveActionStart)
+    .filter((action) => action === 'v2/rent-roll/batch-save').length;
+  assert.equal(saveRequestCount, 1, 'Same-value save must emit exactly one batch-save request.');
+  const popupVisibleAfterSave = await page.locator('[data-testid="data-platform-error-dialog"]')
+    .isVisible()
+    .catch(() => false);
+  assert.equal(popupVisibleAfterSave, false, 'Same-value save opened an error popup.');
+
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
+  await page.locator('[data-testid="data-platform-rent-roll-nav"][aria-current="page"]')
+    .waitFor({ state: 'visible', timeout: timeoutMs });
+  await page.waitForFunction(
+    ({ rowId, field }) => Array.from(document.querySelectorAll('[data-rent-roll-row-id]'))
+      .some((row) => row.dataset.rentRollRowId === rowId
+        && row.querySelector(`[data-draft-field="${field}"]`)),
+    { rowId: candidate.row_id, field: candidate.field },
+    { timeout: timeoutMs },
+  );
+  const readback = await dataPlatformMain.locator('[data-rent-roll-row-id]').evaluateAll(
+    (rows, target) => {
+      const row = rows.find((candidateRow) => candidateRow.dataset.rentRollRowId === target.row_id);
+      const input = row?.querySelector(`[data-draft-field="${target.field}"]`);
+      return input?.value || '';
+    },
+    candidate,
+  );
+  assert.equal(Number(readback.replaceAll(',', '')), Number(candidate.semantic));
+  assert.ok(readback.includes(','), 'Reloaded numeric readback must keep thousands separators.');
+  let rateDisplayAfterReload = '';
+  if (rateFixture) {
+    rateDisplayAfterReload = await dataPlatformMain.locator('[data-rent-roll-row-id]').evaluateAll(
+      (rows, fixture) => {
+        const row = rows.find((candidateRow) => candidateRow.dataset.rentRollRowId === fixture.row_id);
+        const input = row?.querySelector(`[data-draft-field="${fixture.field}"]`);
+        const suffix = input?.nextElementSibling?.textContent?.trim() || '';
+        return input ? `${input.value}${suffix}` : '';
+      },
+      rateFixture,
+    );
+    assert.equal(rateDisplayAfterReload, `${rateFixture.expected_display}%`);
+  }
+  const popupVisibleAfterReload = await page.locator('[data-testid="data-platform-error-dialog"]')
+    .isVisible()
+    .catch(() => false);
+  assert.equal(popupVisibleAfterReload, false, 'Reloaded readback opened an error popup.');
+
+  return {
+    checked: true,
+    safety_mode: 'same-value-existing-row',
+    row_id: candidate.row_id,
+    field: candidate.field,
+    semantic_value: candidate.semantic,
+    blurred_display: blurredDisplay,
+    save_request_count: saveRequestCount,
+    error_popup_visible: popupVisibleAfterSave || popupVisibleAfterReload,
+    save_state: 'saved',
+    readback,
+    readback_semantic_matches:
+      Number(readback.replaceAll(',', '')) === Number(candidate.semantic),
+    readback_comma_visible: readback.includes(','),
+    payload_operation: saveRequestBody.rows[0].operation,
+    payload_semantic_value: saveRequestBody.rows[0][candidate.field],
+    rate_fixture_checked: rateUi.checked,
+    rate_fixture_field: rateFixture?.field || '',
+    rate_fixture_raw: rateFixture?.raw_value ?? null,
+    rate_expected_display: rateFixture ? `${rateFixture.expected_display}%` : '',
+    rate_display: rateDisplayAfterReload,
+  };
+}
+
+async function authenticatedProbe(
+  browser,
+  baseUrl,
+  route,
+  timeoutMs,
+  auth,
+  expectWriteEnabled,
+  screenshotDir = '',
+  exerciseRentRollSameValueSave = false,
+) {
   const targetUrl = joinRoute(baseUrl, route.publicPath);
   const expectedPath = normalizedPathname(joinRoute(baseUrl, route.expectedPublicPath ?? route.publicPath));
   const isDataPlatform = route.surface === 'data-platform';
@@ -540,6 +760,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
   const page = await context.newPage();
   const errors = [];
   const edgeActions = [];
+  const rentRollReadPayloadPromises = [];
   let documentRequestCount = 0;
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('request', (request) => {
@@ -554,6 +775,13 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
     }
   });
   page.on('response', (response) => {
+    if (
+      response.url().includes('/functions/v1/ll-dashboard-api')
+      && response.status() < 400
+      && requestAction(response.request()) === 'v2/rent-roll/read'
+    ) {
+      rentRollReadPayloadPromises.push(response.json().catch(() => null));
+    }
     if (response.url().includes('/functions/v1/ll-dashboard-api') && response.status() >= 400) {
       errors.push(`edge ${response.status()} ${response.url()}`);
     }
@@ -793,7 +1021,12 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       }));
     }
     let rentRollDraft = { checked: false };
-    if (expectWriteEnabled && isDataPlatform && route.internalPath.endsWith('/rent-roll')) {
+    if (
+      expectWriteEnabled
+      && isDataPlatform
+      && route.internalPath.endsWith('/rent-roll')
+      && !exerciseRentRollSameValueSave
+    ) {
       const tenantInput = page.locator('[data-draft-field="tenant_name"]').first();
       await tenantInput.waitFor({ state: 'visible', timeout: timeoutMs });
       const originalValue = await tenantInput.inputValue();
@@ -812,6 +1045,20 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
           .filter((key) => key.startsWith('gate6-rent-roll-draft-'))
           .forEach((key) => sessionStorage.removeItem(key));
       });
+    }
+    let rentRollSameValueSave = { checked: false };
+    if (
+      exerciseRentRollSameValueSave
+      && isDataPlatform
+      && route.internalPath.endsWith('/rent-roll')
+    ) {
+      rentRollSameValueSave = await rentRollSameValueSaveProbe(
+        page,
+        dataPlatformMain,
+        edgeActions,
+        rentRollReadPayloadPromises,
+        timeoutMs,
+      );
     }
     const darkStyle = isDataPlatform ? await dataPlatformMain.evaluate((main) => {
       const card = main.querySelector('section:not([data-testid="finance-kpi-strip"])');
@@ -864,6 +1111,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       home_brief_ui: homeBriefUi,
       home_maturity_alert_ui: homeMaturityAlertUi,
       rent_roll_draft: rentRollDraft,
+      rent_roll_same_value_save: rentRollSameValueSave,
       screenshot_path: screenshotPath,
       errors,
     };
@@ -911,6 +1159,17 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
         && homeMaturityAlertUi.write_action_count === 0
       ))
       && (!rentRollDraft.checked || (!rentRollDraft.popup_visible && rentRollDraft.save_request_count === 0))
+      && (!rentRollSameValueSave.checked || (
+        rentRollSameValueSave.safety_mode === 'same-value-existing-row'
+        && rentRollSameValueSave.save_request_count === 1
+        && rentRollSameValueSave.save_state === 'saved'
+        && !rentRollSameValueSave.error_popup_visible
+        && rentRollSameValueSave.readback_semantic_matches
+        && rentRollSameValueSave.readback_comma_visible
+        && rentRollSameValueSave.payload_operation === 'update'
+        && (!rentRollSameValueSave.rate_fixture_checked
+          || rentRollSameValueSave.rate_display === rentRollSameValueSave.rate_expected_display)
+      ))
       && (!writeUi.checked || writeUi.write_control_enabled)
       && errors.length === 0;
   } catch (error) {
@@ -950,6 +1209,20 @@ function runSelfTest() {
   assert.doesNotMatch(HOME_MATURITY_ALERT_CONTRACT.assetName, INTERNAL_MATURITY_IDENTIFIER);
   assert.equal(routesForScope(false), ROUTES);
   assert.deepEqual(
+    findRentRollRateDisplayFixture([{ data: { rows: [{
+      row_key: 'rate-fixture-row',
+      rent_escalation_rate: 0.03,
+    }] } }]),
+    {
+      row_id: 'rate-fixture-row',
+      field: 'rent_escalation_rate',
+      raw_value: 0.03,
+      expected_display: '3',
+    },
+  );
+  assert.equal(rentRollPercentDisplayValue('3%'), '3');
+  assert.equal(rentRollPercentDisplayValue(3), '3');
+  assert.deepEqual(
     routesForScope(true, HOME_MATURITY_ALERT_CONTRACT.routeKey).map((route) => route.key),
     [HOME_MATURITY_ALERT_CONTRACT.routeKey],
   );
@@ -971,6 +1244,29 @@ async function main() {
   if (!Number.isFinite(timeoutMs) || timeoutMs < 1_000) {
     throw new Error('--timeout-ms must be a number of at least 1000.');
   }
+  const requireAuthenticated = hasFlag('require-authenticated');
+  const expectWriteEnabled = hasFlag('expect-write-enabled');
+  const exerciseRentRollSameValueSave = hasFlag('same-value-rent-roll-save');
+  const dataPlatformOnly = hasFlag('data-platform-only');
+  const routeKey = flagValue('route');
+  const routesUnderTest = routesForScope(dataPlatformOnly, routeKey);
+  if (routeKey && routesUnderTest.length !== 1) {
+    throw new Error(`Unknown or out-of-scope route key: ${routeKey}`);
+  }
+  const screenshotDirFlag = flagValue('screenshot-dir');
+  const screenshotDir = screenshotDirFlag ? path.resolve(process.cwd(), screenshotDirFlag) : '';
+  if (expectWriteEnabled && !requireAuthenticated) {
+    throw new Error('--expect-write-enabled requires --require-authenticated.');
+  }
+  if (exerciseRentRollSameValueSave && !requireAuthenticated) {
+    throw new Error('--same-value-rent-roll-save requires --require-authenticated.');
+  }
+  if (exerciseRentRollSameValueSave && !expectWriteEnabled) {
+    throw new Error('--same-value-rent-roll-save requires --expect-write-enabled.');
+  }
+  if (exerciseRentRollSameValueSave && routeKey !== 'data-platform-rent-roll') {
+    throw new Error('--same-value-rent-roll-save requires --route=data-platform-rent-roll.');
+  }
 
   let localServer = null;
   const suppliedBaseUrl = flagValue('base-url');
@@ -988,19 +1284,6 @@ async function main() {
     localServer = await startDistServer(expectedBasePath, localPort);
   }
   const baseUrl = normalizeBaseUrl(suppliedBaseUrl || localServer.baseUrl);
-  const requireAuthenticated = hasFlag('require-authenticated');
-  const expectWriteEnabled = hasFlag('expect-write-enabled');
-  const dataPlatformOnly = hasFlag('data-platform-only');
-  const routeKey = flagValue('route');
-  const routesUnderTest = routesForScope(dataPlatformOnly, routeKey);
-  if (routeKey && routesUnderTest.length !== 1) {
-    throw new Error(`Unknown or out-of-scope route key: ${routeKey}`);
-  }
-  const screenshotDirFlag = flagValue('screenshot-dir');
-  const screenshotDir = screenshotDirFlag ? path.resolve(process.cwd(), screenshotDirFlag) : '';
-  if (expectWriteEnabled && !requireAuthenticated) {
-    throw new Error('--expect-write-enabled requires --require-authenticated.');
-  }
   const report = {
     ok: false,
     generated_at: new Date().toISOString(),
@@ -1008,6 +1291,7 @@ async function main() {
     base_url: baseUrl,
     expected_base_path: expectedBasePath,
     route_scope: dataPlatformOnly ? 'data-platform-only' : 'all',
+    rent_roll_same_value_save_requested: exerciseRentRollSameValueSave,
     live_example: DEFAULT_LIVE_BASE_URL,
     authenticated: {
       required: requireAuthenticated,
@@ -1051,6 +1335,7 @@ async function main() {
           auth,
           expectWriteEnabled,
           screenshotDir,
+          exerciseRentRollSameValueSave,
         ));
       }
     }

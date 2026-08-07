@@ -164,6 +164,22 @@ test('data platform request lifecycle contract', async (t) => {
     assert.equal(api.isDataPlatformRequestCancellation(new TypeError('Failed to fetch')), false);
   });
 
+  await t.test('Supabase FunctionsHttpError의 nested HTTP status를 사용자 메시지에 보존한다', () => {
+    const conflict = new Error('Edge Function returned a non-2xx status code');
+    conflict.context = { status: 409 };
+    assert.equal(
+      api.friendlyDataPlatformError(conflict),
+      '다른 담당자가 먼저 수정했습니다. 최신 내용을 다시 불러온 뒤 저장해 주세요.',
+    );
+
+    const invalid = new Error('Edge Function returned a non-2xx status code');
+    invalid.context = { status: 422 };
+    assert.equal(
+      api.friendlyDataPlatformError(invalid),
+      '입력한 값 중 저장할 수 없는 항목이 있습니다. 표시된 값을 확인해 주세요.',
+    );
+  });
+
   await t.test('disabling a comparison/read resource clears its stale popup error', () => {
     const current = {
       data: { preserved: true },

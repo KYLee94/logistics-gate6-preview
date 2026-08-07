@@ -47,14 +47,6 @@ const TITLES = Object.freeze({
 });
 const TAB_KEYS = new Set(Object.keys(TITLES));
 const DEFAULT_SORT = Object.freeze({ key: "floor_label", direction: "desc" });
-const RENT_ROLL_MONEY_FIELDS = new Set([
-  "deposit_total_krw",
-  "monthly_rent_total_krw",
-  "monthly_cam_total_krw",
-  "pallet_rack_fee",
-  "fit_out_amount",
-  "tenant_improvement_amount",
-]);
 const RENT_ROLL_DISPLAY_COLUMNS = Object.freeze(
   RENT_ROLL_COLUMNS.flatMap((column) => {
     if (["rent_free_start_date", "rent_free_end_date"].includes(column.key)) return [];
@@ -1106,8 +1098,47 @@ function sortRows(rows, sort) {
     .map(({ row }) => row);
 }
 
+function RentRollCommaNumberInput({
+  field,
+  ariaLabel,
+  invalid,
+  describedBy,
+  value,
+  onChange,
+  disabled,
+}) {
+  const [focused, setFocused] = useState(false);
+  const displayValue = focused
+    ? parseRentRollMoneyInput(value)
+    : formatRentRollCommaInput(value);
+  return (
+    <input
+      data-draft-field={field}
+      aria-label={ariaLabel}
+      aria-invalid={invalid || undefined}
+      aria-describedby={invalid ? describedBy : undefined}
+      type="text"
+      inputMode="decimal"
+      value={displayValue}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onChange={(event) => onChange(parseRentRollMoneyInput(event.target.value))}
+      disabled={disabled}
+      className={`${INPUT_CLASS} text-right tabular-nums`}
+    />
+  );
+}
+
 function percentInputValue(value) {
-  return String(value ?? "").replace(/%/gu, "").trim();
+  if (value === "" || value === null || value === undefined) return "";
+  const source = String(value).trim();
+  const text = source.replace(/%/gu, "").trim();
+  const numeric = Number(text);
+  if (!Number.isFinite(numeric)) return text;
+  const percent = !source.includes("%") && numeric > 0 && numeric < 1
+    ? numeric * 100
+    : numeric;
+  return String(Number(percent.toFixed(10)));
 }
 
 function percentStoredValue(value) {
@@ -1115,9 +1146,19 @@ function percentStoredValue(value) {
   return text === "" ? "" : `${text}%`;
 }
 
-function formatRentRollMoneyInput(value) {
-  const text = String(value ?? "").trim();
-  return text ? formatRentRollNumber(text, 2) || text : "";
+function formatRentRollCommaInput(value) {
+  const text = String(value ?? "").trim().replaceAll(",", "");
+  if (!text) return "";
+  const match = text.match(/^(-?)(\d*)(\.\d*)?$/u);
+  if (!match || (!match[2] && !match[3])) {
+    const numeric = Number(text);
+    return Number.isFinite(numeric)
+      ? new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 20 }).format(numeric)
+      : text;
+  }
+  const integer = match[2] || "0";
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/gu, ",");
+  return `${match[1]}${grouped}${match[3] || ""}`;
 }
 
 function formatRentRollReadonlyValue(column, row) {
@@ -1486,7 +1527,7 @@ function parsePaste(text) {
         row[key] = column?.kind === "multi_select"
           ? serializeCostTerms({}, trimmed ? [trimmed] : [])
           : column?.kind === "percent"
-            ? percentStoredValue(trimmed.replace(/%/gu, ""))
+            ? percentStoredValue(percentInputValue(trimmed))
             : column?.kind === "number"
               ? parseRentRollMoneyInput(trimmed)
               : trimmed;
@@ -2223,7 +2264,7 @@ function RentRollPanel({ assetKey }) {
                             </div>
                           </td>
                         );
-                      const moneyField = column.kind === "number" && RENT_ROLL_MONEY_FIELDS.has(column.key);
+                      const commaNumberField = column.kind === "number";
                       return (
                         <td key={column.key} style={cellStyle} className={cellClass}>
                           {column.key === "tenant_name" ? (
@@ -2243,6 +2284,16 @@ function RentRollPanel({ assetKey }) {
                               }
                               className={INPUT_CLASS}
                             />
+                          ) : commaNumberField ? (
+                            <RentRollCommaNumberInput
+                              field={column.key}
+                              ariaLabel={`${rowLabel} ${column.label}`}
+                              invalid={rowInvalid}
+                              describedBy="rent-roll-validation-summary"
+                              value={row[column.key]}
+                              onChange={(value) => update(id, column.key, value)}
+                              disabled={rowEditingDisabled}
+                            />
                           ) : (
                             <input
                               data-draft-field={column.key}
@@ -2250,20 +2301,15 @@ function RentRollPanel({ assetKey }) {
                               aria-invalid={rowInvalid || undefined}
                               aria-describedby={rowInvalid ? "rent-roll-validation-summary" : undefined}
                               type={
-                                moneyField
-                                  ? "text"
-                                  : column.kind === "number"
+                                column.kind === "number"
                                   ? "number"
                                   : column.kind === "date"
                                     ? "date"
                                     : "text"
                               }
-                              inputMode={moneyField ? "numeric" : undefined}
-                              value={moneyField ? formatRentRollMoneyInput(row[column.key]) : row[column.key] ?? ""}
+                              value={row[column.key] ?? ""}
                               onChange={(event) => {
-                                const value = moneyField
-                                  ? parseRentRollMoneyInput(event.target.value)
-                                  : event.target.value;
+                                const value = event.target.value;
                                 if (["fit_out_start_date", "fit_out_end_date"].includes(column.key)) {
                                   const nextStart = column.key === "fit_out_start_date"
                                     ? value
@@ -2506,9 +2552,9 @@ function FinancePanel({ assetKey, assets }) {
   const [start, setStart] = useState(addMonths(current, -11));
   const [end, setEnd] = useState(current);
   const [periodPreset, setPeriodPreset] = useState("1y");
-  const [scenario, setScenario] = useState("actual");
-  const [basis, setBasis] = useState("accrual");
-  const [aggregation, setAggregation] = useState("month");
+  const scenario = "actual";
+  const basis = "accrual";
+  const aggregation = "month";
   const [comparisonKeys, setComparisonKeys] = useState([]);
   const [comparisonResources, setComparisonResources] = useState({});
   const [entries, setEntries] = useState([]);
@@ -2880,7 +2926,6 @@ function FinancePanel({ assetKey, assets }) {
     if (!preset.months) return;
     setEnd(current);
     setStart(addMonths(current, 1 - preset.months));
-    setAggregation("month");
   };
   const toggleComparisonAsset = (comparisonAssetKey) => {
     setComparisonKeys((currentKeys) => (
@@ -2939,6 +2984,31 @@ function FinancePanel({ assetKey, assets }) {
   if (!financeHierarchy.some((section) => section.key === "debt_service")) {
     rows.push({ kind: "metric", key: "after_debt_service_cash_flow", label: "부채상환 후 현금흐름" });
   }
+  const comparisonAction = (
+    <div
+      data-testid="finance-comparison-controls"
+      className="flex justify-end"
+    >
+      <details className="relative min-w-[220px] text-[11px] text-[#86868B]">
+        <summary className="cursor-pointer list-none rounded-[7px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 py-1.5 text-right text-xs text-white">
+          비교 자산 {comparisonKeys.length ? `${comparisonKeys.length}개 선택` : "선택"}
+        </summary>
+        <div className="absolute right-0 top-full z-50 mt-1 max-h-64 w-full min-w-[280px] overflow-y-auto rounded-[10px] border border-[#3A3A3C] bg-[#202020] p-2 shadow-2xl">
+          {assets.filter((asset) => asset.asset_key !== assetKey).map((asset) => (
+            <label key={asset.asset_key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-xs text-[#D1D1D6] hover:bg-white/5">
+              <input
+                data-testid="finance-comparison-asset-toggle"
+                type="checkbox"
+                checked={comparisonKeys.includes(asset.asset_key)}
+                onChange={() => toggleComparisonAsset(asset.asset_key)}
+              />
+              <span>{asset.name || asset.asset_code}</span>
+            </label>
+          ))}
+        </div>
+      </details>
+    </div>
+  );
   if (!assetKey) return <EmptyText>먼저 자산을 선택해 주세요.</EmptyText>;
   return (
     <div className="space-y-4">
@@ -2952,101 +3022,61 @@ function FinancePanel({ assetKey, assets }) {
           setResources={setComparisonResources}
         />
       ))}
-      <div className="flex flex-wrap items-end gap-3 rounded-[14px] border border-[#333333] bg-[#242423] px-4 py-3">
-        <fieldset className="min-w-[370px] flex-1">
-          <legend className="text-[11px] text-[#86868B]">조회 기간</legend>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {FINANCE_PERIOD_PRESETS.map((preset) => (
-              <button
-                key={preset.key}
-                data-testid="finance-period-preset"
-                type="button"
-                aria-pressed={periodPreset === preset.key}
-                onClick={() => applyPeriodPreset(preset)}
-                className={`rounded-[7px] border px-3 py-2 text-xs ${periodPreset === preset.key ? "border-[#5E9EFF] bg-[#17314E] text-[#9AD7FF]" : "border-[#3A3A3C] bg-[#1F1F1E] text-[#D1D1D6]"}`}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-        {periodPreset === "custom" ? [
-          ["시작 월", start, setStart],
-          ["종료 월", end, setEnd],
-        ].map(([label, value, setter]) => (
-          <label key={label} className="min-w-[140px] text-[11px] text-[#86868B]">
-            {label}
-            <input
-              type="month"
-              value={value}
-              onChange={(event) => setter(event.target.value)}
-              className="mt-1 block rounded-[7px] border border-[#3A3A3C] bg-[#1F1F1E] px-2 py-2 text-sm text-white"
-            />
-          </label>
-        )) : null}
-        <label className="text-[11px] text-[#86868B]">
-          시나리오
-          <select
-            value={scenario}
-            onChange={(event) => setScenario(event.target.value)}
-            className="mt-1 block rounded-[7px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 py-2 text-sm text-white"
-          >
-            <option value="actual">실적</option>
-            <option value="budget">예산</option>
-            <option value="forecast">전망</option>
-          </select>
-        </label>
-        <label className="text-[11px] text-[#86868B]">
-          회계 기준
-          <select
-            value={basis}
-            onChange={(event) => setBasis(event.target.value)}
-            className="mt-1 block rounded-[7px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 py-2 text-sm text-white"
-          >
-            <option value="accrual">발생</option>
-            <option value="cash">현금</option>
-          </select>
-        </label>
-        <label className="text-[11px] text-[#86868B]">
-          집계
-          <select
-            data-testid="finance-aggregation"
-            value={aggregation}
-            onChange={(event) => setAggregation(event.target.value)}
-            className="mt-1 block rounded-[7px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 py-2 text-sm text-white"
-          >
-            <option value="month">월</option>
-            <option value="quarter">분기</option>
-            <option value="year">연도</option>
-          </select>
-        </label>
-        <details className="relative min-w-[220px] flex-1 text-[11px] text-[#86868B]">
-          <summary className="mt-1 cursor-pointer list-none rounded-[7px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 py-2 text-sm text-white">
-            비교 자산 {comparisonKeys.length ? `${comparisonKeys.length}개` : "선택"}
-          </summary>
-          <div className="absolute right-0 top-full z-50 mt-1 max-h-64 w-full min-w-[280px] overflow-y-auto rounded-[10px] border border-[#3A3A3C] bg-[#202020] p-2 shadow-2xl">
-            {assets.filter((asset) => asset.asset_key !== assetKey).map((asset) => (
-              <label key={asset.asset_key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-xs text-[#D1D1D6] hover:bg-white/5">
-                <input
-                  data-testid="finance-comparison-asset-toggle"
-                  type="checkbox"
-                  checked={comparisonKeys.includes(asset.asset_key)}
-                  onChange={() => toggleComparisonAsset(asset.asset_key)}
-                />
-                <span>{asset.name || asset.asset_code}</span>
-              </label>
-            ))}
-          </div>
-        </details>
-      </div>
       <div
         data-testid="finance-analysis-grid"
         className="grid gap-4 xl:grid-cols-[minmax(0,1.22fr)_minmax(420px,0.78fr)]"
       >
         <Section title="NOI·NCF 시계열" className="p-4">
+          <div
+            data-testid="finance-period-controls"
+            className="mb-4 border-b border-[#333333] pb-3"
+          >
+            <p className="mb-2 text-[10px] text-[#86868B]">
+              시계열·자산 비교에 함께 적용돼요.
+            </p>
+            <fieldset>
+              <legend className="sr-only">조회 기간</legend>
+              <div className="flex flex-wrap gap-1">
+                {FINANCE_PERIOD_PRESETS.map((preset) => (
+                  <button
+                    key={preset.key}
+                    data-testid="finance-period-preset"
+                    type="button"
+                    aria-pressed={periodPreset === preset.key}
+                    onClick={() => applyPeriodPreset(preset)}
+                    className={`rounded-[7px] border px-2.5 py-1.5 text-[11px] ${periodPreset === preset.key ? "border-[#5E9EFF] bg-[#17314E] text-[#9AD7FF]" : "border-[#3A3A3C] bg-[#1F1F1E] text-[#D1D1D6]"}`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            {periodPreset === "custom" ? (
+              <div className="mt-2 flex flex-wrap items-end gap-2">
+                {[
+                  ["시작 월", start, setStart],
+                  ["종료 월", end, setEnd],
+                ].map(([label, value, setter]) => (
+                  <label key={label} className="text-[10px] text-[#86868B]">
+                    {label}
+                    <input
+                      type="month"
+                      value={value}
+                      onChange={(event) => setter(event.target.value)}
+                      className="mt-1 block rounded-[7px] border border-[#3A3A3C] bg-[#1F1F1E] px-2 py-1.5 text-xs text-white"
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <FinanceTrend series={series} />
         </Section>
-        <Section title="기간 누계 · 자산 비교" className="p-4">
+        <Section
+          title="기간 누계 · 자산 비교"
+          action={comparisonAction}
+          className="p-4"
+        >
           <div className="overflow-x-auto rounded-[10px] border border-[#333333]">
             <table
               data-testid="finance-period-summary"

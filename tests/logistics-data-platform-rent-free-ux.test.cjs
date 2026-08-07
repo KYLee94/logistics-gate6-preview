@@ -12,26 +12,70 @@ const schemaSource = fs.readFileSync(
   'utf8',
 );
 
-test('렌트롤 금액 입력은 숫자 의미를 보존하며 3자리 콤마로 표시한다', () => {
-  assert.match(source, /const\s+RENT_ROLL_MONEY_FIELDS\s*=\s*new Set/u);
-  const moneyFieldStart = source.indexOf('const RENT_ROLL_MONEY_FIELDS');
-  const moneyFieldEnd = source.indexOf(']);', moneyFieldStart);
-  const moneyFields = [...source.slice(moneyFieldStart, moneyFieldEnd).matchAll(/"([a-z0-9_]+)"/gu)]
+function extractedFunction(name, nextName) {
+  const start = source.indexOf(`function ${name}`);
+  const end = source.indexOf(`function ${nextName}`, start);
+  assert.ok(start >= 0 && end > start, `${name} 함수 추출 실패`);
+  return new Function(`${source.slice(start, end)}\nreturn ${name};`)();
+}
+
+test('렌트롤 모든 직접 숫자 입력은 포커스 밖에서 콤마를 표시하고 포커스 중 원본 의미값을 편집한다', () => {
+  const numberColumns = [...schemaSource.matchAll(/column\('([^']+)'[^\n]+?'number'/gu)]
     .map((match) => match[1]);
-  assert.deepEqual(moneyFields, [
-    'deposit_total_krw',
-    'monthly_rent_total_krw',
-    'monthly_cam_total_krw',
-    'pallet_rack_fee',
-    'fit_out_amount',
-    'tenant_improvement_amount',
-  ]);
-  assert.match(source, /function\s+formatRentRollMoneyInput\s*\(/u);
+  assert.ok(numberColumns.length >= 10, '렌트롤 숫자 열 전체를 검증할 수 있어야 한다');
+  assert.doesNotMatch(source, /RENT_ROLL_(?:MONEY|AREA|COMMA_NUMBER)_FIELDS/u);
+  assert.match(source, /function\s+formatRentRollCommaInput\s*\(/u);
+  const formatInput = extractedFunction('formatRentRollCommaInput', 'formatRentRollReadonlyValue');
+  assert.equal(formatInput('1234567.89'), '1,234,567.89');
+  assert.equal(formatInput('-1234.50'), '-1,234.50');
+  assert.equal(formatInput(''), '');
   assert.match(source, /parseRentRollMoneyInput,/u);
   assert.match(schemaSource, /function\s+parseRentRollMoneyInput\s*\(/u);
-  assert.match(source, /inputMode=\{moneyField \? ["']numeric["'] : undefined\}/u);
-  assert.match(source, /formatRentRollMoneyInput\(row\[column\.key\]\)/u);
-  assert.match(source, /parseRentRollMoneyInput\(event\.target\.value\)/u);
+  const numberInput = source.slice(
+    source.indexOf('function RentRollCommaNumberInput'),
+    source.indexOf('function percentInputValue'),
+  );
+  assert.match(numberInput, /const \[focused, setFocused\] = useState\(false\)/u);
+  assert.match(numberInput, /focused\s*\?\s*parseRentRollMoneyInput\(value\)\s*:\s*formatRentRollCommaInput\(value\)/u);
+  assert.match(numberInput, /type=["']text["']/u);
+  assert.match(numberInput, /inputMode=["']decimal["']/u);
+  assert.match(numberInput, /onFocus=\{\(\) => setFocused\(true\)\}/u);
+  assert.match(numberInput, /onBlur=\{\(\) => setFocused\(false\)\}/u);
+  assert.match(numberInput, /onChange\(parseRentRollMoneyInput\(event\.target\.value\)\)/u);
+  assert.match(source, /const\s+commaNumberField\s*=\s*column\.kind\s*===\s*["']number["']/u);
+  assert.match(source, /<RentRollCommaNumberInput/u);
+});
+
+test('렌트롤 인상률은 fraction readback을 화면 퍼센트로 바꾸고 편집값을 명시적 %로 저장한다', () => {
+  const inputValue = extractedFunction('percentInputValue', 'percentStoredValue');
+  const storedValue = extractedFunction('percentStoredValue', 'formatRentRollCommaInput');
+  assert.equal(inputValue(0.03), '3');
+  assert.equal(inputValue('0.03'), '3');
+  assert.equal(inputValue('3%'), '3');
+  assert.equal(inputValue(3), '3');
+  assert.equal(inputValue(0), '0');
+  assert.equal(inputValue(''), '');
+  assert.equal(storedValue('3'), '3%');
+  assert.equal(storedValue(''), '');
+  assert.match(source, /value=\{percentInputValue\(row\[column\.key\]\)\}/u);
+  assert.match(source, /percentStoredValue\(event\.target\.value\)/u);
+});
+
+test('렌트롤 다중 붙여넣기도 소수 인상률을 퍼센트 단위로 정규화한다', () => {
+  const inputValue = extractedFunction('percentInputValue', 'percentStoredValue');
+  const storedValue = extractedFunction('percentStoredValue', 'formatRentRollCommaInput');
+  assert.equal(storedValue(inputValue('0.03')), '3%');
+  assert.equal(storedValue(inputValue('3')), '3%');
+  assert.equal(storedValue(inputValue('3%')), '3%');
+
+  const pasteSource = source.slice(
+    source.indexOf('function parsePaste'),
+    source.indexOf('function RentRollPanel'),
+  );
+  assert.match(
+    pasteSource,
+    /percentStoredValue\(percentInputValue\(trimmed\)\)/u,
+  );
 });
 
 test('렌트프리는 접근 가능한 상세 팝업에서 복수 제공기간을 추가·삭제한다', () => {
