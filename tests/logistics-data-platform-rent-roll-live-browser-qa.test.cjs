@@ -62,6 +62,7 @@ test('렌트롤 same-value 브라우저 QA는 실제 저장 1회와 reload readb
   assert.match(probe, /readback/u);
   assert.match(probe, /blurred_display/u);
   assert.match(probe, /temporarySemantic\s*=\s*String\(Number\(candidate\.semantic\) \+ 1\)/u);
+  assert.match(probe, /saveRequestBody\?\.payload/u);
   assert.match(probe, /payload_operation/u);
 });
 

@@ -644,10 +644,22 @@ async function rentRollSameValueSaveProbe(
   assert.ok(saveResponse.ok(), `Same-value batch-save failed (${saveResponse.status()}).`);
   const saveRequestBody = saveResponse.request().postDataJSON();
   assert.equal(saveRequestBody?.action, 'v2/rent-roll/batch-save');
-  assert.equal(saveRequestBody?.rows?.length, 1, 'Same-value QA must save exactly one existing row.');
-  assert.equal(saveRequestBody.rows[0]?.operation, 'update', 'Same-value QA must never create or delete a row.');
+  const saveRequestPayload = saveRequestBody?.payload || {};
   assert.equal(
-    Number(saveRequestBody.rows[0]?.[candidate.field]),
+    saveRequestPayload?.rows?.length,
+    1,
+    `Same-value QA must save exactly one existing row; received ${JSON.stringify(
+      (saveRequestPayload?.rows || []).map((row) => ({
+        operation: row?.operation,
+        row_key: row?.row_key,
+        space_key: row?.space_key,
+        fields: Object.keys(row || {}).filter((key) => !['operation', 'row_key', 'space_key'].includes(key)),
+      })),
+    )}.`,
+  );
+  assert.equal(saveRequestPayload.rows[0]?.operation, 'update', 'Same-value QA must never create or delete a row.');
+  assert.equal(
+    Number(saveRequestPayload.rows[0]?.[candidate.field]),
     Number(candidate.semantic),
     'Batch-save payload changed the selected numeric value.',
   );
@@ -717,8 +729,8 @@ async function rentRollSameValueSaveProbe(
     readback_semantic_matches:
       Number(readback.replaceAll(',', '')) === Number(candidate.semantic),
     readback_comma_visible: readback.includes(','),
-    payload_operation: saveRequestBody.rows[0].operation,
-    payload_semantic_value: saveRequestBody.rows[0][candidate.field],
+    payload_operation: saveRequestPayload.rows[0].operation,
+    payload_semantic_value: saveRequestPayload.rows[0][candidate.field],
     rate_fixture_checked: rateUi.checked,
     rate_fixture_field: rateFixture?.field || '',
     rate_fixture_raw: rateFixture?.raw_value ?? null,
