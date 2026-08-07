@@ -63,13 +63,17 @@ test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 �
     'CAPEX',
     'TENANT_IMPROVEMENT',
     'LEASING_COMMISSION',
+    'AMC_FEE',
+    'CUSTODY_FEE',
+    'GENERAL_ADMIN_TRUSTEE_FEE',
+    'INTEREST_PAID',
   ];
   assert.deepEqual(
     [...core.map((account) => account.code)].sort(),
     [...expectedCore].sort(),
   );
   assert.ok(optional.some((account) => account.code === 'DEPOSIT_OPERATING_INCOME'));
-  assert.ok(optional.some((account) => account.code === 'INTEREST_PAID'));
+  assert.equal(optional.some((account) => account.code === 'INTEREST_PAID'), false);
 
   const hierarchy = formulas.buildFinanceAccountHierarchy(
     formulas.KOREAN_LOGISTICS_NOI_ACCOUNTS.map((account, index) => ({

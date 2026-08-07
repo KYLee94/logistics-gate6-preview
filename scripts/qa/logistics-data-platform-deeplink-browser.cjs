@@ -99,10 +99,13 @@ function hasFlag(name) {
   return process.argv.includes(`--${name}`);
 }
 
-function routesForScope(dataPlatformOnly = false) {
-  return dataPlatformOnly
+function routesForScope(dataPlatformOnly = false, routeKey = '') {
+  const scopedRoutes = dataPlatformOnly
     ? ROUTES.filter((route) => route.surface === 'data-platform')
     : ROUTES;
+  return routeKey
+    ? scopedRoutes.filter((route) => route.key === routeKey)
+    : scopedRoutes;
 }
 
 function readEnvFile(filePath) {
@@ -946,6 +949,10 @@ function runSelfTest() {
   assert.equal(HOME_MATURITY_ALERT_CONTRACT.expectedCount, HOME_MATURITY_ALERT_CONTRACT.expectedLenders.length);
   assert.doesNotMatch(HOME_MATURITY_ALERT_CONTRACT.assetName, INTERNAL_MATURITY_IDENTIFIER);
   assert.equal(routesForScope(false), ROUTES);
+  assert.deepEqual(
+    routesForScope(true, HOME_MATURITY_ALERT_CONTRACT.routeKey).map((route) => route.key),
+    [HOME_MATURITY_ALERT_CONTRACT.routeKey],
+  );
   for (const route of dataPlatformRoutes) {
     assert.match(route.internalPath, /\/data-platform\/(?:home|rent-roll|income-expense)$/u);
     assert.ok(route.publicPath === '' || /^data-platform(?:\/|$)/u.test(route.publicPath));
@@ -984,7 +991,11 @@ async function main() {
   const requireAuthenticated = hasFlag('require-authenticated');
   const expectWriteEnabled = hasFlag('expect-write-enabled');
   const dataPlatformOnly = hasFlag('data-platform-only');
-  const routesUnderTest = routesForScope(dataPlatformOnly);
+  const routeKey = flagValue('route');
+  const routesUnderTest = routesForScope(dataPlatformOnly, routeKey);
+  if (routeKey && routesUnderTest.length !== 1) {
+    throw new Error(`Unknown or out-of-scope route key: ${routeKey}`);
+  }
   const screenshotDirFlag = flagValue('screenshot-dir');
   const screenshotDir = screenshotDirFlag ? path.resolve(process.cwd(), screenshotDirFlag) : '';
   if (expectWriteEnabled && !requireAuthenticated) {

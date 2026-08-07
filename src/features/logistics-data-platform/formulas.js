@@ -23,6 +23,10 @@ const DEFAULT_VISIBLE_NOI_CODES = new Set([
   'CAPEX',
   'LEASING_COMMISSION',
   'TENANT_IMPROVEMENT',
+  'AMC_FEE',
+  'CUSTODY_FEE',
+  'GENERAL_ADMIN_TRUSTEE_FEE',
+  'INTEREST_PAID',
 ]);
 
 export const KOREAN_LOGISTICS_NOI_ACCOUNTS = Object.freeze([
@@ -90,17 +94,32 @@ export function buildFinanceAccountHierarchy(accounts = [], selectedAccountCodes
   const selected = selectedAccountCodes instanceof Set
     ? selectedAccountCodes
     : new Set(selectedAccountCodes || []);
-  const serverByCode = new Map(accounts.map((account) => [account.account_code, account]));
+  const definitionsByCode = new Map(
+    KOREAN_LOGISTICS_NOI_ACCOUNTS.map((definition) => [definition.code, definition]),
+  );
 
   return FINANCE_SECTION_ORDER.map((section) => {
-    const sectionAccounts = KOREAN_LOGISTICS_NOI_ACCOUNTS
-      .filter((definition) => definition.section === section && serverByCode.has(definition.code))
-      .map((definition) => ({
-        ...serverByCode.get(definition.code),
-        label: definition.label,
-        active: selected.has(definition.code),
-      }))
-      .sort((left, right) => Number(left.display_order || 0) - Number(right.display_order || 0));
+    const sectionAccounts = accounts
+      .filter((account) => (
+        account.statement_section || definitionsByCode.get(account.account_code)?.section
+      ) === section)
+      .map((account) => {
+        const definition = definitionsByCode.get(account.account_code);
+        return {
+          ...account,
+          label: definition?.label
+            || account.name
+            || account.name_ko
+            || account.account_name
+            || account.account_code,
+          is_custom: account.is_custom === true || !definition,
+          active: selected.has(account.account_code),
+        };
+      })
+      .sort((left, right) => (
+        Number(left.display_order || 0) - Number(right.display_order || 0)
+        || left.label.localeCompare(right.label, 'ko')
+      ));
     return {
       key: section,
       label: FINANCE_SECTION_LABELS[section],
@@ -109,7 +128,7 @@ export function buildFinanceAccountHierarchy(accounts = [], selectedAccountCodes
         ...sectionAccounts.filter((account) => !account.active),
       ],
     };
-  }).filter((section) => section.accounts.length);
+  });
 }
 
 export function filterFinanceCalculationAccounts(accounts = [], selectedAccountCodes = new Set()) {

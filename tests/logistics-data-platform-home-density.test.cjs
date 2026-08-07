@@ -84,3 +84,27 @@ test('기존 화면과 신규 홈은 하나의 공용 적층도 구현을 사용
   assert.doesNotMatch(workspaceSource, /function\s+StackingPlan\s*\(/u);
   assert.doesNotMatch(workspaceSource, /function\s+buildStackingFloorsFromRows\s*\(/u);
 });
+
+test('층별 배치의 임차 구획은 호버와 키보드 포커스로 운영 세부정보를 보여준다', () => {
+  assert.match(stackingSource, /["']data-testid["']:\s*["']stacking-plan-tenant["']/u);
+  assert.match(stackingSource, /data-testid=["']stacking-plan-tooltip["']/u);
+  assert.match(stackingSource, /group-hover\/tenant:opacity-100/u);
+  assert.match(stackingSource, /group-focus-within\/tenant:opacity-100/u);
+  assert.match(stackingSource, /aria-describedby/u);
+  for (const label of ['임차인', '층·구역', '임대면적', '월 임대료', '월 관리비', '월 합계']) {
+    assert.ok(stackingSource.includes(label), `층별 배치 툴팁 항목 누락: ${label}`);
+  }
+});
+
+test('임대율은 서버 점유 요약을 우선하고 임대가능면적이 없으면 연면적을 분모로 사용한다', () => {
+  assert.match(source, /sourceData\.tenant_summary/u);
+  assert.match(source, /occupied_area_sqm/u);
+  assert.match(source, /active_tenant_count/u);
+  assert.match(source, /asset\?\.leasable_area_sqm[\s\S]{0,120}asset\?\.gross_area_sqm/u);
+  assert.match(source, /occupancyRate\s*=\s*[^;]+>\s*0\s*\?[^;]+\/[^;]+\*\s*100\s*:\s*null/u);
+});
+
+test('층별 배치 툴팁은 자산 브리프 바깥에서도 잘리지 않는다', () => {
+  const assetBrief = source.slice(source.indexOf('function AssetBrief'), source.indexOf('const HOME_ENTITY_CONFIG'));
+  assert.match(assetBrief, /data-testid=["']home-asset-brief["'][\s\S]{0,180}overflow-visible/u);
+});

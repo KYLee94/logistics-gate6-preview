@@ -26,6 +26,14 @@ const WRITE_ACTIONS: ReadonlySet<V2PublicAction> = new Set([
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 const UNSIGNED_DECIMAL_PATTERN = /^(?:\d+(?:\.\d*)?|\.\d+)$/u;
+const CUSTOM_ACCOUNT_CODE_PATTERN = /^CUSTOM:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const FINANCE_STATEMENT_SECTIONS = new Set([
+  'potential_income',
+  'income_loss',
+  'operating_expense',
+  'below_noi',
+  'debt_service',
+]);
 
 export type V2ActionRequest = {
   client_request_id?: string;
@@ -70,15 +78,34 @@ function normalizeFinancePayload(
 ): Record<string, unknown> {
   const entries = payload.entries;
   const existingOperations = payload.operations;
+  const accountOperations = payload.account_operations;
+  const selectionOperations = payload.selection_operations;
   if (entries !== undefined && !Array.isArray(entries)) throw new Error('FINANCE_ENTRIES_ARRAY_REQUIRED');
-  if (entries === undefined) {
-    if (!Array.isArray(existingOperations)) throw new Error('FINANCE_ENTRIES_OR_OPERATIONS_ARRAY_REQUIRED');
-    if (existingOperations.length > 1000) throw new Error('BATCH_LIMIT_EXCEEDED');
-    return payload;
+  if (existingOperations !== undefined && !Array.isArray(existingOperations)) {
+    throw new Error('FINANCE_OPERATIONS_ARRAY_REQUIRED');
   }
-  if (entries.length > 1000) throw new Error('BATCH_LIMIT_EXCEEDED');
+  if (accountOperations !== undefined && !Array.isArray(accountOperations)) {
+    throw new Error('FINANCE_ACCOUNT_OPERATIONS_ARRAY_REQUIRED');
+  }
+  if (selectionOperations !== undefined && !Array.isArray(selectionOperations)) {
+    throw new Error('FINANCE_SELECTION_OPERATIONS_ARRAY_REQUIRED');
+  }
+  if (
+    entries === undefined
+    && existingOperations === undefined
+    && accountOperations === undefined
+    && selectionOperations === undefined
+  ) throw new Error('FINANCE_MUTATION_ARRAY_REQUIRED');
 
-  const operations = entries.map((value, index) => {
+  const totalOperationCount = (Array.isArray(entries) ? entries.length : 0)
+    + (Array.isArray(existingOperations) ? existingOperations.length : 0)
+    + (Array.isArray(accountOperations) ? accountOperations.length : 0)
+    + (Array.isArray(selectionOperations) ? selectionOperations.length : 0);
+  if (totalOperationCount > 1000) throw new Error('BATCH_LIMIT_EXCEEDED');
+
+  const operations = entries === undefined
+    ? [...(Array.isArray(existingOperations) ? existingOperations : [])]
+    : entries.map((value, index) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new Error('INVALID_FINANCE_ENTRY');
     }
@@ -105,9 +132,81 @@ function normalizeFinancePayload(
       record,
     };
   });
-  const { entries: _entries, ...rest } = payload;
+
+  const normalizedAccountOperations = (Array.isArray(accountOperations) ? accountOperations : [])
+    .map((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new Error('INVALID_FINANCE_ACCOUNT_OPERATION');
+      }
+      const operation = { ...(value as Record<string, unknown>) };
+      const operationName = String(operation.operation || '');
+      if (!['create', 'update', 'delete'].includes(operationName)) {
+        throw new Error('INVALID_FINANCE_ACCOUNT_OPERATION');
+      }
+      const clientAccountKey = typeof operation.client_account_key === 'string'
+        ? operation.client_account_key.trim()
+        : '';
+      if (clientAccountKey && !UUID_PATTERN.test(clientAccountKey)) {
+        throw new Error('FINANCE_CLIENT_ACCOUNT_KEY_INVALID');
+      }
+      const suppliedAccountCode = typeof operation.account_code === 'string'
+        ? operation.account_code.trim()
+        : '';
+      const accountCode = suppliedAccountCode || (clientAccountKey ? `CUSTOM:${clientAccountKey}` : '');
+      if (!accountCode || !CUSTOM_ACCOUNT_CODE_PATTERN.test(accountCode)) {
+        throw new Error('FINANCE_CUSTOM_ACCOUNT_CODE_INVALID');
+      }
+      const record = operation.record && typeof operation.record === 'object' && !Array.isArray(operation.record)
+        ? { ...(operation.record as Record<string, unknown>) }
+        : {};
+      if (operationName !== 'delete') {
+        const name = String(record.name_ko ?? operation.name_ko ?? '').trim();
+        if (!name || name.length > 60) throw new Error('FINANCE_ACCOUNT_NAME_INVALID');
+        const section = String(record.statement_section ?? operation.statement_section ?? '').trim();
+        if (!FINANCE_STATEMENT_SECTIONS.has(section)) throw new Error('FINANCE_ACCOUNT_SECTION_INVALID');
+        record.name_ko = name;
+        record.statement_section = section;
+      }
+      return {
+        ...operation,
+        operation: operationName,
+        account_code: accountCode,
+        client_account_key: clientAccountKey || accountCode.slice('CUSTOM:'.length),
+        record,
+      };
+    });
+
+  const normalizedSelectionOperations = (Array.isArray(selectionOperations) ? selectionOperations : [])
+    .map((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new Error('INVALID_FINANCE_SELECTION_OPERATION');
+      }
+      const operation = { ...(value as Record<string, unknown>) };
+      if (operation.operation !== 'upsert') throw new Error('INVALID_FINANCE_SELECTION_OPERATION');
+      const clientAccountKey = typeof operation.client_account_key === 'string'
+        ? operation.client_account_key.trim()
+        : '';
+      if (clientAccountKey && !UUID_PATTERN.test(clientAccountKey)) {
+        throw new Error('FINANCE_CLIENT_ACCOUNT_KEY_INVALID');
+      }
+      const accountCode = String(operation.account_code || (clientAccountKey ? `CUSTOM:${clientAccountKey}` : '')).trim();
+      if (!accountCode) throw new Error('FINANCE_SELECTION_ACCOUNT_REQUIRED');
+      if (accountCode.startsWith('CUSTOM:') && !CUSTOM_ACCOUNT_CODE_PATTERN.test(accountCode)) {
+        throw new Error('FINANCE_CUSTOM_ACCOUNT_CODE_INVALID');
+      }
+      if (typeof operation.selected !== 'boolean') throw new Error('FINANCE_SELECTION_BOOLEAN_REQUIRED');
+      return { ...operation, account_code: accountCode };
+    });
+
+  const { entries: _entries, operations: _existingOperations, ...rest } = payload;
   void _entries;
-  return { ...rest, operations };
+  void _existingOperations;
+  return {
+    ...rest,
+    operations,
+    account_operations: normalizedAccountOperations,
+    selection_operations: normalizedSelectionOperations,
+  };
 }
 
 function normalizeIsoDate(value: unknown, errorCode: string): string | null {
@@ -153,8 +252,11 @@ function normalizeOptionTerm(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   const normalized = value.trim();
   if (!normalized) return null;
-  if (['n', 'no'].includes(normalized.toLowerCase()) || normalized === '없음') return '없음';
-  if (['y', 'yes'].includes(normalized.toLowerCase()) || normalized === '있음') return '있음';
+  const compact = normalized.replace(/\s+/gu, '').toLowerCase();
+  if (
+    ['n', 'no', '없음', '중도해지불가', '기타(없음)', '기타(n)', '기타(no)'].includes(compact)
+  ) return '없음';
+  if (['y', 'yes', '있음'].includes(compact)) return '있음';
   return normalized;
 }
 
@@ -198,6 +300,9 @@ function normalizeRentRollPayload(payload: Record<string, unknown>): Record<stri
       throw new Error('INVALID_RENT_ROLL_ROW');
     }
     const row = { ...(value as Record<string, unknown>) };
+    if (Object.hasOwn(row, 'deposit_escalation_rate')) {
+      row.deposit_escalation_rate = normalizeEscalationRate(row.deposit_escalation_rate);
+    }
     if (Object.hasOwn(row, 'rent_escalation_rate')) {
       row.rent_escalation_rate = normalizeEscalationRate(row.rent_escalation_rate);
     }
@@ -274,6 +379,9 @@ export function mapV2RpcError(error: { code?: string; message?: string } | null)
   }
   if ((code === 'PT409' || code === '23505') && message.includes('IDEMPOTENCY_CONFLICT')) {
     return { httpStatus: 409, code: 'IDEMPOTENCY_CONFLICT', retryable: false };
+  }
+  if (code === '23505') {
+    return { httpStatus: 409, code: 'RESOURCE_CONFLICT', retryable: false };
   }
   if (code === 'PT422' || code === '23514' || code === '23P01') {
     return { httpStatus: 422, code: 'BUSINESS_RULE_VIOLATION', retryable: false };

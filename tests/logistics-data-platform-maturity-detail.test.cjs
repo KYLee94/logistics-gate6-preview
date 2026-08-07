@@ -27,7 +27,10 @@ test('만기 행 클릭은 종류별 상세 팝업을 열고 내부 식별자를
 
 test('만기 알림은 로딩과 빈 상태를 구분하고 유형별 전체 목록을 조용히 자르지 않는다', () => {
   const source = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
-  assert.match(source, /maturities\.loading\s*\?\s*["']만기 알림 불러오는 중["']/u);
+  assert.match(source, /const maturityUiLoading\s*=/u);
+  assert.match(source, /!maturities\.requestId/u);
+  assert.match(source, /setMaturityTransition\(\{[\s\S]{0,180}requestId:\s*maturities\.requestId/u);
+  assert.match(source, /maturityUiLoading\s*\?\s*["']만기 알림 불러오는 중["']/u);
   assert.match(source, /365일 이내 \{label\} 만기가 없습니다/u);
   assert.doesNotMatch(source, /\.filter\(\(row\)[\s\S]{0,180}\.slice\(0,\s*limit\)/u);
   assert.doesNotMatch(source, /<MaturityList[^>]*limit=/u);

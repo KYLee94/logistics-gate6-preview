@@ -7,11 +7,28 @@ const source = fs.readFileSync(
   path.resolve(__dirname, '../src/features/logistics-data-platform/LogisticsDataPlatform.jsx'),
   'utf8',
 );
+const schemaSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/features/logistics-data-platform/rentRollSchema.js'),
+  'utf8',
+);
 
 test('렌트롤 금액 입력은 숫자 의미를 보존하며 3자리 콤마로 표시한다', () => {
   assert.match(source, /const\s+RENT_ROLL_MONEY_FIELDS\s*=\s*new Set/u);
+  const moneyFieldStart = source.indexOf('const RENT_ROLL_MONEY_FIELDS');
+  const moneyFieldEnd = source.indexOf(']);', moneyFieldStart);
+  const moneyFields = [...source.slice(moneyFieldStart, moneyFieldEnd).matchAll(/"([a-z0-9_]+)"/gu)]
+    .map((match) => match[1]);
+  assert.deepEqual(moneyFields, [
+    'deposit_total_krw',
+    'monthly_rent_total_krw',
+    'monthly_cam_total_krw',
+    'pallet_rack_fee',
+    'fit_out_amount',
+    'tenant_improvement_amount',
+  ]);
   assert.match(source, /function\s+formatRentRollMoneyInput\s*\(/u);
-  assert.match(source, /function\s+parseRentRollMoneyInput\s*\(/u);
+  assert.match(source, /parseRentRollMoneyInput,/u);
+  assert.match(schemaSource, /function\s+parseRentRollMoneyInput\s*\(/u);
   assert.match(source, /inputMode=\{moneyField \? ["']numeric["'] : undefined\}/u);
   assert.match(source, /formatRentRollMoneyInput\(row\[column\.key\]\)/u);
   assert.match(source, /parseRentRollMoneyInput\(event\.target\.value\)/u);

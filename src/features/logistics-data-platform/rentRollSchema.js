@@ -28,7 +28,7 @@ const RENEWAL_PRESETS = Object.freeze([
   '기타',
 ]);
 const TERMINATION_PRESETS = Object.freeze([
-  '중도해지 불가',
+  '없음',
   '임차인 중도해지권',
   '임대인·임차인 중도해지권',
   '의무임대차기간 후 중도해지',
@@ -109,6 +109,41 @@ export const RENT_ROLL_DETAIL_FIELDS = Object.freeze([]);
 export const RENT_ROLL_PASTE_COLUMNS = Object.freeze(
   RENT_ROLL_COLUMNS.filter(({ kind }) => kind !== 'readonly').map(({ key }) => key),
 );
+export const RENT_ROLL_EDITABLE_FIELDS = Object.freeze(
+  RENT_ROLL_COLUMNS.filter(({ kind }) => kind !== 'readonly').map(({ key }) => key),
+);
+export const RENT_ROLL_DERIVED_FIELDS = Object.freeze(
+  RENT_ROLL_COLUMNS.filter(({ kind }) => kind === 'readonly').map(({ key }) => key),
+);
+
+const RENT_ROLL_COMPONENT_FIELDS = Object.freeze([
+  'row_key',
+  'space_key',
+  'contract_key',
+  'contract_space_key',
+  'rent_term_key',
+  'tenant_key',
+  'space_revision',
+  'contract_revision',
+  'allocation_revision',
+  'rent_term_revision',
+  'revision',
+]);
+const RENT_ROLL_EXTENDED_FIELDS = Object.freeze([
+  'rent_free_periods',
+  'fit_out_start_date',
+  'fit_out_end_date',
+]);
+const RENT_ROLL_FIELD_DEPENDENCIES = Object.freeze({
+  rent_free_periods: ['rent_free_months', 'rent_free_start_date', 'rent_free_end_date'],
+  fit_out_start_date: ['fit_out_months'],
+  fit_out_end_date: ['fit_out_months'],
+});
+const RENT_ROLL_SAVE_FIELD_SET = new Set([
+  ...RENT_ROLL_EDITABLE_FIELDS,
+  ...RENT_ROLL_EXTENDED_FIELDS,
+  'display_order',
+]);
 
 const numberOrNull = (value) => {
   if (value === '' || value === null || value === undefined) return null;
@@ -118,6 +153,32 @@ const numberOrNull = (value) => {
 
 const uniqueTextItems = (values) => [...new Set((Array.isArray(values) ? values : [])
   .map((value) => String(value || '').trim()).filter(Boolean))];
+
+export function normalizeRentRollOptionTerm(value) {
+  if (value === null || value === undefined) return value;
+  const text = String(value).trim();
+  if (!text) return '';
+  const compact = text.replace(/\s+/gu, '').toLowerCase();
+  if (
+    ['n', 'no', '없음', '중도해지불가'].includes(compact)
+    || /^기타\((?:없음|n|no)\)$/u.test(compact)
+  ) return '없음';
+  if (['y', 'yes', '있음'].includes(compact)) return '있음';
+  return text;
+}
+
+export function formatRentRollNumber(value, maximumFractionDigits = 2) {
+  const numeric = numberOrNull(value);
+  if (numeric === null) return '';
+  return new Intl.NumberFormat('ko-KR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
+  }).format(numeric);
+}
+
+export function parseRentRollMoneyInput(value) {
+  return String(value ?? '').replaceAll(',', '').replace(/[^\d.-]/gu, '');
+}
 
 const COST_TERM_PATTERNS = Object.freeze([
   ['전기·수도·가스 등 공과금', /전기[\s\S]*수도[\s\S]*가스|제반\s*공과금/iu],
@@ -193,11 +254,13 @@ export function deriveRentRollRow(row) {
   const palletRackFee = numberOrNull(row?.pallet_rack_fee);
   const rentFreeMonths = numberOrNull(row?.rent_free_months);
   const effectiveRent = rent !== null && contractMonths > 0 && rentFreeMonths !== null
-    ? Math.round((rent * Math.max(0, contractMonths - rentFreeMonths) / contractMonths) * 100) / 100 : null;
+    ? Math.floor(rent * Math.max(0, contractMonths - rentFreeMonths) / contractMonths) : null;
   const leasedAreaPyRaw = leased === null ? null : leased * PY_PER_SQM;
   const leasedAreaPy = leasedAreaPyRaw === null ? null : Math.round(leasedAreaPyRaw * 100) / 100;
   return {
     ...row,
+    renewal_terms: normalizeRentRollOptionTerm(row?.renewal_terms),
+    termination_terms: normalizeRentRollOptionTerm(row?.termination_terms),
     exclusive_area_py: exclusive === null ? null : Math.round(exclusive * PY_PER_SQM * 100) / 100,
     common_area_py: common === null ? null : Math.round(common * PY_PER_SQM * 100) / 100,
     leased_area_py: leasedAreaPy,
@@ -211,6 +274,141 @@ export function deriveRentRollRow(row) {
     effective_rent: effectiveRent,
     current_total_cost_per_py_krw: calculateRentRollENoc(row),
   };
+}
+
+function rentFreePeriodsForSave(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((period) => ({
+    start_date: String(period?.start_date || period?.start || '').trim() || null,
+    end_date: String(period?.end_date || period?.end || '').trim() || null,
+    months: numberOrNull(period?.months),
+    reason: String(period?.reason || '').trim() || null,
+    notes: String(period?.notes || '').trim() || null,
+  }));
+}
+
+const RENT_ROLL_READBACK_META_FIELDS = new Set([
+  'operation',
+  'row_key',
+  'space_key',
+  'contract_key',
+  'contract_space_key',
+  'rent_term_key',
+  'tenant_key',
+  'space_revision',
+  'contract_revision',
+  'allocation_revision',
+  'rent_term_revision',
+  'revision',
+]);
+
+function canonicalPercentValue(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const text = String(value).trim();
+  const numeric = Number(text.replace('%', ''));
+  if (!Number.isFinite(numeric)) return text;
+  if (text.endsWith('%')) return numeric;
+  return numeric > 0 && numeric < 1 ? numeric * 100 : numeric;
+}
+
+function comparableRentRollValue(field, value) {
+  if (field === 'rent_free_periods') return rentFreePeriodsForSave(value);
+  if (field === 'tenant_cost_terms' || field === 'landlord_cost_terms') {
+    return normalizeCostTerms(value).slice().sort((left, right) => left.localeCompare(right, 'ko'));
+  }
+  if (field === 'renewal_terms' || field === 'termination_terms') {
+    return normalizeRentRollOptionTerm(value) || null;
+  }
+  const column = RENT_ROLL_COLUMNS.find(({ key }) => key === field);
+  if (column?.kind === 'number' || field === 'display_order') return numberOrNull(value);
+  if (column?.kind === 'percent') return canonicalPercentValue(value);
+  return value === '' || value === undefined ? null : value;
+}
+
+export function rentRollReadbackMismatches(payloadRows = [], readbackRows = [], keyMappings = []) {
+  return payloadRows.flatMap((payload) => {
+    const identity = payload.space_key || payload.row_key;
+    const mappedIdentity = (Array.isArray(keyMappings) ? keyMappings : []).find(
+      (mapping) => mapping?.client_space_key === identity,
+    )?.server_space_key;
+    const readback = readbackRows.find((row) => (
+      (row.space_key || row.row_key) === identity
+      || (mappedIdentity && (row.space_key || row.row_key) === mappedIdentity)
+      || (payload.operation === 'create' && payload.contract_space_key
+        && row.contract_space_key === payload.contract_space_key)
+      || (payload.operation === 'create' && payload.rent_term_key
+        && row.rent_term_key === payload.rent_term_key)
+    ));
+    if (payload.operation === 'delete') {
+      return readback ? [{ row_key: identity, field: 'operation', expected: 'deleted', actual: 'present' }] : [];
+    }
+    if (!readback) return [{ row_key: identity, field: 'row', expected: 'present', actual: 'missing' }];
+    return Object.keys(payload).flatMap((field) => {
+      if (RENT_ROLL_READBACK_META_FIELDS.has(field)) return [];
+      const expected = comparableRentRollValue(field, payload[field]);
+      const actual = comparableRentRollValue(field, readback[field]);
+      return JSON.stringify(actual) === JSON.stringify(expected)
+        ? []
+        : [{ row_key: identity, field, expected, actual }];
+    });
+  });
+}
+
+export function rentRollFieldsForSave(changedFields = []) {
+  const fields = new Set();
+  for (const field of changedFields) {
+    if (RENT_ROLL_SAVE_FIELD_SET.has(field)) fields.add(field);
+    for (const dependent of RENT_ROLL_FIELD_DEPENDENCIES[field] || []) fields.add(dependent);
+  }
+  return [...fields];
+}
+
+export function buildRentRollSaveRow(source = {}, changedFields = null) {
+  const row = deriveRentRollRow(source);
+  const operation = source.operation === 'delete'
+    ? 'delete'
+    : source.operation === 'create' || source._draft_id
+      ? 'create'
+      : 'update';
+  const payload = { operation };
+  RENT_ROLL_COMPONENT_FIELDS.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(row, key)) payload[key] = row[key];
+  });
+  if (operation === 'update') {
+    for (const key of ['space_revision', 'contract_revision', 'allocation_revision', 'rent_term_revision']) {
+      if (!Object.prototype.hasOwnProperty.call(payload, key)) payload[key] = null;
+    }
+  }
+  const saveFields = operation === 'delete'
+    ? new Set()
+    : new Set(changedFields === null || operation === 'create'
+      ? [...RENT_ROLL_EDITABLE_FIELDS, ...RENT_ROLL_EXTENDED_FIELDS, 'display_order']
+      : rentRollFieldsForSave(changedFields));
+  if (saveFields.has('display_order')) payload.display_order = numberOrNull(row.display_order);
+  RENT_ROLL_COLUMNS.forEach((column) => {
+    if (column.kind === 'readonly' || !saveFields.has(column.key)) return;
+    let value = row[column.key];
+    if (column.kind === 'number' || column.kind === 'readonly') value = numberOrNull(value);
+    if (column.key === 'renewal_terms' || column.key === 'termination_terms') {
+      value = normalizeRentRollOptionTerm(value);
+    }
+    payload[column.key] = value ?? null;
+  });
+  RENT_ROLL_EXTENDED_FIELDS.forEach((key) => {
+    if (!saveFields.has(key) || !Object.prototype.hasOwnProperty.call(row, key)) return;
+    payload[key] = key === 'rent_free_periods'
+      ? rentFreePeriodsForSave(row[key])
+      : (String(row[key] || '').trim() || null);
+  });
+  return payload;
+}
+
+export function buildRentRollExpectedRevisions(rows = []) {
+  return Object.fromEntries(rows.flatMap((row) => {
+    const revision = row?.space_revision ?? row?.revision;
+    const key = row?.row_key || row?.space_key;
+    return key && revision !== null && revision !== undefined ? [[key, Number(revision)]] : [];
+  }));
 }
 
 export function emptyRentRollRow(draftId) {
@@ -263,6 +461,49 @@ export function validateUniversalRentRoll(rows) {
       const value = numberOrNull(String(row[field]).replace('%', ''));
       if (value === null || value < 0 || value > 100) errors.push(`${rowLabel}: ${field}는 0~100 사이의 % 값이어야 합니다.`);
     });
+  });
+  return errors;
+}
+
+export function validateRentRollDelta(row, changedFields = []) {
+  if (row?.operation === 'create' || row?._draft_id) return validateUniversalRentRoll([row]);
+  if (row?.operation === 'delete') return [];
+  const fields = new Set(changedFields);
+  const errors = [];
+  const rowLabel = '1행';
+  const vacant = row?.occupancy_status === 'vacant';
+  if (fields.has('tenant_name') && !vacant && !String(row?.tenant_name || '').trim()) {
+    errors.push(`${rowLabel}: 임차인명을 입력해 주세요.`);
+  }
+  if ((fields.has('floor_label') || fields.has('zone_label'))
+      && !String(row?.floor_label || '').trim() && !String(row?.zone_label || '').trim()) {
+    errors.push(`${rowLabel}: 층 또는 구역이 필요합니다.`);
+  }
+  DATE_FIELDS.forEach((field) => {
+    if (fields.has(field) && row?.[field] && !ISO_DATE.test(String(row[field]))) {
+      errors.push(`${rowLabel}: ${field}는 YYYY-MM-DD 형식이어야 합니다.`);
+    }
+  });
+  if ((fields.has('commencement_date') || fields.has('expiry_date'))
+      && row?.commencement_date && row?.expiry_date
+      && ISO_DATE.test(String(row.commencement_date)) && ISO_DATE.test(String(row.expiry_date))
+      && row.commencement_date > row.expiry_date) {
+    errors.push(`${rowLabel}: 임대 만기일이 개시일보다 빠릅니다.`);
+  }
+  NUMERIC_FIELDS.forEach((field) => {
+    if (!fields.has(field)) return;
+    const value = numberOrNull(row?.[field]);
+    if (row?.[field] !== '' && row?.[field] !== null && row?.[field] !== undefined
+        && (value === null || value < 0)) {
+      errors.push(`${rowLabel}: ${field}는 0 이상의 숫자여야 합니다.`);
+    }
+  });
+  PERCENT_FIELDS.forEach((field) => {
+    if (!fields.has(field) || row?.[field] === '' || row?.[field] === null || row?.[field] === undefined) return;
+    const value = numberOrNull(String(row[field]).replace('%', ''));
+    if (value === null || value < 0 || value > 100) {
+      errors.push(`${rowLabel}: ${field}는 0~100 사이의 % 값이어야 합니다.`);
+    }
   });
   return errors;
 }

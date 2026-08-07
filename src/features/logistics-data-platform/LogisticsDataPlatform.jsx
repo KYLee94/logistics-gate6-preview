@@ -9,18 +9,25 @@ import {
 } from "./api";
 import {
   calculateRentRollENoc,
+  buildRentRollExpectedRevisions,
+  buildRentRollSaveRow,
   deriveRentRollRow,
   emptyRentRollRow,
+  formatRentRollNumber,
   normalizeCostTerms,
+  parseRentRollMoneyInput,
   RENT_ROLL_COLUMNS,
+  RENT_ROLL_EDITABLE_FIELDS,
   RENT_ROLL_PASTE_COLUMNS,
+  rentRollReadbackMismatches,
   serializeCostTerms,
-  validateUniversalRentRoll,
+  validateRentRollDelta,
 } from "./rentRollSchema";
 import {
   buildFinanceAccountHierarchy,
   calculateKoreanLogisticsNoi,
   filterFinanceCalculationAccounts,
+  FINANCE_SECTION_ORDER,
   FINANCE_WATERFALL_KEYS,
   KOREAN_LOGISTICS_NOI_ACCOUNTS,
 } from "./formulas";
@@ -266,6 +273,12 @@ function homeText(value) {
   return value === "" || value == null ? "미입력" : String(value);
 }
 
+function homeFiniteNumber(value) {
+  if (value === "" || value == null) return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 function homeAmount(value) {
   return value === "" || value == null || !Number.isFinite(Number(value))
     ? "정보 없음"
@@ -295,9 +308,10 @@ function AssetBrief({
   onAssetChange,
   occupancyRate,
   tenantSummaries,
-  occupiedRows,
+  activeTenantCount,
+  occupiedSpaceCount,
+  vacantSpaceCount,
   plannedRows,
-  vacantRows,
   occupiedArea,
   monthlyRent,
   monthlyCam,
@@ -310,9 +324,9 @@ function AssetBrief({
     ? null
     : Number(Math.max(0, Math.min(100, occupancyRate)).toFixed(1));
   const operatingRows = [
-    ["임차인", `${tenantSummaries.length}개사`],
-    ["점유 공간", `${occupiedRows.length}개`],
-    ["공실 공간", `${vacantRows.length}개`],
+    ["임차인", `${activeTenantCount}개사`],
+    ["점유 공간", `${occupiedSpaceCount}개`],
+    ["공실 공간", `${vacantSpaceCount}개`],
     ["입주 예정", `${plannedRows.length}개`],
     ["임대면적", formatHomeArea(occupiedArea)],
     ["월 임대료 총액", homeAmount(monthlyRent)],
@@ -326,7 +340,7 @@ function AssetBrief({
     <section
       data-testid="home-asset-brief"
       aria-labelledby="home-asset-brief-title"
-      className="overflow-hidden rounded-[18px] border border-[#333333] bg-[#252524]"
+      className="overflow-visible rounded-[18px] border border-[#333333] bg-[#252524]"
     >
       <header
         data-testid="home-asset-brief-masthead"
@@ -671,16 +685,31 @@ function MaturityList({ rows }) {
   );
 }
 
+function cloneHomeProjection(value) {
+  if (Array.isArray(value)) return value.map(cloneHomeProjection);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        cloneHomeProjection(nestedValue),
+      ]),
+    );
+  }
+  return value;
+}
+
 function cloneHomeData(data) {
+  const cloned = cloneHomeProjection(data || {});
   return {
-    asset: data?.asset ? { ...data.asset } : null,
-    funds: (Array.isArray(data?.funds) ? data.funds : []).map((row) => ({ ...row })),
-    investments: (Array.isArray(data?.investments) ? data.investments : []).map((row) => ({
+    ...cloned,
+    asset: cloned?.asset ? { ...cloned.asset } : null,
+    funds: (Array.isArray(cloned?.funds) ? cloned.funds : []).map((row) => ({ ...row })),
+    investments: (Array.isArray(cloned?.investments) ? cloned.investments : []).map((row) => ({
       ...row,
       agreed_amount_krw: row.agreed_amount_krw ?? row.commitment_amount_krw ?? "",
       contributed_amount_krw: row.contributed_amount_krw ?? row.invested_amount_krw ?? "",
     })),
-    loans: (Array.isArray(data?.loans) ? data.loans : []).map((row) => ({
+    loans: (Array.isArray(cloned?.loans) ? cloned.loans : []).map((row) => ({
       ...row,
       coupon_rate: row.coupon_rate ?? row.loan_rate ?? row.interest_rate ?? "",
       all_in_rate: row.all_in_rate ?? row.all_in ?? "",
@@ -727,12 +756,37 @@ function HomePanel({ assetKey, resource, maturities }) {
   const tenantSummaries = [...tenantMap.values()].sort(
     (left, right) => right.leased_area_sqm - left.leased_area_sqm,
   );
-  const occupiedArea = occupiedRows.reduce(
+  const occupiedAreaFromRows = occupiedRows.reduce(
     (sum, row) => sum + Number(row.leased_area_sqm || 0),
     0,
   );
-  const leasableArea = Number(asset?.leasable_area_sqm || 0);
-  const occupancyRate = leasableArea > 0 ? (occupiedArea / leasableArea) * 100 : null;
+  const tenantSummary = sourceData.tenant_summary || sourceData.occupancy_summary || {};
+  const summarizedOccupiedArea = homeFiniteNumber(tenantSummary.occupied_area_sqm);
+  const occupiedArea = summarizedOccupiedArea != null && summarizedOccupiedArea >= 0
+    ? summarizedOccupiedArea
+    : occupiedAreaFromRows;
+  const occupancyDenominator = [
+    tenantSummary.denominator_area_sqm,
+    asset?.leasable_area_sqm,
+    asset?.gross_area_sqm,
+  ]
+    .map(Number)
+    .find((value) => Number.isFinite(value) && value > 0) || 0;
+  const summarizedOccupancyRate = homeFiniteNumber(tenantSummary.occupancy_rate);
+  const occupancyRate = summarizedOccupancyRate != null
+    ? summarizedOccupancyRate
+    : occupancyDenominator > 0
+      ? (occupiedArea / occupancyDenominator) * 100
+      : null;
+  const activeTenantCount = Number.isFinite(Number(tenantSummary.active_tenant_count))
+    ? Number(tenantSummary.active_tenant_count)
+    : tenantSummaries.length;
+  const occupiedSpaceCount = Number.isFinite(Number(tenantSummary.occupied_space_count))
+    ? Number(tenantSummary.occupied_space_count)
+    : occupiedRows.length;
+  const vacantSpaceCount = Number.isFinite(Number(tenantSummary.vacant_space_count))
+    ? Number(tenantSummary.vacant_space_count)
+    : vacantRows.length;
   const monthlyRent = occupiedRows.reduce(
     (sum, row) => sum + Number(row.monthly_rent_total_krw || 0),
     0,
@@ -826,9 +880,10 @@ function HomePanel({ assetKey, resource, maturities }) {
           }
           occupancyRate={occupancyRate}
           tenantSummaries={tenantSummaries}
-          occupiedRows={occupiedRows}
+          activeTenantCount={activeTenantCount}
+          occupiedSpaceCount={occupiedSpaceCount}
+          vacantSpaceCount={vacantSpaceCount}
           plannedRows={plannedRows}
-          vacantRows={vacantRows}
           occupiedArea={occupiedArea}
           monthlyRent={monthlyRent}
           monthlyCam={monthlyCam}
@@ -1061,16 +1116,18 @@ function percentStoredValue(value) {
 }
 
 function formatRentRollMoneyInput(value) {
-  const text = String(value ?? "").replaceAll(",", "").trim();
-  if (!text) return "";
-  const numeric = Number(text);
-  return Number.isFinite(numeric)
-    ? new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 2 }).format(numeric)
-    : text;
+  const text = String(value ?? "").trim();
+  return text ? formatRentRollNumber(text, 2) || text : "";
 }
 
-function parseRentRollMoneyInput(value) {
-  return String(value ?? "").replaceAll(",", "").replace(/[^\d.-]/gu, "");
+function formatRentRollReadonlyValue(column, row) {
+  const value = column.key === "current_total_cost_per_py_krw"
+    ? calculateRentRollENoc(row)
+    : row[column.key];
+  const maximumFractionDigits = ["contract_months", "effective_rent"].includes(column.key)
+    ? 0
+    : 2;
+  return formatRentRollNumber(value, maximumFractionDigits) || "—";
 }
 
 function calculatePeriodMonths(startDate, endDate) {
@@ -1087,6 +1144,12 @@ function rentFreePeriodsFromRow(row = {}) {
       id: period.id || `rent-free-${index}`,
       start_date: period.start_date || period.start || "",
       end_date: period.end_date || period.end || "",
+      months: period.months ?? calculatePeriodMonths(
+        period.start_date || period.start,
+        period.end_date || period.end,
+      ),
+      reason: period.reason || "",
+      notes: period.notes || "",
     }));
   }
   if (row.rent_free_start_date || row.rent_free_end_date) {
@@ -1094,6 +1157,9 @@ function rentFreePeriodsFromRow(row = {}) {
       id: "rent-free-legacy",
       start_date: row.rent_free_start_date || "",
       end_date: row.rent_free_end_date || "",
+      months: Number(row.rent_free_months || 0),
+      reason: "",
+      notes: "",
     }];
   }
   return [];
@@ -1123,7 +1189,7 @@ function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="rent-free-period-dialog-title"
-        className="w-full max-w-[620px] rounded-[16px] border border-[#3A3A3C] bg-[#252524] p-5 shadow-2xl"
+        className="w-full max-w-[920px] rounded-[16px] border border-[#3A3A3C] bg-[#252524] p-5 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -1134,7 +1200,7 @@ function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
         </div>
         <div className="mt-4 max-h-[52vh] divide-y divide-[#333333] overflow-y-auto border-y border-[#333333]">
           {periods.length ? periods.map((period, index) => (
-            <div key={period.id} className="grid gap-2 py-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <div key={period.id} className="grid gap-2 py-3 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] sm:items-end">
               <label className="text-[11px] text-[#86868B]">
                 {index + 1}차 시작일
                 <input
@@ -1153,6 +1219,28 @@ function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
                   value={period.end_date}
                   onChange={(event) => updatePeriod(period.id, "end_date", event.target.value)}
                   disabled={disabled}
+                  className={`${INPUT_CLASS} mt-1 bg-[#202020]`}
+                />
+              </label>
+              <label className="text-[11px] text-[#86868B]">
+                렌트프리 사유
+                <input
+                  type="text"
+                  value={period.reason}
+                  onChange={(event) => updatePeriod(period.id, "reason", event.target.value)}
+                  disabled={disabled}
+                  placeholder="예: 오픈 지원"
+                  className={`${INPUT_CLASS} mt-1 bg-[#202020]`}
+                />
+              </label>
+              <label className="text-[11px] text-[#86868B]">
+                렌트프리 비고
+                <input
+                  type="text"
+                  value={period.notes}
+                  onChange={(event) => updatePeriod(period.id, "notes", event.target.value)}
+                  disabled={disabled}
+                  placeholder="선택 입력"
                   className={`${INPUT_CLASS} mt-1 bg-[#202020]`}
                 />
               </label>
@@ -1178,6 +1266,9 @@ function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
               id: `rent-free-${globalThis.crypto?.randomUUID?.() || Date.now()}`,
               start_date: "",
               end_date: "",
+              months: 0,
+              reason: "",
+              notes: "",
             }])}
             disabled={disabled}
             className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-sm text-white disabled:opacity-35"
@@ -1186,7 +1277,13 @@ function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
           </button>
           <button
             type="button"
-            onClick={() => onSave(periods.map(({ start_date, end_date }) => ({ start_date, end_date })))}
+            onClick={() => onSave(periods.map(({ start_date, end_date, reason, notes }) => ({
+              start_date,
+              end_date,
+              months: calculatePeriodMonths(start_date, end_date),
+              reason,
+              notes,
+            })))}
             disabled={disabled || invalid}
             className="rounded-[8px] bg-[#0A6CFF] px-4 py-2 text-sm font-semibold text-white disabled:opacity-35"
           >
@@ -1390,6 +1487,7 @@ function RentRollPanel({ assetKey }) {
   const [saveState, setSaveState] = useState("idle");
   const [error, setError] = useState(null);
   const [dirtyRowIds, setDirtyRowIds] = useState(() => new Set());
+  const [dirtyFieldsByRow, setDirtyFieldsByRow] = useState(() => new Map());
   const [validationMessages, setValidationMessages] = useState([]);
   const [draftReady, setDraftReady] = useState(false);
   const [draggedRowId, setDraggedRowId] = useState(null);
@@ -1397,6 +1495,7 @@ function RentRollPanel({ assetKey }) {
   const [rentFreeRowId, setRentFreeRowId] = useState(null);
   const draftHydratedRef = useRef(false);
   const saveReadbackPendingRef = useRef(false);
+  const saveInFlightRef = useRef(false);
   const rowRefs = useRef(new Map());
   const draftStorageKey = `gate6-rent-roll-draft-${assetKey}`;
   const writeEnabled = resource.data?.write_enabled === true;
@@ -1415,15 +1514,24 @@ function RentRollPanel({ assetKey }) {
     let restoredRows = primaryRows;
     let restoredSort = DEFAULT_SORT;
     let restoredDirtyRowIds = new Set();
+    let restoredDirtyFieldsByRow = new Map();
     try {
       const storedDraft = JSON.parse(
         globalThis.sessionStorage?.getItem(draftStorageKey) || "null",
       );
       if (storedDraft && Array.isArray(storedDraft.dirtyRows)) {
-        const dirtyById = new Map(
-          storedDraft.dirtyRows.map((row) => [rowId(row), deriveRentRollRow(row)]),
-        );
         const primaryById = new Map(primaryRows.map((row) => [rowId(row), row]));
+        const dirtyById = new Map(
+          storedDraft.dirtyRows.map((row) => {
+            const id = rowId(row);
+            const primary = primaryById.get(id);
+            return [id, deriveRentRollRow({
+              ...primary,
+              ...row,
+              operation: row.operation || primary?.operation || (row._draft_id ? "create" : "update"),
+            })];
+          }),
+        );
         const orderedIds = Array.isArray(storedDraft.rowOrder)
           ? storedDraft.rowOrder
           : primaryRows.map(rowId);
@@ -1441,6 +1549,19 @@ function RentRollPanel({ assetKey }) {
             restoredRows.some((row) => rowId(row) === id),
           ),
         );
+        const storedFields = new Map(
+          Array.isArray(storedDraft.dirtyFieldsByRow)
+            ? storedDraft.dirtyFieldsByRow
+            : [],
+        );
+        restoredDirtyFieldsByRow = new Map(
+          [...restoredDirtyRowIds].map((id) => [
+            id,
+            new Set(Array.isArray(storedFields.get(id))
+              ? storedFields.get(id)
+              : RENT_ROLL_EDITABLE_FIELDS),
+          ]),
+        );
         restoredSort = storedDraft.sort === null || storedDraft.sort?.key
           ? storedDraft.sort
           : DEFAULT_SORT;
@@ -1451,6 +1572,7 @@ function RentRollPanel({ assetKey }) {
     setRows(restoredRows);
     setSort(restoredSort);
     setDirtyRowIds(restoredDirtyRowIds);
+    setDirtyFieldsByRow(restoredDirtyFieldsByRow);
     setValidationMessages([]);
     const readbackConfirmed = saveReadbackPendingRef.current;
     saveReadbackPendingRef.current = false;
@@ -1471,13 +1593,14 @@ function RentRollPanel({ assetKey }) {
       globalThis.sessionStorage?.setItem(draftStorageKey, JSON.stringify({
         dirtyRowIds: [...dirtyRowIds],
         dirtyRows: rows.filter((row) => dirtyRowIds.has(rowId(row))),
+        dirtyFieldsByRow: [...dirtyFieldsByRow].map(([id, fields]) => [id, [...fields]]),
         rowOrder: rows.map(rowId),
         sort,
       }));
     } catch {
       // The in-memory draft remains editable when browser storage is unavailable.
     }
-  }, [draftReady, draftStorageKey, dirtyRowIds, rows, sort]);
+  }, [draftReady, draftStorageKey, dirtyFieldsByRow, dirtyRowIds, rows, sort]);
   useEffect(() => {
     if (!dirtyRowIds.size) return undefined;
     const confirmUnsavedDraft = (event) => {
@@ -1505,10 +1628,17 @@ function RentRollPanel({ assetKey }) {
     field?.focus();
     rowNode?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   };
-  const markDirty = (...ids) => {
+  const markDirty = (id, fields = []) => {
     setDirtyRowIds((current) => {
       const next = new Set(current);
-      ids.filter(Boolean).forEach((id) => next.add(id));
+      if (id) next.add(id);
+      return next;
+    });
+    setDirtyFieldsByRow((current) => {
+      const next = new Map(current);
+      const rowFields = new Set(next.get(id) || []);
+      fields.filter(Boolean).forEach((field) => rowFields.add(field));
+      if (id) next.set(id, rowFields);
       return next;
     });
     setValidationMessages([]);
@@ -1521,13 +1651,13 @@ function RentRollPanel({ assetKey }) {
         rowId(row) === id ? deriveRentRollRow({ ...row, [field]: value }) : row,
       ),
     );
-    markDirty(id);
+    markDirty(id, [field]);
   };
   const updateFields = (id, patch) => {
     setRows((current) => current.map((row) => (
       rowId(row) === id ? deriveRentRollRow({ ...row, ...patch }) : row
     )));
-    markDirty(id);
+    markDirty(id, Object.keys(patch));
   };
   const saveRows = async (targetRows) => {
     const validationTargets = targetRows.filter((row) => row.operation !== "delete");
@@ -1536,7 +1666,8 @@ function RentRollPanel({ assetKey }) {
       const visibleIndex = displayedRows.findIndex((item) => rowId(item) === id);
       const tenantName = String(row.tenant_name || "").trim();
       const rowLabel = `${visibleIndex >= 0 ? visibleIndex + 1 : "?"}행${tenantName ? ` (${tenantName})` : ""}`;
-      return validateUniversalRentRoll([row]).map((message, issueIndex) => ({
+      const changedFields = [...(dirtyFieldsByRow.get(id) || [])];
+      return validateRentRollDelta(row, changedFields).map((message, issueIndex) => ({
         id: `${id}-${issueIndex}`,
         rowId: id,
         message: String(message).replace(/^1행:\s*/u, `${rowLabel}: `),
@@ -1550,32 +1681,40 @@ function RentRollPanel({ assetKey }) {
     setSaveState("saving");
     setError(null);
     try {
-      await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollBatchSave, {
+      const payloadRows = targetRows.map((row) => buildRentRollSaveRow(
+        row,
+        [...(dirtyFieldsByRow.get(rowId(row)) || [])],
+      ));
+      const saveResponse = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollBatchSave, {
         asset_key: assetKey,
         client_request_id: createClientRequestId("rent-roll"),
-        expected_revisions: Object.fromEntries(
-          targetRows
-            .filter((row) => row.space_revision ?? row.revision)
-            .map((row) => [row.row_key, row.space_revision ?? row.revision]),
-        ),
-        rows: targetRows.map((row) =>
-          Object.fromEntries(
-            Object.entries(row).filter(
-              ([key]) =>
-                ![
-                  "_draft_id",
-                  "exclusive_area_py",
-                  "common_area_py",
-                  "leased_area_py",
-                  "contract_months",
-                  "wale_years",
-                ].includes(key),
-            ),
-          ),
-        ),
+        expected_revisions: buildRentRollExpectedRevisions(targetRows),
+        rows: payloadRows,
       });
+      const readbackResponse = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollRead, {
+        asset_key: assetKey,
+        limit: 500,
+      });
+      const readbackRows = Array.isArray(readbackResponse.data?.rows)
+        ? readbackResponse.data.rows
+        : [];
+      const readbackMismatches = rentRollReadbackMismatches(
+        payloadRows,
+        readbackRows,
+        saveResponse.data?.key_mappings,
+      );
+      if (readbackMismatches.length) {
+        const readbackError = new Error("RENT_ROLL_COMMIT_READBACK_MISMATCH");
+        readbackError.details = readbackMismatches.slice(0, 20);
+        throw readbackError;
+      }
       setDirtyRowIds((current) => {
         const next = new Set(current);
+        targetRows.forEach((row) => next.delete(rowId(row)));
+        return next;
+      });
+      setDirtyFieldsByRow((current) => {
+        const next = new Map(current);
         targetRows.forEach((row) => next.delete(rowId(row)));
         return next;
       });
@@ -1596,8 +1735,13 @@ function RentRollPanel({ assetKey }) {
   };
   const saveDirtyRows = async () => {
     const targetRows = rows.filter((row) => dirtyRowIds.has(rowId(row)));
-    if (!targetRows.length || saveState === "saving") return;
-    await saveRows(targetRows);
+    if (!targetRows.length || saveState === "saving" || saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
+    try {
+      await saveRows(targetRows);
+    } finally {
+      saveInFlightRef.current = false;
+    }
   };
   const commitField = (id, field, value) => {
     update(id, field, value);
@@ -1621,7 +1765,7 @@ function RentRollPanel({ assetKey }) {
     const changedRange = changed.slice(rangeStart, rangeEnd + 1);
     setRows(changed);
     setSort(null);
-    markDirty(...changedRange.map(rowId));
+    changedRange.forEach((row) => markDirty(rowId(row), ["display_order"]));
   };
   const archive = (id) => {
     if (rentRollEditingDisabled) return;
@@ -1647,7 +1791,7 @@ function RentRollPanel({ assetKey }) {
     const next = { ...emptyRentRollRow(), display_order: rows.length + 1 };
     setRows((current) => [...current, next]);
     setSort(null);
-    markDirty(rowId(next));
+    markDirty(rowId(next), RENT_ROLL_EDITABLE_FIELDS);
   };
   const dragOverRow = dragOverTarget
     ? displayedRows.find((row) => rowId(row) === dragOverTarget.id)
@@ -1707,7 +1851,7 @@ function RentRollPanel({ assetKey }) {
                 display_order: rows.length + index + 1,
               }));
               setRows((current) => [...current, ...parsed]);
-              markDirty(...parsed.map(rowId));
+              parsed.forEach((row) => markDirty(rowId(row), RENT_ROLL_EDITABLE_FIELDS));
               setPaste("");
               setSort(null);
             }}
@@ -1978,11 +2122,7 @@ function RentRollPanel({ assetKey }) {
                             style={cellStyle}
                             className={`${cellClass} px-3 text-right tabular-nums text-[#A1A1AA]`}
                           >
-                            {column.key === "current_total_cost_per_py_krw"
-                              ? amount(calculateRentRollENoc(row))
-                              : /_krw$|pallet_rack_fee_per_py/u.test(column.key)
-                                ? amount(row[column.key])
-                                : display(row[column.key])}
+                            {formatRentRollReadonlyValue(column, row)}
                           </td>
                         );
                       if (column.kind === "select")
@@ -2158,12 +2298,19 @@ function RentRollPanel({ assetKey }) {
             const sortedPeriods = [...periods].sort((left, right) => (
               String(left.start_date).localeCompare(String(right.start_date))
             ));
+            const canonicalPeriods = sortedPeriods.map(({ start_date, end_date, reason, notes }) => ({
+              start_date,
+              end_date,
+              months: calculatePeriodMonths(start_date, end_date),
+              reason,
+              notes,
+            }));
             updateFields(rentFreeRowId, {
-              rent_free_periods: sortedPeriods,
-              rent_free_start_date: sortedPeriods[0]?.start_date || "",
-              rent_free_end_date: sortedPeriods.at(-1)?.end_date || "",
-              rent_free_months: sortedPeriods.reduce(
-                (sum, period) => sum + calculatePeriodMonths(period.start_date, period.end_date),
+              rent_free_periods: canonicalPeriods,
+              rent_free_start_date: canonicalPeriods[0]?.start_date || "",
+              rent_free_end_date: canonicalPeriods.at(-1)?.end_date || "",
+              rent_free_months: canonicalPeriods.reduce(
+                (sum, period) => sum + Number(period.months || 0),
                 0,
               ),
             });
@@ -2345,19 +2492,12 @@ function FinancePanel({ assetKey, assets }) {
   const [saveState, setSaveState] = useState("idle");
   const [error, setError] = useState(null);
   const [accountSelectionAnnouncement, setAccountSelectionAnnouncement] = useState("");
+  const [customAccountDrafts, setCustomAccountDrafts] = useState({});
+  const [accountMutationPending, setAccountMutationPending] = useState(false);
   const accountToggleRefs = useRef(new Map());
   const pendingAccountFocusRef = useRef(null);
-  const accountSelectionStorageKey = `gate6-finance-accounts-${assetKey}`;
   const [selectedAccountCodes, setSelectedAccountCodes] = useState(
-    () => {
-      try {
-        const stored = JSON.parse(globalThis.localStorage?.getItem(accountSelectionStorageKey) || "null");
-        if (Array.isArray(stored)) return new Set(stored);
-      } catch {
-        // A malformed local preference must not block the statement.
-      }
-      return new Set(DEFAULT_FINANCE_ACCOUNT_CODES);
-    },
+    () => new Set(DEFAULT_FINANCE_ACCOUNT_CODES),
   );
   const payload = {
     asset_key: assetKey,
@@ -2379,26 +2519,35 @@ function FinancePanel({ assetKey, assets }) {
     );
   }, [resource.data]);
   useEffect(() => {
-    try {
-      globalThis.localStorage?.setItem(accountSelectionStorageKey, JSON.stringify([...selectedAccountCodes]));
-    } catch {
-      // The table remains usable when browser storage is unavailable.
-    }
-  }, [accountSelectionStorageKey, selectedAccountCodes]);
+    const readbackAccounts = Array.isArray(resource.data?.accounts)
+      ? resource.data.accounts
+      : [];
+    if (!readbackAccounts.length) return;
+    const hasServerSelection = readbackAccounts.some((account) => (
+      Object.prototype.hasOwnProperty.call(account, "selected")
+    ));
+    setSelectedAccountCodes(new Set(
+      hasServerSelection
+        ? readbackAccounts.filter((account) => account.selected === true).map((account) => account.account_code)
+        : DEFAULT_FINANCE_ACCOUNT_CODES,
+    ));
+  }, [resource.data?.accounts]);
   useEffect(() => {
     const accountCode = pendingAccountFocusRef.current;
     if (!accountCode) return;
-    accountToggleRefs.current.get(accountCode)?.focus({ preventScroll: true });
+    const accountToggle = accountToggleRefs.current.get(accountCode);
+    if (!accountToggle) return;
+    accountToggle.focus({ preventScroll: true });
     pendingAccountFocusRef.current = null;
-  }, [selectedAccountCodes]);
+  }, [resource.data?.accounts, selectedAccountCodes]);
   const serverAccounts = Array.isArray(resource.data?.accounts)
     ? resource.data.accounts
     : [];
-  const definitions = new Map(
-    KOREAN_LOGISTICS_NOI_ACCOUNTS.map((row) => [row.code, row]),
-  );
   const accounts = serverAccounts
-    .filter((account) => definitions.has(account.account_code))
+    .filter((account) => (
+      account.account_kind !== "derived"
+      && FINANCE_SECTION_ORDER.includes(account.statement_section)
+    ))
     .sort((a, b) => Number(a.display_order) - Number(b.display_order));
   const financeHierarchy = buildFinanceAccountHierarchy(accounts, selectedAccountCodes);
   const calculationAccounts = filterFinanceCalculationAccounts(accounts, selectedAccountCodes);
@@ -2409,9 +2558,17 @@ function FinancePanel({ assetKey, assets }) {
     const comparisonEntries = Array.isArray(comparisonData?.entries)
       ? comparisonData.entries
       : [];
+    const comparisonAccountRows = Array.isArray(comparisonData?.accounts)
+      ? comparisonData.accounts
+      : accounts;
+    const comparisonSelectedCodes = comparisonAccountRows.some((account) => (
+      Object.prototype.hasOwnProperty.call(account, "selected")
+    ))
+      ? new Set(comparisonAccountRows.filter((account) => account.selected === true).map((account) => account.account_code))
+      : selectedAccountCodes;
     const comparisonAccounts = filterFinanceCalculationAccounts(
-      Array.isArray(comparisonData?.accounts) ? comparisonData.accounts : accounts,
-      selectedAccountCodes,
+      comparisonAccountRows,
+      comparisonSelectedCodes,
     );
     return {
       assetKey: comparisonAssetKey,
@@ -2426,7 +2583,7 @@ function FinancePanel({ assetKey, assets }) {
   });
   const periods = series.map((row) => row.period);
   const writeEnabled = resource.data?.write_enabled === true;
-  const toggleFinanceAccount = (row) => {
+  const toggleFinanceAccount = async (row) => {
     const nextActive = !row.active;
     pendingAccountFocusRef.current = row.key;
     setSelectedAccountCodes((current) => {
@@ -2438,6 +2595,106 @@ function FinancePanel({ assetKey, assets }) {
     setAccountSelectionAnnouncement(
       `${row.label} 계정을 ${nextActive ? "활성화" : "비활성화"}했습니다. ${nextActive ? "NOI 계산에 포함됩니다." : "저장된 금액은 유지되고 NOI 계산에서는 제외됩니다."}`,
     );
+    setAccountMutationPending(true);
+    setSaveState("saving");
+    setError(null);
+    try {
+      const response = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.financeBatchSave, {
+        asset_key: assetKey,
+        client_request_id: createClientRequestId("finance-account-selection"),
+        expected_revisions: {},
+        entries: [],
+        account_operations: [],
+        selection_operations: [
+          {
+            operation: "upsert",
+            account_code: row.key,
+            selected: nextActive,
+            ...(row.account?.selection_revision == null
+              ? {}
+              : { expected_revision: row.account.selection_revision }),
+          },
+        ],
+      });
+      const accountsReadback = Array.isArray(response.data?.accounts_readback)
+        ? response.data.accounts_readback
+        : [];
+      const matched = accountsReadback.find((account) => account.account_code === row.key);
+      if (!matched || matched.selected !== nextActive) throw new Error("FINANCE_SELECTION_READBACK_MISMATCH");
+      setSaveState("saved");
+      resource.reload();
+    } catch (cause) {
+      setSelectedAccountCodes((current) => {
+        const reverted = new Set(current);
+        if (nextActive) reverted.delete(row.key);
+        else reverted.add(row.key);
+        return reverted;
+      });
+      setError(cause);
+      setSaveState("error");
+    } finally {
+      setAccountMutationPending(false);
+    }
+  };
+  const addCustomFinanceAccount = async (section) => {
+    const name = String(customAccountDrafts[section] || "").trim();
+    if (!name || name.length > 60 || accountMutationPending) return;
+    const accountCode = `CUSTOM:${createClientRequestId("finance-account")}`;
+    const displayOrder = Math.max(
+      0,
+      ...accounts
+        .filter((account) => account.statement_section === section)
+        .map((account) => Number(account.display_order || 0)),
+    ) + 10;
+    const normalSign = section === "potential_income" ? 1 : -1;
+    setAccountMutationPending(true);
+    setSaveState("saving");
+    setError(null);
+    try {
+      const response = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.financeBatchSave, {
+        asset_key: assetKey,
+        client_request_id: createClientRequestId("finance-account-create"),
+        expected_revisions: {},
+        entries: [],
+        account_operations: [
+          {
+            operation: "create",
+            account_code: accountCode,
+            record: {
+              name_ko: name,
+              statement_section: section,
+              normal_sign: normalSign,
+              display_order: displayOrder,
+            },
+          },
+        ],
+        selection_operations: [
+          {
+            operation: "upsert",
+            account_code: accountCode,
+            selected: true,
+          },
+        ],
+      });
+      const accountsReadback = Array.isArray(response.data?.accounts_readback)
+        ? response.data.accounts_readback
+        : [];
+      const created = accountsReadback.find((account) => account.account_code === accountCode);
+      if (!created || (created.name ?? created.name_ko) !== name || created.statement_section !== section || created.selected !== true) {
+        throw new Error("FINANCE_ACCOUNT_READBACK_MISMATCH");
+      }
+      pendingAccountFocusRef.current = accountCode;
+      setSelectedAccountCodes((current) => new Set([...current, accountCode]));
+      setCustomAccountDrafts((currentDrafts) => ({ ...currentDrafts, [section]: "" }));
+      setAccountSelectionAnnouncement(`${name} 계정을 추가하고 활성화했습니다.`);
+      setSaveState("saved");
+      resource.reload();
+    } catch (cause) {
+      setError(cause);
+      setSaveState("error");
+    } finally {
+      setAccountMutationPending(false);
+    }
   };
   const accountEntries = (code, month, source = entries) =>
     source.filter(
@@ -2586,6 +2843,7 @@ function FinancePanel({ assetKey, assets }) {
     const firstInactiveIndex = sectionAccounts.findIndex((account) => !account.active);
     sectionAccounts.forEach((account, index) => {
       if (index === firstInactiveIndex) {
+        rows.push({ kind: "custom-add", key: `${section}-custom-add`, section });
         rows.push({ kind: "inactive-divider", key: `${section}-inactive`, label: "미사용 계정" });
       }
       rows.push({
@@ -2596,6 +2854,9 @@ function FinancePanel({ assetKey, assets }) {
         active: account.active,
       });
     });
+    if (firstInactiveIndex === -1) {
+      rows.push({ kind: "custom-add", key: `${section}-custom-add`, section });
+    }
     if (section === "potential_income") rows.push({ kind: "metric", key: "potential_gross_income", label: "영업수익 소계" });
     if (section === "income_loss") rows.push({ kind: "metric", key: "effective_gross_income", label: "유효총수입(EGI)" });
     if (section === "operating_expense") {
@@ -2835,6 +3096,48 @@ function FinancePanel({ assetKey, assets }) {
                         <td key={period} className="border-b border-[#333333] bg-[#202020]" />
                       ))}
                     </>
+                  ) : row.kind === "custom-add" ? (
+                    <>
+                      <th
+                        data-finance-section={row.section}
+                        className="sticky left-0 z-10 border-b border-r border-[#333333] bg-[#252524] px-3 py-2 text-left"
+                      >
+                        <div className="flex items-center gap-2 pl-3">
+                          <input
+                            data-testid="finance-custom-account-name"
+                            aria-label={`${financeHierarchy.find((section) => section.key === row.section)?.label || "NOI"} 사용자 항목명`}
+                            type="text"
+                            maxLength={60}
+                            value={customAccountDrafts[row.section] || ""}
+                            onChange={(event) => setCustomAccountDrafts((currentDrafts) => ({
+                              ...currentDrafts,
+                              [row.section]: event.target.value,
+                            }))}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void addCustomFinanceAccount(row.section);
+                              }
+                            }}
+                            disabled={!writeEnabled || accountMutationPending}
+                            placeholder="사용자 항목명"
+                            className="min-w-0 flex-1 rounded-[6px] border border-[#3A3A3C] bg-[#202020] px-2 py-1.5 text-xs text-white outline-none placeholder:text-[#5C5C61] focus:border-[#5E9EFF] disabled:cursor-not-allowed disabled:opacity-40"
+                          />
+                          <button
+                            data-testid="finance-custom-account-add"
+                            type="button"
+                            onClick={() => void addCustomFinanceAccount(row.section)}
+                            disabled={!writeEnabled || accountMutationPending || !String(customAccountDrafts[row.section] || "").trim()}
+                            className="shrink-0 rounded-[6px] border border-[#3A3A3C] px-2 py-1.5 text-[11px] font-medium text-[#D1D1D6] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35"
+                          >
+                            항목 추가
+                          </button>
+                        </div>
+                      </th>
+                      {periods.map((period) => (
+                        <td key={period} className="border-b border-[#333333] bg-[#252524]" />
+                      ))}
+                    </>
                   ) : (
                     <>
                       <th
@@ -2850,9 +3153,9 @@ function FinancePanel({ assetKey, assets }) {
                               data-testid="finance-account-toggle"
                               type="checkbox"
                               checked={row.active}
-                              disabled={!writeEnabled}
+                              disabled={!writeEnabled || accountMutationPending}
                               aria-describedby="finance-account-selection-status"
-                              onChange={() => toggleFinanceAccount(row)}
+                              onChange={() => void toggleFinanceAccount(row)}
                               className="h-3.5 w-3.5 accent-[#5E9EFF] disabled:cursor-not-allowed disabled:opacity-35"
                             />
                             <span>{row.label}</span>
@@ -2933,6 +3236,7 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
     () => sessionStorage.getItem("gate6-data-platform-asset-key") || "",
   );
   const [showMaturities, setShowMaturities] = useState(false);
+  const [maturityTransition, setMaturityTransition] = useState(null);
   const home = usePrimaryResource(DATA_PLATFORM_ACTIONS.homeRead, {
     ...(assetKey ? { asset_key: assetKey } : {}),
     as_of_date: todayKst(),
@@ -2951,6 +3255,18 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
     { enabled: Boolean(assetKey) },
   );
   const maturityRows = normalizeMaturities(maturities.data);
+  const maturityUiLoading = Boolean(assetKey) && (
+    !maturities.requestId
+    || maturities.loading
+    || maturityTransition?.assetKey === assetKey
+  );
+  const maturityButtonText = !assetKey
+    ? "만기 알림 자산 선택"
+    : maturityUiLoading
+      ? "만기 알림 불러오는 중"
+      : maturities.error
+        ? "만기 알림 확인 필요"
+        : `만기 알림 ${maturityRows.length}`;
   useEffect(() => {
     if (!assetKey && assets.length) setAssetKey(assets[0].asset_key);
   }, [assetKey, assets]);
@@ -2958,6 +3274,29 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
     if (assetKey)
       sessionStorage.setItem("gate6-data-platform-asset-key", assetKey);
   }, [assetKey]);
+  useEffect(() => {
+    if (!maturityTransition) return;
+    if (!assetKey || maturityTransition.assetKey !== assetKey) {
+      setMaturityTransition(null);
+      return;
+    }
+    if (maturities.loading) return;
+    if (
+      maturities.error
+      || (maturities.requestId && maturities.requestId !== maturityTransition.requestId)
+    ) {
+      setMaturityTransition(null);
+    }
+  }, [assetKey, maturities.error, maturities.loading, maturities.requestId, maturityTransition]);
+  const changeAsset = (nextAssetKey) => {
+    if (nextAssetKey === assetKey) return;
+    setShowMaturities(false);
+    setMaturityTransition({
+      assetKey: nextAssetKey,
+      requestId: maturities.requestId,
+    });
+    setAssetKey(nextAssetKey);
+  };
   return (
     <main
       data-testid="logistics-data-platform"
@@ -2975,7 +3314,7 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
                 <select
                   data-testid="data-platform-asset-select"
                   value={assetKey}
-                  onChange={(event) => setAssetKey(event.target.value)}
+                  onChange={(event) => changeAsset(event.target.value)}
                   className="rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 py-2 text-sm text-white"
                 >
                   <option value="">자산 선택</option>
@@ -2990,9 +3329,10 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
                 data-testid="data-platform-maturity-button"
                 type="button"
                 onClick={() => setShowMaturities((value) => !value)}
-                className="rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 py-2 text-sm text-[#D1D1D6]"
+                disabled={!assetKey || maturityUiLoading || Boolean(maturities.error)}
+                className="rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 py-2 text-sm text-[#D1D1D6] disabled:cursor-wait disabled:opacity-60"
               >
-                {maturities.loading ? "만기 알림 불러오는 중" : `만기 알림 ${maturityRows.length}`}
+                {maturityButtonText}
               </button>
               {showMaturities ? (
                 <section className="absolute right-0 top-full z-50 mt-2 w-[min(54rem,calc(100vw-2.5rem))] rounded-[16px] border border-[#3A3A3C] bg-[#252524] p-4 shadow-2xl">

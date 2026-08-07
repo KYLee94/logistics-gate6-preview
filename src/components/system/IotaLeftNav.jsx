@@ -1568,6 +1568,114 @@ export default function IotaLeftNav({ currentPath = '' }) {
             toggleLoginCapabilitySort={toggleLoginCapabilitySort}
         />
     );
+    const renderNotificationButton = () => (
+        <button
+            type="button"
+            data-testid="logistics-notification-button"
+            onClick={openNotificationsPanel}
+            title="알림"
+            aria-label={unreadNotificationCount ? `알림, 안 읽은 알림 ${unreadNotificationCount}건` : '알림'}
+            className={`relative flex ${isCollapsed ? 'order-1 h-10 w-10' : 'h-9 w-9'} shrink-0 items-center justify-center rounded-xl border border-[#333333] bg-[#151515] text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+        >
+            <svg className="h-4 w-4 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 01-6 0m6 0H9" />
+            </svg>
+            {unreadNotificationCount ? (
+                <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border border-[#151515] bg-[#FF9F0A]">
+                    <span className="sr-only">안 읽은 알림 {unreadNotificationCount}건</span>
+                </span>
+            ) : null}
+        </button>
+    );
+    const renderNotificationsPanel = () => (
+        showNotificationsPanel ? (
+            <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowNotificationsPanel(false)} />
+                <div data-testid="logistics-notification-panel" className={`fixed bottom-[86px] z-50 max-w-[calc(100vw-96px)] rounded-[16px] border border-[#3A3A3C] bg-[#202020] shadow-2xl ${isCollapsed ? 'left-[78px] w-[360px]' : 'left-[18px] w-[380px]'}`}>
+                    <div className="flex items-center justify-between gap-3 border-b border-[#303033] px-4 py-3">
+                        <div>
+                            <div className="text-[14px] font-bold text-white">알림</div>
+                            <div className="mt-0.5 text-[11px] text-[#8E8E93]">만기 · 데이터 반영 · 승인 요청</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button type="button" onClick={() => loadNotifications({ markRead: false })} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                                새로고침
+                            </button>
+                            <button type="button" onClick={markAllNotificationsRead} disabled={!notifications.length} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40">
+                                전체 읽음
+                            </button>
+                            <button type="button" onClick={dismissAllNotifications} disabled={!notifications.length} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40">
+                                전체 삭제
+                            </button>
+                        </div>
+                    </div>
+                    {isLogisticsPushSupported() ? (
+                        <div className="flex items-center justify-between gap-3 border-b border-[#303033] px-4 py-2.5">
+                            <div className="min-w-0">
+                                <div className="text-[12px] font-semibold text-[#E5E5E5]">시스템 알림</div>
+                                {pushMessage ? <div data-testid="logistics-windows-push-message" className="mt-0.5 truncate text-[10px] text-[#8E8E93]">{pushMessage}</div> : null}
+                            </div>
+                            <button
+                                type="button"
+                                data-testid="logistics-windows-push-toggle"
+                                onClick={toggleWindowsNotifications}
+                                disabled={pushBusy || !pushReady}
+                                className={`shrink-0 rounded-[8px] border px-2.5 py-1.5 text-[11px] font-semibold disabled:cursor-wait disabled:opacity-50 ${pushEnabled ? 'border-[#355C48] bg-[#1E342A] text-[#A8D6B5]' : 'border-[#3A3A3C] text-[#E5E5E5] hover:bg-white/5'}`}
+                            >
+                                {pushBusy ? '처리 중' : !pushReady ? '준비 중' : pushEnabled ? '끄기' : '켜기'}
+                            </button>
+                        </div>
+                    ) : null}
+                    <div className="custom-scrollbar max-h-[360px] overflow-auto p-3">
+                        {notificationsError ? (
+                            <div className="mb-2 rounded-[12px] border border-[#5A2A2A] bg-[#2A1717] px-3 py-3 text-[12px] text-[#FFB4A9]">{notificationsError}</div>
+                        ) : null}
+                        {notificationsLoading && !notifications.length ? (
+                            <div className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-5 text-center text-[12px] text-[#A1A1AA]">알림을 확인하고 있습니다.</div>
+                        ) : notifications.length ? (
+                            <div className="space-y-2">
+                                {notifications.map((item) => (
+                                    <div key={item.id} className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-3">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleNotificationNavigate(item)}
+                                                className="min-w-0 flex-1 text-left"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`h-1.5 w-1.5 rounded-full ${item.tone === 'warning' ? 'bg-[#FF9F0A]' : item.tone === 'error' ? 'bg-[#FF453A]' : 'bg-[#34C759]'}`} />
+                                                    <span className="text-[11px] font-semibold text-[#8E8E93]">{item.tag}</span>
+                                                    {!readNotificationIds.includes(item.id) ? <span className="rounded-full bg-[#FF9F0A]/15 px-1.5 py-0.5 text-[10px] font-bold text-[#FFB340]">새 알림</span> : null}
+                                                </div>
+                                                <div className="mt-1 text-[13px] font-semibold text-white">{item.title}</div>
+                                                <div className="mt-1 text-[12px] leading-5 text-[#A1A1AA]">{item.body}</div>
+                                            </button>
+                                            <div className="flex shrink-0 flex-col items-end gap-2">
+                                                <div className="text-[11px] text-[#6E6E73]">{formatLoginHistoryTime(item.createdAt)}</div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => markNotificationsRead([item])}
+                                                    disabled={readNotificationIds.includes(item.id)}
+                                                    className="rounded-[7px] border border-[#3A3A3C] px-2 py-1 text-[11px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                                >
+                                                    {readNotificationIds.includes(item.id) ? '읽음' : '읽음 체크'}
+                                                </button>
+                                                <button type="button" onClick={() => dismissNotification(item)} className="rounded-[7px] border border-[#3A3A3C] px-2 py-1 text-[11px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white">
+                                                    삭제
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : !notificationsError ? (
+                            <div className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-5 text-center text-[12px] text-[#8E8E93]">새 알림이 없습니다.</div>
+                        ) : null}
+                    </div>
+                </div>
+            </>
+        ) : null
+    );
 
     if (isDataPlatformActive) {
         return (
@@ -1615,10 +1723,14 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                 {!isCollapsed ? <span>로그인 이력</span> : null}
                             </button>
                         ) : null}
-                        <button type="button" data-testid="logistics-profile-button" onClick={() => setShowProfileMenu((value) => !value)} className={`flex w-full min-w-0 items-center rounded-xl py-2 hover:bg-[#151515] ${isCollapsed ? 'justify-center px-0' : 'justify-start px-2'}`}>
-                            <UserAvatar memberInfo={memberInfo} name={memberInfo?.staff_name || memberInfo?.name} sizeClass="h-8 w-8" textClass="text-[11px]" className="bg-[#3c3c3c]" />
-                            {!isCollapsed ? <div className="ml-3 min-w-0 text-left"><div className="truncate text-[13px] font-semibold">{memberInfo?.staff_name || '로그인 사용자'}</div><div className="truncate text-[11px] text-[#86868B]">{memberInfo?.organization || memberInfo?.department || '조직 미확인'}</div></div> : null}
-                        </button>
+                        {renderNotificationsPanel()}
+                        <div className={`flex items-center ${isCollapsed ? 'w-full flex-col gap-2' : 'gap-2'}`}>
+                            <button type="button" data-testid="logistics-profile-button" onClick={() => setShowProfileMenu((value) => !value)} className={`flex min-w-0 items-center rounded-xl py-2 hover:bg-[#151515] ${isCollapsed ? 'order-2 h-10 w-10 justify-center px-0' : 'flex-1 justify-start px-2'}`}>
+                                <UserAvatar memberInfo={memberInfo} name={memberInfo?.staff_name || memberInfo?.name} sizeClass="h-8 w-8" textClass="text-[11px]" className="bg-[#3c3c3c]" />
+                                {!isCollapsed ? <div className="ml-3 min-w-0 text-left"><div className="truncate text-[13px] font-semibold">{memberInfo?.staff_name || '로그인 사용자'}</div><div className="truncate text-[11px] text-[#86868B]">{memberInfo?.organization || memberInfo?.department || '조직 미확인'}</div></div> : null}
+                            </button>
+                            {renderNotificationButton()}
+                        </div>
                         {showProfileMenu ? <><div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} /><div className="absolute bottom-full left-3 right-3 z-50 mb-2 rounded-[14px] border border-[#3A3A3C] bg-[#2C2C2E] py-2 shadow-xl"><button type="button" onClick={handleSignOutClick} className="w-full px-4 py-2.5 text-left text-[14px] font-medium text-[#FF6B61] hover:bg-red-500/10">로그아웃</button></div></> : null}
                     </div>
                 </div>
@@ -1877,93 +1989,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                             </button>
                         </div>
                     ) : null}
-                    {showNotificationsPanel ? (
-                        <>
-                            <div className="fixed inset-0 z-40" onClick={() => setShowNotificationsPanel(false)} />
-                            <div data-testid="logistics-notification-panel" className={`fixed bottom-[86px] z-50 max-w-[calc(100vw-96px)] rounded-[16px] border border-[#3A3A3C] bg-[#202020] shadow-2xl ${isCollapsed ? 'left-[78px] w-[360px]' : 'left-[18px] w-[380px]'}`}>
-                                <div className="flex items-center justify-between gap-3 border-b border-[#303033] px-4 py-3">
-                                    <div>
-                                        <div className="text-[14px] font-bold text-white">알림</div>
-                                        <div className="mt-0.5 text-[11px] text-[#8E8E93]">만기 · 데이터 반영 · 승인 요청</div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <button type="button" onClick={() => loadNotifications({ markRead: false })} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5">
-                                            새로고침
-                                        </button>
-                                        <button type="button" onClick={markAllNotificationsRead} disabled={!notifications.length} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40">
-                                            전체 읽음
-                                        </button>
-                                        <button type="button" onClick={dismissAllNotifications} disabled={!notifications.length} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40">
-                                            전체 삭제
-                                        </button>
-                                    </div>
-                                </div>
-                                {isLogisticsPushSupported() ? (
-                                    <div className="flex items-center justify-between gap-3 border-b border-[#303033] px-4 py-2.5">
-                                        <div className="min-w-0">
-                                            <div className="text-[12px] font-semibold text-[#E5E5E5]">시스템 알림</div>
-                                            {pushMessage ? <div data-testid="logistics-windows-push-message" className="mt-0.5 truncate text-[10px] text-[#8E8E93]">{pushMessage}</div> : null}
-                                        </div>
-                                        <button
-                                            type="button"
-                                            data-testid="logistics-windows-push-toggle"
-                                            onClick={toggleWindowsNotifications}
-                                            disabled={pushBusy || !pushReady}
-                                            className={`shrink-0 rounded-[8px] border px-2.5 py-1.5 text-[11px] font-semibold disabled:cursor-wait disabled:opacity-50 ${pushEnabled ? 'border-[#355C48] bg-[#1E342A] text-[#A8D6B5]' : 'border-[#3A3A3C] text-[#E5E5E5] hover:bg-white/5'}`}
-                                        >
-                                            {pushBusy ? '처리 중' : !pushReady ? '준비 중' : pushEnabled ? '끄기' : '켜기'}
-                                        </button>
-                                    </div>
-                                ) : null}
-                                <div className="custom-scrollbar max-h-[360px] overflow-auto p-3">
-                                    {notificationsError ? (
-                                        <div className="mb-2 rounded-[12px] border border-[#5A2A2A] bg-[#2A1717] px-3 py-3 text-[12px] text-[#FFB4A9]">{notificationsError}</div>
-                                    ) : null}
-                                    {notificationsLoading && !notifications.length ? (
-                                        <div className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-5 text-center text-[12px] text-[#A1A1AA]">알림을 확인하고 있습니다.</div>
-                                    ) : notifications.length ? (
-                                        <div className="space-y-2">
-                                            {notifications.map((item) => (
-                                                <div key={item.id} className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-3">
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleNotificationNavigate(item)}
-                                                            className="min-w-0 flex-1 text-left"
-                                                        >
-                                                            <div className="flex items-center gap-2">
-                                                                <span className={`h-1.5 w-1.5 rounded-full ${item.tone === 'warning' ? 'bg-[#FF9F0A]' : item.tone === 'error' ? 'bg-[#FF453A]' : 'bg-[#34C759]'}`} />
-                                                                <span className="text-[11px] font-semibold text-[#8E8E93]">{item.tag}</span>
-                                                                {!readNotificationIds.includes(item.id) ? <span className="rounded-full bg-[#FF9F0A]/15 px-1.5 py-0.5 text-[10px] font-bold text-[#FFB340]">새 알림</span> : null}
-                                                            </div>
-                                                            <div className="mt-1 text-[13px] font-semibold text-white">{item.title}</div>
-                                                            <div className="mt-1 text-[12px] leading-5 text-[#A1A1AA]">{item.body}</div>
-                                                        </button>
-                                                        <div className="flex shrink-0 flex-col items-end gap-2">
-                                                            <div className="text-[11px] text-[#6E6E73]">{formatLoginHistoryTime(item.createdAt)}</div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => markNotificationsRead([item])}
-                                                                disabled={readNotificationIds.includes(item.id)}
-                                                                className="rounded-[7px] border border-[#3A3A3C] px-2 py-1 text-[11px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                                                            >
-                                                                {readNotificationIds.includes(item.id) ? '읽음' : '읽음 체크'}
-                                                            </button>
-                                                            <button type="button" onClick={() => dismissNotification(item)} className="rounded-[7px] border border-[#3A3A3C] px-2 py-1 text-[11px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white">
-                                                                삭제
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : !notificationsError ? (
-                                        <div className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-5 text-center text-[12px] text-[#8E8E93]">새 알림이 없습니다.</div>
-                                    ) : null}
-                                </div>
-                            </div>
-                        </>
-                    ) : null}
+                    {renderNotificationsPanel()}
                     <div className={isCollapsed ? 'relative flex w-full justify-center' : 'relative'}>
                         <div className={`flex items-center ${isCollapsed ? 'w-full flex-col items-center gap-2' : 'gap-2'}`}>
                             <button type="button" data-testid="logistics-profile-button" onClick={() => setShowProfileMenu((value) => !value)} className={`min-w-0 flex items-center ${isCollapsed ? 'order-2 h-10 w-10 justify-center px-0 py-0' : 'flex-1 justify-start px-2 py-2'} rounded-xl hover:bg-[#151515]`}>
@@ -1973,23 +1999,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                         <div className="truncate text-[11px] text-[#86868B]">{memberInfo?.organization || memberInfo?.department || '조직 미확인'}</div>
                                 </div> : null}
                             </button>
-                            <button
-                                type="button"
-                                data-testid="logistics-notification-button"
-                                onClick={openNotificationsPanel}
-                                title="알림"
-                                aria-label={unreadNotificationCount ? `알림, 안 읽은 알림 ${unreadNotificationCount}건` : '알림'}
-                                className={`relative flex ${isCollapsed ? 'order-1 h-10 w-10' : 'h-9 w-9'} shrink-0 items-center justify-center rounded-xl border border-[#333333] bg-[#151515] text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
-                            >
-                                <svg className="h-4 w-4 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 01-6 0m6 0H9" />
-                                </svg>
-                                {unreadNotificationCount ? (
-                                    <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border border-[#151515] bg-[#FF9F0A]">
-                                        <span className="sr-only">안 읽은 알림 {unreadNotificationCount}건</span>
-                                    </span>
-                                ) : null}
-                            </button>
+                            {renderNotificationButton()}
                         </div>
                     {showProfileMenu ? (
                         <>
