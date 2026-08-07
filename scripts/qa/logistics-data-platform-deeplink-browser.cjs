@@ -1353,10 +1353,20 @@ async function authenticatedProbe(
     }
     const darkStyle = isDataPlatform ? await dataPlatformMain.evaluate((main) => {
       const card = main.querySelector('section:not([data-testid="finance-kpi-strip"])');
+      const scrollHost = main.closest('.logistics-data-platform-scroll-host');
+      const scrollHostStyle = scrollHost ? getComputedStyle(scrollHost) : null;
       return {
         main_background: getComputedStyle(main).backgroundColor,
         card_background: card ? getComputedStyle(card).backgroundColor : '',
         card_border: card ? getComputedStyle(card).borderTopColor : '',
+        page_scroll_host_present: Boolean(scrollHost),
+        page_scroll_overflow_y: scrollHostStyle?.overflowY || '',
+        page_scrollbar_width: scrollHostStyle?.scrollbarWidth || '',
+        page_scrollbar_color: scrollHostStyle?.scrollbarColor || '',
+        page_webkit_scrollbar_width: scrollHost
+          ? getComputedStyle(scrollHost, '::-webkit-scrollbar').width
+          : '',
+        page_scrollable: scrollHost ? scrollHost.scrollHeight > scrollHost.clientHeight : false,
       };
     }) : null;
     const storedSessionUserId = await page.evaluate(() => {
@@ -1426,6 +1436,11 @@ async function authenticatedProbe(
         darkStyle?.main_background === 'rgb(31, 31, 30)'
         && darkStyle?.card_background === 'rgb(37, 37, 36)'
         && darkStyle?.card_border === 'rgb(51, 51, 51)'
+        && darkStyle?.page_scroll_host_present
+        && darkStyle?.page_scroll_overflow_y === 'scroll'
+        && darkStyle?.page_scrollbar_width === 'thin'
+        && /rgb\(72, 72, 74\).*rgb\(31, 31, 30\)/u.test(darkStyle?.page_scrollbar_color || '')
+        && darkStyle?.page_webkit_scrollbar_width === '8px'
         && headerControlContract?.title === route.expectedTitle
         && headerControlContract?.asset_select_count === 1
         && headerControlContract?.maturity_button_count === 1

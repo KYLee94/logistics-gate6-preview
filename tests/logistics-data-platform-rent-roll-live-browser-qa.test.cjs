@@ -92,6 +92,16 @@ test('stale revision 브라우저 QA는 no-op으로 409를 만든 뒤 silent ret
   assert.match(probe, /rollback/u);
 });
 
+test('운영 브라우저 QA는 각 데이터 플랫폼 탭의 우측 다크 스크롤 호스트를 검증한다', () => {
+  assert.match(source, /closest\('\.logistics-data-platform-scroll-host'\)/u);
+  assert.match(source, /page_scroll_overflow_y:\s*scrollHostStyle\?\.overflowY/u);
+  assert.match(source, /page_scrollbar_width:\s*scrollHostStyle\?\.scrollbarWidth/u);
+  assert.match(source, /page_webkit_scrollbar_width/u);
+  assert.match(source, /page_scroll_overflow_y\s*===\s*'scroll'/u);
+  assert.match(source, /page_scrollbar_width\s*===\s*'thin'/u);
+  assert.match(source, /page_webkit_scrollbar_width\s*===\s*'8px'/u);
+});
+
 test('렌트롤 same-value 브라우저 QA는 실제 저장 1회와 reload readback을 검증한다', () => {
   const probeStart = source.indexOf('async function rentRollSameValueSaveProbe');
   const probeEnd = source.indexOf('async function authenticatedProbe', probeStart);
