@@ -108,3 +108,19 @@ test('층별 배치 툴팁은 자산 브리프 바깥에서도 잘리지 않는�
   const assetBrief = source.slice(source.indexOf('function AssetBrief'), source.indexOf('const HOME_ENTITY_CONFIG'));
   assert.match(assetBrief, /data-testid=["']home-asset-brief["'][\s\S]{0,180}overflow-visible/u);
 });
+
+test('층별 배치는 자산 브리프 오른쪽 열 폭 안에서 적응하고 툴팁 가시성을 유지한다', () => {
+  const assetBrief = source.slice(source.indexOf('function AssetBrief'), source.indexOf('const HOME_ENTITY_CONFIG'));
+  assert.match(
+    assetBrief,
+    /data-testid=["']home-stacking-plan["'][\s\S]{0,220}min-w-0[\s\S]{0,80}max-w-full[\s\S]{0,80}overflow-visible/u,
+  );
+  assert.match(stackingSource, /data-testid=["']stacking-plan-layout["']/u);
+  assert.match(stackingSource, /grid-cols-\[52px_minmax\(0,1fr\)\]/u);
+  assert.match(stackingSource, /data-testid=["']stacking-plan-track["'][\s\S]{0,220}w-full[\s\S]{0,80}min-w-0[\s\S]{0,80}max-w-full[\s\S]{0,80}overflow-visible/u);
+  assert.match(stackingSource, /flexGrow:/u);
+  assert.match(stackingSource, /flexBasis:\s*0/u);
+  assert.doesNotMatch(stackingSource, /style:\s*\{\s*width:/u);
+  assert.match(stackingSource, /data-testid=["']stacking-plan-tooltip["']/u);
+  assert.match(stackingSource, /group-focus-within\/tenant:visible/u);
+});

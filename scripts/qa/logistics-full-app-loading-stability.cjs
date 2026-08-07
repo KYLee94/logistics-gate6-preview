@@ -944,7 +944,10 @@ async function main() {
       }
     });
 
-    await page.goto(joinUrl(baseUrl, '', `${stamp}-bootstrap`), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    // The root route now opens the dedicated three-tab data platform for pilot
+    // users. Bootstrap the preserved work-platform URL explicitly when this
+    // legacy-surface regression suite begins with the task-board probe.
+    await page.goto(joinUrl(baseUrl, ROUTES[0].route, `${stamp}-bootstrap`), { waitUntil: 'domcontentloaded', timeout: 60000 });
     await waitForRouteReady(page, ROUTES[0]);
 
     for (let cycle = 0; cycle < cycles; cycle += 1) {

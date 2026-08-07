@@ -146,16 +146,19 @@ export function StackingPlan({ floors, onTenantClick }) {
   );
   if (!rows.length) return <div className="text-[13px] text-[#86868B]">층별 배치 정보가 없습니다.</div>;
   return (
-    <div className="space-y-2">
+    <div data-testid="stacking-plan-layout" className="min-w-0 max-w-full space-y-2 overflow-visible">
       {rows.map((floor) => (
-        <div key={floor.floorLabel} className="grid grid-cols-[52px_1fr] items-stretch gap-3">
+        <div key={floor.floorLabel} className="grid w-full min-w-0 grid-cols-[52px_minmax(0,1fr)] items-stretch gap-3">
           <div
             className="flex items-center justify-center rounded-[8px] border border-[#333333] bg-[#1F1F1E] text-[13px] font-semibold text-white"
             data-stacking-floor-label={floor.floorLabel}
           >
             {floor.floorLabel}
           </div>
-          <div className="flex min-h-[38px] overflow-visible rounded-[8px] border border-[#333333] bg-[#191918]">
+          <div
+            data-testid="stacking-plan-track"
+            className="flex min-h-[38px] w-full min-w-0 max-w-full overflow-visible rounded-[8px] border border-[#333333] bg-[#191918]"
+          >
             {(floor.tenants || []).map((tenant, index) => {
               const tooltipId = `stacking-plan-${String(floor.floorLabel || "floor").replace(/[^a-zA-Z0-9가-힣_-]/gu, "-")}-${index}`;
               const monthlyRent = firstDefined(tenant.monthlyRentTotal, tenant.monthly_rent_total_krw);
@@ -203,7 +206,11 @@ export function StackingPlan({ floors, onTenantClick }) {
                 "data-testid": "stacking-plan-tenant",
                 "aria-describedby": tooltipId,
                 className: "group/tenant relative min-w-0 border-r border-[#252524] bg-[#263A45] px-3 py-2 text-left text-[12px] text-white first:rounded-l-[7px] last:rounded-r-[7px] last:border-r-0",
-                style: { width: `${Math.max(8, Number(tenant.share || 0.08) * 100)}%` },
+                style: {
+                  flexGrow: Math.max(1, Number(tenant.share || 0.08) * 100),
+                  flexShrink: 1,
+                  flexBasis: 0,
+                },
               };
               return onTenantClick ? (
                 <button

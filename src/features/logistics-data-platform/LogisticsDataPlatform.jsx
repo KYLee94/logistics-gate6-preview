@@ -498,7 +498,7 @@ function AssetBrief({
         <section
           data-testid="home-stacking-plan"
           aria-labelledby="home-stacking-plan-title"
-          className="border-t border-[#3A3A3C] px-5 py-4 xl:border-l xl:border-t-0"
+          className="min-w-0 max-w-full overflow-visible border-t border-[#3A3A3C] px-5 py-4 xl:border-l xl:border-t-0"
         >
           <div className="mb-3 flex items-end justify-between gap-3">
             <h3 id="home-stacking-plan-title" className="text-sm font-semibold text-white">층별 배치</h3>
@@ -1308,9 +1308,9 @@ function PresetTextCell({
   const options = Array.isArray(column.options) ? column.options : [];
   const known = options.includes(value) && value !== "기타";
   const [customMode, setCustomMode] = useState(Boolean(value) && !known);
-  const showCustom = customMode || (Boolean(value) && !known);
+  const showCustom = !known && (customMode || Boolean(value));
   return (
-    <div className="grid min-w-[150px] gap-1">
+    <div className="flex min-w-[220px] items-center gap-1">
       <select
         data-draft-field={column.key}
         aria-label={`${rowLabel} ${column.label} 유형`}
@@ -1329,7 +1329,7 @@ function PresetTextCell({
           onChange(next);
           onCommit(next);
         }}
-        className={INPUT_CLASS}
+        className={`${INPUT_CLASS} min-w-[104px] flex-1`}
       >
         <option value="">선택</option>
         {options.map((option) => (
@@ -1348,7 +1348,7 @@ function PresetTextCell({
           onBlur={(event) => onCommit(event.currentTarget.value)}
           disabled={disabled}
           placeholder="직접 작성"
-          className={INPUT_CLASS}
+          className={`${INPUT_CLASS} min-w-[104px] flex-1`}
         />
       ) : null}
     </div>
@@ -1366,6 +1366,7 @@ function MultiSelectCell({
   onCommit,
 }) {
   const [customItem, setCustomItem] = useState("");
+  const [customMode, setCustomMode] = useState(false);
   const standardOptions = Array.isArray(column.options) ? column.options : [];
   const selected = normalizeCostTerms(value, standardOptions);
   const customItems = selected.filter((item) => !standardOptions.includes(item));
@@ -1374,22 +1375,33 @@ function MultiSelectCell({
     onChange(serialized);
     onCommit(serialized);
   };
-  const toggle = (item) => apply(
-    selected.includes(item)
-      ? selected.filter((valueItem) => valueItem !== item)
-      : [...selected, item],
-  );
+  const toggle = (item) => {
+    if (standardOptions.includes(item)) {
+      setCustomMode(false);
+      setCustomItem("");
+    }
+    apply(
+      selected.includes(item)
+        ? selected.filter((valueItem) => valueItem !== item)
+        : [...selected, item],
+    );
+  };
   const addCustom = () => {
     const next = customItem.trim();
     if (!next) return;
     apply([...selected, next]);
     setCustomItem("");
+    setCustomMode(false);
   };
   return (
     <details
       className="relative min-w-[190px]"
       onToggle={(event) => {
         if (disabled && event.currentTarget.open) event.currentTarget.open = false;
+        if (!event.currentTarget.open) {
+          setCustomMode(false);
+          setCustomItem("");
+        }
       }}
     >
       <summary
@@ -1426,23 +1438,34 @@ function MultiSelectCell({
             </div>
           ))}
         </div>
-        <div className="mt-2 flex gap-1">
-          <input
-            type="text"
-            aria-label={`${column.label} 사용자 항목`}
-            value={customItem}
-            onChange={(event) => setCustomItem(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                addCustom();
-              }
-            }}
+        <div className="mt-2 flex items-center gap-1">
+          <button
+            type="button"
+            aria-pressed={customMode}
+            onClick={() => setCustomMode((current) => !current)}
             disabled={disabled}
-            placeholder="사용자 항목 추가"
-            className={INPUT_CLASS}
-          />
-          <button type="button" onClick={addCustom} disabled={disabled || !customItem.trim()} className="shrink-0 rounded-[6px] border border-[#3A3A3C] px-2 text-xs text-white disabled:opacity-35">추가</button>
+            className="shrink-0 rounded-[6px] border border-[#3A3A3C] px-2 py-1.5 text-xs text-white disabled:opacity-35"
+          >기타</button>
+          {customMode ? (
+            <div className="flex min-w-0 flex-1 items-center gap-1">
+              <input
+                type="text"
+                aria-label={`${column.label} 사용자 항목`}
+                value={customItem}
+                onChange={(event) => setCustomItem(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addCustom();
+                  }
+                }}
+                disabled={disabled}
+                placeholder="사용자 항목 추가"
+                className={INPUT_CLASS}
+              />
+              <button type="button" onClick={addCustom} disabled={disabled || !customItem.trim()} className="shrink-0 rounded-[6px] border border-[#3A3A3C] px-2 py-1.5 text-xs text-white disabled:opacity-35">추가</button>
+            </div>
+          ) : null}
         </div>
       </div>
     </details>
@@ -2696,6 +2719,50 @@ function FinancePanel({ assetKey, assets }) {
       setAccountMutationPending(false);
     }
   };
+  const deleteCustomFinanceAccount = async (row) => {
+    if (!row.account?.is_custom || accountMutationPending) return;
+    setAccountMutationPending(true);
+    setSaveState("saving");
+    setError(null);
+    try {
+      const response = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.financeBatchSave, {
+        asset_key: assetKey,
+        client_request_id: createClientRequestId("finance-account-delete"),
+        expected_revisions: {},
+        entries: [],
+        account_operations: [
+          {
+            operation: "delete",
+            account_code: row.key,
+            expected_revision: row.account.revision,
+          },
+        ],
+        selection_operations: [],
+      });
+      const accountMutationsReadback = Array.isArray(response.data?.account_mutations_readback)
+        ? response.data.account_mutations_readback
+        : [];
+      const mutation = accountMutationsReadback.find((item) => (
+        item.account_code === row.key && item.operation === "delete"
+      ));
+      if (!mutation || mutation.active !== false || !mutation.deleted_at) {
+        throw new Error("FINANCE_ACCOUNT_DELETE_READBACK_MISMATCH");
+      }
+      setSelectedAccountCodes((current) => {
+        const next = new Set(current);
+        next.delete(row.key);
+        return next;
+      });
+      setAccountSelectionAnnouncement(`${row.label} 항목을 이 자산에서 삭제했습니다.`);
+      setSaveState("saved");
+      resource.reload();
+    } catch (cause) {
+      setError(cause);
+      setSaveState("error");
+    } finally {
+      setAccountMutationPending(false);
+    }
+  };
   const accountEntries = (code, month, source = entries) =>
     source.filter(
       (entry) =>
@@ -3144,22 +3211,37 @@ function FinancePanel({ assetKey, assets }) {
                         className={`sticky left-0 z-10 border-b border-r border-[#333333] px-3 py-2 text-left ${row.kind === "metric" ? "bg-[#17314E] font-semibold text-[#9AD7FF]" : row.active ? "bg-[#252524] text-[#D1D1D6]" : "bg-[#202020] text-[#68686D]"}`}
                       >
                         {row.kind === "account" ? (
-                          <label data-testid="finance-account-row" className="flex cursor-pointer items-center gap-2 pl-3">
-                            <input
-                              ref={(node) => {
-                                if (node) accountToggleRefs.current.set(row.key, node);
-                                else accountToggleRefs.current.delete(row.key);
-                              }}
-                              data-testid="finance-account-toggle"
-                              type="checkbox"
-                              checked={row.active}
-                              disabled={!writeEnabled || accountMutationPending}
-                              aria-describedby="finance-account-selection-status"
-                              onChange={() => void toggleFinanceAccount(row)}
-                              className="h-3.5 w-3.5 accent-[#5E9EFF] disabled:cursor-not-allowed disabled:opacity-35"
-                            />
-                            <span>{row.label}</span>
-                          </label>
+                          <div className="flex min-w-0 items-center gap-2 pl-3">
+                            <label data-testid="finance-account-row" className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                              <input
+                                ref={(node) => {
+                                  if (node) accountToggleRefs.current.set(row.key, node);
+                                  else accountToggleRefs.current.delete(row.key);
+                                }}
+                                data-testid="finance-account-toggle"
+                                type="checkbox"
+                                checked={row.active}
+                                disabled={!writeEnabled || accountMutationPending}
+                                aria-describedby="finance-account-selection-status"
+                                onChange={() => void toggleFinanceAccount(row)}
+                                className="h-3.5 w-3.5 shrink-0 accent-[#5E9EFF] disabled:cursor-not-allowed disabled:opacity-35"
+                              />
+                              <span className="min-w-0 truncate">{row.label}</span>
+                            </label>
+                            {row.account?.is_custom ? (
+                              <button
+                                data-testid="finance-custom-account-delete"
+                                type="button"
+                                aria-label={`${row.label} 삭제`}
+                                title="이 자산에서 사용자 추가 항목 삭제"
+                                onClick={() => void deleteCustomFinanceAccount(row)}
+                                disabled={!writeEnabled || accountMutationPending}
+                                className="shrink-0 rounded-[5px] border border-[#49494D] px-1.5 py-1 text-[10px] font-medium text-[#A9A9AE] hover:border-[#6C6C72] hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                              >
+                                삭제
+                              </button>
+                            ) : null}
+                          </div>
                         ) : row.label}
                       </th>
                       {periods.map((period, periodIndex) => {

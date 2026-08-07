@@ -140,7 +140,7 @@ function normalizeFinancePayload(
       }
       const operation = { ...(value as Record<string, unknown>) };
       const operationName = String(operation.operation || '');
-      if (!['create', 'update', 'delete'].includes(operationName)) {
+      if (!['create', 'update', 'delete', 'restore'].includes(operationName)) {
         throw new Error('INVALID_FINANCE_ACCOUNT_OPERATION');
       }
       const clientAccountKey = typeof operation.client_account_key === 'string'
@@ -156,22 +156,27 @@ function normalizeFinancePayload(
       if (!accountCode || !CUSTOM_ACCOUNT_CODE_PATTERN.test(accountCode)) {
         throw new Error('FINANCE_CUSTOM_ACCOUNT_CODE_INVALID');
       }
-      const record = operation.record && typeof operation.record === 'object' && !Array.isArray(operation.record)
-        ? { ...(operation.record as Record<string, unknown>) }
+      const sourceRecord = operation.record && typeof operation.record === 'object' && !Array.isArray(operation.record)
+        ? operation.record as Record<string, unknown>
         : {};
-      if (operationName !== 'delete') {
-        const name = String(record.name_ko ?? operation.name_ko ?? '').trim();
+      const record: Record<string, unknown> = {};
+      if (operationName === 'create' || operationName === 'update') {
+        const name = String(sourceRecord.name_ko ?? operation.name_ko ?? '').trim();
         if (!name || name.length > 60) throw new Error('FINANCE_ACCOUNT_NAME_INVALID');
-        const section = String(record.statement_section ?? operation.statement_section ?? '').trim();
+        const section = String(sourceRecord.statement_section ?? operation.statement_section ?? '').trim();
         if (!FINANCE_STATEMENT_SECTIONS.has(section)) throw new Error('FINANCE_ACCOUNT_SECTION_INVALID');
         record.name_ko = name;
         record.statement_section = section;
+        for (const key of ['parent_account_code', 'display_order', 'normal_sign']) {
+          if (sourceRecord[key] !== undefined) record[key] = sourceRecord[key];
+        }
       }
       return {
-        ...operation,
         operation: operationName,
         account_code: accountCode,
         client_account_key: clientAccountKey || accountCode.slice('CUSTOM:'.length),
+        ...(operation.expected_revision === undefined ? {} : { expected_revision: operation.expected_revision }),
+        ...(operation.reason === undefined ? {} : { reason: operation.reason }),
         record,
       };
     });
@@ -195,7 +200,16 @@ function normalizeFinancePayload(
         throw new Error('FINANCE_CUSTOM_ACCOUNT_CODE_INVALID');
       }
       if (typeof operation.selected !== 'boolean') throw new Error('FINANCE_SELECTION_BOOLEAN_REQUIRED');
-      return { ...operation, account_code: accountCode };
+      return {
+        operation: 'upsert',
+        account_code: accountCode,
+        client_account_key: clientAccountKey || (accountCode.startsWith('CUSTOM:')
+          ? accountCode.slice('CUSTOM:'.length)
+          : ''),
+        selected: operation.selected,
+        ...(operation.expected_revision === undefined ? {} : { expected_revision: operation.expected_revision }),
+        ...(operation.reason === undefined ? {} : { reason: operation.reason }),
+      };
     });
 
   const { entries: _entries, operations: _existingOperations, ...rest } = payload;

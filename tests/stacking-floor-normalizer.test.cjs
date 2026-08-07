@@ -13,14 +13,14 @@ const normalizerUrl = pathToFileURL(path.join(
   'workspace',
   'stackingFloorNormalizer.js',
 )).href;
-const workspacePath = path.join(
+const stackingPlanPath = path.join(
   __dirname,
   '..',
   'src',
   'components',
   'system',
   'workspace',
-  'WorkspaceLogistics.jsx',
+  'StackingPlan.jsx',
 );
 
 async function loadNormalizer() {
@@ -29,28 +29,28 @@ async function loadNormalizer() {
 
 async function loadBuildStackingFloorsFromRows() {
   const normalizer = await loadNormalizer();
-  const source = fs.readFileSync(workspacePath, 'utf8');
-  const start = source.indexOf('function buildStackingFloorsFromRows');
-  const end = source.indexOf('function buildExpiryRowsFromRows', start);
+  const source = fs.readFileSync(stackingPlanPath, 'utf8');
+  const start = source.indexOf('export function buildStackingFloorsFromRows');
+  const end = source.indexOf('export function StackingPlan', start);
   assert.ok(start >= 0 && end > start, 'buildStackingFloorsFromRows must exist');
-  const declaration = source.slice(start, end);
+  const declaration = source.slice(start, end).replace('export function', 'function');
   const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null && value !== '');
-  const firstHumanTenantName = (...values) => values.find((value) => String(value ?? '').trim()) || '';
-  const cleanDisplay = (value, fallback = '') => String(value ?? '').trim() || fallback;
+  const humanTenantName = (...values) => String(firstDefined(...values, '') || '').trim();
+  const cleanText = (value, fallback = '') => String(value ?? '').trim() || fallback;
 
   return new Function(
     'normalizeStackingFloorLabel',
     'normalizeStackingFloorLabelFromRow',
     'firstDefined',
-    'firstHumanTenantName',
-    'cleanDisplay',
+    'humanTenantName',
+    'cleanText',
     `${declaration}\nreturn buildStackingFloorsFromRows;`,
   )(
     normalizer.normalizeStackingFloorLabel,
     normalizer.normalizeStackingFloorLabelFromRow,
     firstDefined,
-    firstHumanTenantName,
-    cleanDisplay,
+    humanTenantName,
+    cleanText,
   );
 }
 

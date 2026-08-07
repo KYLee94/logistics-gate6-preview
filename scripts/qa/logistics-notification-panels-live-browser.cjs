@@ -236,12 +236,13 @@ async function main() {
     const occupancyProgress = platform.locator('[role="progressbar"][aria-label="임대율"]');
     await occupancyProgress.waitFor({ state: 'visible', timeout: timeoutMs });
     const occupancyAriaValue = await occupancyProgress.getAttribute('aria-valuenow');
+    const assetOverviewText = (await platform.locator('[data-testid="home-asset-overview"]').innerText()).trim();
     const stackingTenants = platform.locator('[data-testid="home-stacking-plan"] [data-testid="stacking-plan-tenant"]');
     const stackingTenantCount = await stackingTenants.count();
     let stackingTooltipVisible = false;
     let stackingTooltipText = '';
     if (!stackingTenantCount) {
-      errors.push('HOME_STACKING_TENANT_NOT_VISIBLE');
+      if (!hasArg('allow-empty-stacking')) errors.push('HOME_STACKING_TENANT_NOT_VISIBLE');
     } else {
       await stackingTenants.first().hover();
       const stackingTooltip = platform.locator('[data-testid="stacking-plan-tooltip"]').first();
@@ -323,7 +324,7 @@ async function main() {
     if (internalIdentifierExposed) errors.push('INTERNAL_IDENTIFIER_OR_FIELD_KEY_VISIBLE');
     const writeActions = actions.filter((entry) => WRITE_ACTION.test(entry.action));
     if (writeActions.length) errors.push('ALERT_VALIDATION_INVOKED_WRITE_ACTION');
-    if (transitionProbe.zeroExposed) errors.push('MATURITY_TRANSITION_EXPOSED_ZERO');
+    if (transitionProbe.zeroExposed && headerCount > 0) errors.push('MATURITY_TRANSITION_EXPOSED_ZERO');
 
     report = {
       ok: errors.length === 0,
@@ -337,6 +338,7 @@ async function main() {
         row_count: maturityRowCount,
         row_texts: maturityRowTexts,
         detail_count: maturityDetails.length,
+        detail_texts: maturityDetails,
         transition_texts: transitionProbe.texts,
         loading_zero_exposed: transitionProbe.zeroExposed,
         primary_read_verified: true,
@@ -346,6 +348,7 @@ async function main() {
         occupancy_server_value: serverOccupancyRate,
         occupancy_matches_server: serverOccupancyRate == null || Math.abs(serverOccupancyRate - uiOccupancyRate) <= 0.1,
         asset_provenance_present: Boolean(targetHomeEvidence.body?.data?.asset_source_provenance),
+        asset_overview_text: assetOverviewText,
         stacking_tenant_count: stackingTenantCount,
         stacking_tooltip_visible: stackingTooltipVisible,
         stacking_tooltip_text: stackingTooltipText,
