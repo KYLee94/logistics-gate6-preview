@@ -16,17 +16,36 @@ test('수익비용 누계 요약은 가로 KPI 중복 없이 단일 비교표로
   assert.match(source, /<col className="w-\[22%\]"\s*\/>/u);
 });
 
-test('월별 NOI 입력표가 요약 시각화보다 먼저 나오고 기본 12개월 폭을 줄인다', () => {
+test('NOI·NCF 시계열과 기간 누계 자산 비교가 입력표보다 먼저 좌우로 배치된다', () => {
   const statementIndex = source.indexOf('data-testid="finance-statement-table"');
   const summaryIndex = source.indexOf('data-testid="finance-period-summary"');
   const trendIndex = source.indexOf('<FinanceTrend');
   assert.ok(statementIndex > 0, '월별 NOI 입력표가 필요합니다.');
-  assert.ok(summaryIndex > statementIndex, '누계 요약은 월별 입력표 뒤에 있어야 합니다.');
-  assert.ok(trendIndex > summaryIndex, '시계열 차트는 누계 요약과 함께 입력표 뒤에 있어야 합니다.');
+  assert.ok(trendIndex > 0 && trendIndex < summaryIndex, '시계열은 상단 좌측에 있어야 합니다.');
+  assert.ok(summaryIndex < statementIndex, '누계 자산 비교는 상단 우측에 있어야 합니다.');
+  assert.match(source, /data-testid=["']finance-analysis-grid["']/u);
+  assert.match(source, /xl:grid-cols-\[minmax\(0,1\.22fr\)_minmax\(420px,0\.78fr\)\]/u);
   assert.match(source, /min-w-\[264px\]/u);
   assert.match(source, /min-w-\[104px\]/u);
   assert.doesNotMatch(source, /min-w-\[250px\]/u);
   assert.doesNotMatch(source, /min-w-\[135px\]/u);
+});
+
+test('기간 프리셋과 직접 지정, 비교 자산 다중 선택을 지원한다', () => {
+  assert.match(source, /const\s+FINANCE_PERIOD_PRESETS\s*=\s*Object\.freeze/u);
+  for (const label of ['최근 1개월', '최근 3개월', '최근 6개월', '최근 1년', '직접 지정']) {
+    assert.ok(source.includes(label), `기간 프리셋 누락: ${label}`);
+  }
+  assert.match(source, /data-testid=["']finance-period-preset["']/u);
+  assert.match(source, /const\s+\[comparisonKeys,\s*setComparisonKeys\]/u);
+  assert.match(source, /data-testid=["']finance-comparison-asset-toggle["']/u);
+  assert.match(source, /type=["']checkbox["']/u);
+  assert.match(source, /function\s+FinanceComparisonLoader\s*\(/u);
+});
+
+test('기본 NOI 계정 목록은 하나의 상수 계약으로 초기화한다', () => {
+  assert.match(source, /const\s+DEFAULT_FINANCE_ACCOUNT_CODES\s*=\s*Object\.freeze/u);
+  assert.match(source, /new Set\(DEFAULT_FINANCE_ACCOUNT_CODES\)/u);
 });
 
 test('NOI 계정 선택은 별도 선택칸이 아니라 손익표 첫 열에서 직접 수행한다', () => {

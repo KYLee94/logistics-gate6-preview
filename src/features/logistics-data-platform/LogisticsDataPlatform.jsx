@@ -28,6 +28,10 @@ import {
   maturityDetailRows,
   maturityDisplayName,
 } from "./maturityPresentation";
+import {
+  StackingPlan,
+  buildStackingFloorsFromRows,
+} from "../../components/system/workspace/StackingPlan";
 
 const TITLES = Object.freeze({
   home: "홈",
@@ -36,6 +40,41 @@ const TITLES = Object.freeze({
 });
 const TAB_KEYS = new Set(Object.keys(TITLES));
 const DEFAULT_SORT = Object.freeze({ key: "floor_label", direction: "desc" });
+const RENT_ROLL_MONEY_FIELDS = new Set([
+  "deposit_total_krw",
+  "monthly_rent_total_krw",
+  "monthly_cam_total_krw",
+  "pallet_rack_fee",
+  "fit_out_amount",
+  "tenant_improvement_amount",
+]);
+const RENT_ROLL_DISPLAY_COLUMNS = Object.freeze(
+  RENT_ROLL_COLUMNS.flatMap((column) => {
+    if (["rent_free_start_date", "rent_free_end_date"].includes(column.key)) return [];
+    if (column.key === "rent_free_months") {
+      return [{ ...column, label: "렌트프리 세부", width: 132 }];
+    }
+    if (column.key === "fit_out_months") {
+      return [
+        { key: "fit_out_start_date", label: "Fit-out 시작일", group: column.group, kind: "date", width: 124 },
+        { key: "fit_out_end_date", label: "Fit-out 종료일", group: column.group, kind: "date", width: 124 },
+      ];
+    }
+    return [column];
+  }),
+);
+const FINANCE_PERIOD_PRESETS = Object.freeze([
+  { key: "1m", label: "최근 1개월", months: 1 },
+  { key: "3m", label: "최근 3개월", months: 3 },
+  { key: "6m", label: "최근 6개월", months: 6 },
+  { key: "1y", label: "최근 1년", months: 12 },
+  { key: "custom", label: "직접 지정", months: null },
+]);
+const DEFAULT_FINANCE_ACCOUNT_CODES = Object.freeze(
+  KOREAN_LOGISTICS_NOI_ACCOUNTS
+    .filter((account) => account.defaultVisible)
+    .map((account) => account.code),
+);
 const INPUT_CLASS =
   "w-full rounded-[6px] border border-transparent bg-transparent px-2 py-1.5 text-sm text-white outline-none hover:border-[#3A3A3C] focus:border-[#5E9EFF] focus:bg-[#202020] disabled:opacity-50";
 
@@ -80,7 +119,7 @@ function amount(value) {
 function area(value) {
   if (value === "" || value == null || !Number.isFinite(Number(value)))
     return "—";
-  return `${amount(value)}㎡ · ${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 2 }).format(Number(value) * 0.3025)}평`;
+  return `${amount(value)}㎡ · ${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(Number(value) * 0.3025)}평`;
 }
 function display(value) {
   return value === "" || value == null ? "—" : String(value);
@@ -206,37 +245,44 @@ function HomeValue({ editing, value, type = "text", onChange, align = "left", ar
   );
 }
 
-const HOME_ASSET_BRIEF_SECTIONS = Object.freeze([
-  {
-    key: "basic",
-    title: "기본정보",
-    fields: [
-      { key: "asset_code", label: "자산 코드", type: "text" },
-      { key: "sector", label: "섹터", type: "text" },
-      { key: "floor_count", label: "층수", type: "text" },
-      { key: "currency_code", label: "기준 통화", type: "text" },
-    ],
-  },
-  {
-    key: "area",
-    title: "면적",
-    fields: [
-      { key: "land_area_sqm", label: "대지면적", type: "number", format: "area" },
-      { key: "gross_area_sqm", label: "연면적", type: "number", format: "area" },
-      { key: "leasable_area_sqm", label: "임대가능면적", type: "number", format: "area" },
-    ],
-  },
-  {
-    key: "management",
-    title: "담당 · 가치",
-    fields: [
-      { key: "manager_name", label: "담당자", type: "text" },
-      { key: "manager_team", label: "담당팀", type: "text" },
-      { key: "acquisition_cost", label: "취득가", type: "number", format: "currency" },
-      { key: "current_valuation", label: "현재 평가액", type: "number", format: "currency" },
-    ],
-  },
+const HOME_ASSET_OVERVIEW_FIELDS = Object.freeze([
+  { key: "name", label: "자산명", type: "text" },
+  { key: "address", label: "주소", type: "text" },
+  { key: "zoning_text", label: "용도지역", type: "text" },
+  { key: "land_area_sqm", label: "대지면적", type: "number", format: "area" },
+  { key: "building_area_sqm", label: "건축면적", type: "number", format: "area" },
+  { key: "gross_area_sqm", label: "연면적", type: "number", format: "area" },
+  { key: "leasable_area_sqm", label: "임대가능면적", type: "number", format: "area" },
+  { key: "primary_use", label: "주용도", type: "text" },
+  { key: "building_coverage_ratio", label: "건폐율", type: "number", format: "percent" },
+  { key: "floor_area_ratio", label: "용적률", type: "number", format: "percent" },
+  { key: "floor_count", label: "층수", type: "text" },
+  { key: "structure_text", label: "구조", type: "text" },
+  { key: "parking_count", label: "주차대수", type: "number", format: "count" },
+  { key: "completion_date", label: "준공일", type: "date" },
 ]);
+
+function homeText(value) {
+  return value === "" || value == null ? "미입력" : String(value);
+}
+
+function homeAmount(value) {
+  return value === "" || value == null || !Number.isFinite(Number(value))
+    ? "정보 없음"
+    : `${amount(value)}원`;
+}
+
+function formatHomeArea(value) {
+  if (value === "" || value == null || !Number.isFinite(Number(value))) return "미입력";
+  return `${amount(value)}㎡ · ${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(Number(value) * 0.3025)}평`;
+}
+
+function formatHomeOverviewValue(field, value) {
+  if (field.format === "area") return formatHomeArea(value);
+  if (field.format === "percent") return value === "" || value == null ? "미입력" : `${amount(value)}%`;
+  if (field.format === "count") return value === "" || value == null ? "미입력" : `${amount(value)}대`;
+  return homeText(value);
+}
 
 function AssetBrief({
   asset,
@@ -255,7 +301,10 @@ function AssetBrief({
   occupiedArea,
   monthlyRent,
   monthlyCam,
+  averageRentPerPy,
+  averageCamPerPy,
   averageEnoc,
+  stackingFloors,
 }) {
   const occupancyPercent = occupancyRate == null
     ? null
@@ -265,10 +314,12 @@ function AssetBrief({
     ["점유 공간", `${occupiedRows.length}개`],
     ["공실 공간", `${vacantRows.length}개`],
     ["입주 예정", `${plannedRows.length}개`],
-    ["임대면적", area(occupiedArea)],
-    ["월 임대료", `${amount(monthlyRent)}원`],
-    ["월 관리비", `${amount(monthlyCam)}원`],
-    ["평균 E.NOC/평", averageEnoc == null ? "—" : `${amount(averageEnoc)}원`],
+    ["임대면적", formatHomeArea(occupiedArea)],
+    ["월 임대료 총액", homeAmount(monthlyRent)],
+    ["임대료/평", homeAmount(averageRentPerPy)],
+    ["월 관리비 총액", homeAmount(monthlyCam)],
+    ["관리비/평", homeAmount(averageCamPerPy)],
+    ["평균 E.NOC/평", homeAmount(averageEnoc)],
   ];
 
   return (
@@ -282,35 +333,10 @@ function AssetBrief({
         className="flex flex-col gap-4 border-b border-[#3A3A3C] px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
       >
         <div className="min-w-0 flex-1">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6E6E73]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6E6E73]">HOME</p>
+          <h2 id="home-asset-brief-title" className="mt-0.5 text-lg font-semibold tracking-tight text-white">
             자산 브리프
-          </p>
-          <h2
-            id="home-asset-brief-title"
-            className={editing ? "sr-only" : "truncate text-xl font-semibold tracking-tight text-white"}
-          >
-            {display(asset.name)}
           </h2>
-          {editing ? (
-            <div className="max-w-4xl space-y-1">
-              <HomeValue
-                ariaLabel="자산명"
-                value={asset.name}
-                editing
-                onChange={(value) => onAssetChange("name", value)}
-              />
-              <HomeValue
-                ariaLabel="주소"
-                value={asset.address}
-                editing
-                onChange={(value) => onAssetChange("address", value)}
-              />
-            </div>
-          ) : (
-            <p className="mt-1 truncate text-sm text-[#A1A1AA]" title={display(asset.address)}>
-              {display(asset.address)}
-            </p>
-          )}
         </div>
         <div className="flex shrink-0 items-center justify-end gap-2">
           <SaveState state={saveState} />
@@ -340,7 +366,7 @@ function AssetBrief({
               type="button"
               onClick={onEdit}
               disabled={!writeEnabled}
-              aria-label={`${display(asset.name)} 자산 정보 수정`}
+              aria-label={`${homeText(asset.name)} 자산 정보 수정`}
               className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-sm text-white hover:bg-white/5 disabled:opacity-35"
             >
               수정
@@ -349,53 +375,37 @@ function AssetBrief({
         </div>
       </header>
 
-      <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.38fr)]">
-        <div data-testid="home-asset-specification" className="divide-y divide-[#333333] px-5">
-          {HOME_ASSET_BRIEF_SECTIONS.map((section) => (
-            <section
-              key={section.key}
-              data-home-brief-section={section.key}
-              aria-labelledby={`home-asset-brief-${section.key}`}
-              className="py-4 md:flex md:gap-8"
-            >
-              <h3
-                id={`home-asset-brief-${section.key}`}
-                className="mb-3 w-28 shrink-0 text-[11px] font-semibold text-[#86868B] md:mb-0"
-              >
-                {section.title}
-              </h3>
-              <dl className="flex min-w-0 flex-1 flex-wrap gap-x-8 gap-y-3">
-                {section.fields.map((field) => (
-                  <div key={field.key} className="min-w-[145px] flex-1 basis-[145px]">
-                    <dt className="text-[10px] text-[#6E6E73]">{field.label}</dt>
-                    <dd className="mt-0.5 min-w-0">
-                      {!editing && field.format === "area" ? (
-                        <span className="block min-h-8 py-1.5 text-sm text-white tabular-nums">
-                          {area(asset[field.key])}
-                        </span>
-                      ) : !editing && field.format === "currency" ? (
-                        <span className="block min-h-8 py-1.5 text-sm text-white tabular-nums">
-                          {asset[field.key] == null || asset[field.key] === ""
-                            ? "—"
-                            : `${amount(asset[field.key])}원`}
-                        </span>
-                      ) : (
-                        <HomeValue
-                          ariaLabel={field.label}
-                          value={asset[field.key]}
-                          type={field.type}
-                          editing={editing}
-                          onChange={(value) => onAssetChange(field.key, value)}
-                          align={field.type === "number" ? "right" : "left"}
-                        />
-                      )}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          ))}
-        </div>
+      <div className="grid xl:grid-cols-[minmax(0,0.9fr)_minmax(0,0.85fr)_minmax(280px,1.25fr)]">
+        <section
+          data-testid="home-asset-overview"
+          aria-labelledby="home-asset-overview-title"
+          className="px-5 py-4"
+        >
+          <h3 id="home-asset-overview-title" className="mb-2 text-sm font-semibold text-white">자산 개요</h3>
+          <dl className="divide-y divide-[#333333]">
+            {HOME_ASSET_OVERVIEW_FIELDS.map((field) => (
+              <div key={field.key} className="grid grid-cols-[104px_minmax(0,1fr)] items-center gap-3 py-2">
+                <dt className="text-xs text-[#86868B]">{field.label}</dt>
+                <dd className="min-w-0 text-right">
+                  {!editing || field.editable === false ? (
+                    <span className="block truncate text-sm text-white" title={homeText(asset[field.key])}>
+                      {formatHomeOverviewValue(field, asset[field.key])}
+                    </span>
+                  ) : (
+                    <HomeValue
+                      ariaLabel={field.label}
+                      value={asset[field.key]}
+                      type={field.type}
+                      editing
+                      onChange={(value) => onAssetChange(field.key, value)}
+                      align={field.type === "number" ? "right" : "left"}
+                    />
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
 
         <aside
           data-testid="home-lease-operations"
@@ -410,7 +420,7 @@ function AssetBrief({
               <p className="mt-1 text-[11px] text-[#6E6E73]">현재 렌트롤 기준</p>
             </div>
             <p className="text-2xl font-semibold tracking-tight text-white tabular-nums">
-              {occupancyPercent == null ? "—" : `${occupancyPercent.toFixed(1)}%`}
+              {occupancyPercent == null ? "정보 없음" : `${occupancyPercent.toFixed(1)}%`}
             </p>
           </div>
           <div
@@ -441,7 +451,7 @@ function AssetBrief({
           <div className="mt-4 border-t border-[#3A3A3C] pt-3">
             <h4 className="text-[11px] font-semibold text-[#86868B]">임차인별 운영 현황</h4>
             <div data-testid="home-tenant-operations" className="mt-2 min-w-0">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 pb-1 text-[10px] text-[#6E6E73]">
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(90px,auto)_minmax(90px,auto)] gap-x-3 pb-1 text-[10px] text-[#6E6E73]">
                 <span>임차인</span>
                 <span className="text-right">임대면적</span>
                 <span className="text-right">월 임대료</span>
@@ -451,13 +461,13 @@ function AssetBrief({
                   {tenantSummaries.map((tenant) => (
                     <li
                       key={tenant.tenant_name}
-                      className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 py-2 text-xs"
+                      className="grid grid-cols-[minmax(0,1fr)_minmax(90px,auto)_minmax(90px,auto)] items-center gap-x-3 py-2 text-xs"
                     >
                       <span className="truncate font-medium text-[#D1D1D6]" title={tenant.tenant_name}>
                         {tenant.tenant_name}
                       </span>
                       <span className="text-right text-[#A1A1AA] tabular-nums">
-                        {area(tenant.leased_area_sqm)}
+                        {formatHomeArea(tenant.leased_area_sqm)}
                       </span>
                       <span className="text-right text-white tabular-nums">
                         {amount(tenant.monthly_rent_total_krw)}원
@@ -466,11 +476,22 @@ function AssetBrief({
                   ))}
                 </ul>
               ) : (
-                <p className="border-t border-[#333333] py-2 text-xs text-[#6E6E73]">—</p>
+                <p className="border-t border-[#333333] py-2 text-xs text-[#6E6E73]">등록된 임차인이 없습니다.</p>
               )}
             </div>
           </div>
         </aside>
+        <section
+          data-testid="home-stacking-plan"
+          aria-labelledby="home-stacking-plan-title"
+          className="border-t border-[#3A3A3C] px-5 py-4 xl:border-l xl:border-t-0"
+        >
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <h3 id="home-stacking-plan-title" className="text-sm font-semibold text-white">층별 배치</h3>
+            <span className="text-[10px] text-[#6E6E73]">상층부터 표시</span>
+          </div>
+          <StackingPlan floors={stackingFloors} />
+        </section>
       </div>
     </section>
   );
@@ -481,7 +502,7 @@ const HOME_ENTITY_CONFIG = Object.freeze([
     entity: "asset",
     collection: "asset",
     key: "asset_key",
-    fields: ["name", "address", "asset_code", "sector", "land_area_sqm", "gross_area_sqm", "leasable_area_sqm", "floor_count", "manager_name", "manager_team", "acquisition_cost", "current_valuation", "currency_code"],
+    fields: ["name", "address", "zoning_text", "land_area_sqm", "building_area_sqm", "gross_area_sqm", "leasable_area_sqm", "primary_use", "building_coverage_ratio", "floor_area_ratio", "floor_count", "structure_text", "parking_count", "completion_date"],
   },
   {
     entity: "fund",
@@ -553,7 +574,7 @@ export function buildHomeOperations(original, draft) {
   return operations;
 }
 
-function MaturityList({ rows, limit = 5 }) {
+function MaturityList({ rows }) {
   const [selected, setSelected] = useState(null);
   const typeLabel = {
     lease: "임대차",
@@ -575,8 +596,7 @@ function MaturityList({ rows, limit = 5 }) {
       <div className="grid gap-4 lg:grid-cols-3">
         {Object.entries(typeLabel).map(([type, label]) => {
           const items = rows
-            .filter((row) => (row.type || row.kind) === type)
-            .slice(0, limit);
+            .filter((row) => (row.type || row.kind) === type);
           return (
             <div key={type}>
               <p className="mb-2 text-xs font-semibold text-[#A1A1AA]">
@@ -600,7 +620,7 @@ function MaturityList({ rows, limit = 5 }) {
                   </button>
                 ))
               ) : (
-                <p className="py-2 text-sm text-[#6E6E73]">—</p>
+                <p className="py-2 text-sm text-[#6E6E73]">365일 이내 {label} 만기가 없습니다.</p>
               )}
             </div>
           );
@@ -722,7 +742,13 @@ function HomePanel({ assetKey, resource, maturities }) {
     0,
   );
   const occupiedAreaPy = occupiedArea * 0.3025;
+  const averageRentPerPy = occupiedAreaPy > 0 ? monthlyRent / occupiedAreaPy : null;
+  const averageCamPerPy = occupiedAreaPy > 0 ? monthlyCam / occupiedAreaPy : null;
   const averageEnoc = occupiedAreaPy > 0 ? (monthlyRent + monthlyCam) / occupiedAreaPy : null;
+  const stackingFloors = buildStackingFloorsFromRows(
+    occupiedRows,
+    [],
+  );
   const homeOperations = useMemo(
     () => buildHomeOperations(sourceData, homeDraft),
     [homeDraft, sourceData],
@@ -806,7 +832,10 @@ function HomePanel({ assetKey, resource, maturities }) {
           occupiedArea={occupiedArea}
           monthlyRent={monthlyRent}
           monthlyCam={monthlyCam}
+          averageRentPerPy={averageRentPerPy}
+          averageCamPerPy={averageCamPerPy}
           averageEnoc={averageEnoc}
+          stackingFloors={stackingFloors}
         />
       ) : (
         <section data-testid="home-asset-brief" className="rounded-[18px] border border-[#333333] bg-[#252524] px-5">
@@ -988,7 +1017,7 @@ function HomePanel({ assetKey, resource, maturities }) {
 }
 
 function sortRows(rows, sort) {
-  const column = RENT_ROLL_COLUMNS.find((item) => item.key === sort?.key);
+  const column = RENT_ROLL_DISPLAY_COLUMNS.find((item) => item.key === sort?.key);
   if (!column) return rows;
   const direction = sort.direction === "asc" ? 1 : -1;
   return rows
@@ -1029,6 +1058,144 @@ function percentInputValue(value) {
 function percentStoredValue(value) {
   const text = String(value ?? "").trim();
   return text === "" ? "" : `${text}%`;
+}
+
+function formatRentRollMoneyInput(value) {
+  const text = String(value ?? "").replaceAll(",", "").trim();
+  if (!text) return "";
+  const numeric = Number(text);
+  return Number.isFinite(numeric)
+    ? new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 2 }).format(numeric)
+    : text;
+}
+
+function parseRentRollMoneyInput(value) {
+  return String(value ?? "").replaceAll(",", "").replace(/[^\d.-]/gu, "");
+}
+
+function calculatePeriodMonths(startDate, endDate) {
+  if (!startDate || !endDate) return 0;
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end < start) return 0;
+  return Math.round(((end - start) / 2_629_800_000) * 100) / 100;
+}
+
+function rentFreePeriodsFromRow(row = {}) {
+  if (Array.isArray(row.rent_free_periods)) {
+    return row.rent_free_periods.map((period, index) => ({
+      id: period.id || `rent-free-${index}`,
+      start_date: period.start_date || period.start || "",
+      end_date: period.end_date || period.end || "",
+    }));
+  }
+  if (row.rent_free_start_date || row.rent_free_end_date) {
+    return [{
+      id: "rent-free-legacy",
+      start_date: row.rent_free_start_date || "",
+      end_date: row.rent_free_end_date || "",
+    }];
+  }
+  return [];
+}
+
+function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
+  const [periods, setPeriods] = useState(() => rentFreePeriodsFromRow(row));
+  const firstInputRef = useRef(null);
+  useEffect(() => {
+    firstInputRef.current?.focus();
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    globalThis.addEventListener?.("keydown", closeOnEscape);
+    return () => globalThis.removeEventListener?.("keydown", closeOnEscape);
+  }, [onClose]);
+  const invalid = periods.some((period) => (
+    !period.start_date || !period.end_date || period.end_date < period.start_date
+  ));
+  const updatePeriod = (id, field, value) => setPeriods((current) => current.map(
+    (period) => period.id === id ? { ...period, [field]: value } : period,
+  ));
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4">
+      <section
+        data-testid="rent-free-period-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rent-free-period-dialog-title"
+        className="w-full max-w-[620px] rounded-[16px] border border-[#3A3A3C] bg-[#252524] p-5 shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 id="rent-free-period-dialog-title" className="text-base font-semibold text-white">렌트프리 제공기간</h2>
+            <p className="mt-1 text-xs text-[#86868B]">계약 중 제공되는 무상 임대기간을 모두 등록합니다.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="렌트프리 상세 닫기" className="rounded-[7px] border border-[#3A3A3C] px-3 py-1.5 text-xs text-white">닫기</button>
+        </div>
+        <div className="mt-4 max-h-[52vh] divide-y divide-[#333333] overflow-y-auto border-y border-[#333333]">
+          {periods.length ? periods.map((period, index) => (
+            <div key={period.id} className="grid gap-2 py-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <label className="text-[11px] text-[#86868B]">
+                {index + 1}차 시작일
+                <input
+                  ref={index === 0 ? firstInputRef : undefined}
+                  type="date"
+                  value={period.start_date}
+                  onChange={(event) => updatePeriod(period.id, "start_date", event.target.value)}
+                  disabled={disabled}
+                  className={`${INPUT_CLASS} mt-1 bg-[#202020]`}
+                />
+              </label>
+              <label className="text-[11px] text-[#86868B]">
+                {index + 1}차 종료일
+                <input
+                  type="date"
+                  value={period.end_date}
+                  onChange={(event) => updatePeriod(period.id, "end_date", event.target.value)}
+                  disabled={disabled}
+                  className={`${INPUT_CLASS} mt-1 bg-[#202020]`}
+                />
+              </label>
+              <button
+                type="button"
+                aria-label={`${index + 1}차 렌트프리 기간 삭제`}
+                onClick={() => setPeriods((current) => current.filter((item) => item.id !== period.id))}
+                disabled={disabled}
+                className="rounded-[7px] border border-[#5A3333] px-3 py-2 text-xs text-[#FF9B9B] disabled:opacity-35"
+              >
+                삭제
+              </button>
+            </div>
+          )) : (
+            <p className="py-5 text-sm text-[#86868B]">등록된 렌트프리 기간이 없습니다.</p>
+          )}
+        </div>
+        {invalid ? <p role="alert" className="mt-2 text-xs text-[#F2CF75]">각 기간의 시작일과 종료일을 올바르게 입력해 주세요.</p> : null}
+        <div className="mt-4 flex flex-wrap justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setPeriods((current) => [...current, {
+              id: `rent-free-${globalThis.crypto?.randomUUID?.() || Date.now()}`,
+              start_date: "",
+              end_date: "",
+            }])}
+            disabled={disabled}
+            className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-sm text-white disabled:opacity-35"
+          >
+            렌트프리 기간 추가
+          </button>
+          <button
+            type="button"
+            onClick={() => onSave(periods.map(({ start_date, end_date }) => ({ start_date, end_date })))}
+            disabled={disabled || invalid}
+            className="rounded-[8px] bg-[#0A6CFF] px-4 py-2 text-sm font-semibold text-white disabled:opacity-35"
+          >
+            적용
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function PresetTextCell({
@@ -1200,7 +1367,9 @@ function parsePaste(text) {
           ? serializeCostTerms({}, trimmed ? [trimmed] : [])
           : column?.kind === "percent"
             ? percentStoredValue(trimmed.replace(/%/gu, ""))
-            : trimmed;
+            : column?.kind === "number"
+              ? parseRentRollMoneyInput(trimmed)
+              : trimmed;
       });
       if (row.occupancy_status === "임대") row.occupancy_status = "occupied";
       if (row.occupancy_status === "공실") row.occupancy_status = "vacant";
@@ -1225,6 +1394,7 @@ function RentRollPanel({ assetKey }) {
   const [draftReady, setDraftReady] = useState(false);
   const [draggedRowId, setDraggedRowId] = useState(null);
   const [dragOverTarget, setDragOverTarget] = useState(null);
+  const [rentFreeRowId, setRentFreeRowId] = useState(null);
   const draftHydratedRef = useRef(false);
   const saveReadbackPendingRef = useRef(false);
   const rowRefs = useRef(new Map());
@@ -1353,6 +1523,12 @@ function RentRollPanel({ assetKey }) {
     );
     markDirty(id);
   };
+  const updateFields = (id, patch) => {
+    setRows((current) => current.map((row) => (
+      rowId(row) === id ? deriveRentRollRow({ ...row, ...patch }) : row
+    )));
+    markDirty(id);
+  };
   const saveRows = async (targetRows) => {
     const validationTargets = targetRows.filter((row) => row.operation !== "delete");
     const issues = validationTargets.flatMap((row) => {
@@ -1479,6 +1655,9 @@ function RentRollPanel({ assetKey }) {
   const dragOverLabel = dragOverRow
     ? dragOverRow.tenant_name || dragOverRow.floor_label || "선택한 행"
     : null;
+  const rentFreeRow = rentFreeRowId
+    ? rows.find((row) => rowId(row) === rentFreeRowId)
+    : null;
   if (!assetKey) return <EmptyText>먼저 자산을 선택해 주세요.</EmptyText>;
   return (
     <div className="space-y-4">
@@ -1600,12 +1779,12 @@ function RentRollPanel({ assetKey }) {
                   순서
                 </th>
                 {[
-                  ...new Set(RENT_ROLL_COLUMNS.map((column) => column.group)),
+                  ...new Set(RENT_ROLL_DISPLAY_COLUMNS.map((column) => column.group)),
                 ].map((group) => (
                   <th
                     key={group}
                     colSpan={
-                      RENT_ROLL_COLUMNS.filter(
+                      RENT_ROLL_DISPLAY_COLUMNS.filter(
                         (column) => column.group === group,
                       ).length
                     }
@@ -1622,7 +1801,9 @@ function RentRollPanel({ assetKey }) {
                 </th>
               </tr>
               <tr>
-                {RENT_ROLL_COLUMNS.map((column) => {
+                {RENT_ROLL_DISPLAY_COLUMNS.map((column) => {
+                  const columnLabel = column.label;
+                  const columnWidth = column.width;
                   const stickyLeft =
                     column.key === "occupancy_status"
                       ? 62
@@ -1634,8 +1815,8 @@ function RentRollPanel({ assetKey }) {
                       key={column.key}
                       data-sticky-column-header={stickyLeft == null ? undefined : column.key}
                       style={{
-                        minWidth: column.width,
-                        width: column.width,
+                        minWidth: columnWidth,
+                        width: columnWidth,
                         left: stickyLeft == null ? undefined : stickyLeft,
                       }}
                       className={`sticky top-[33px] border-b border-r border-[#333333] bg-[#202020] px-2 py-2 text-left text-[11px] font-medium text-[#A1A1AA] ${stickyLeft == null ? "z-30" : "z-[60] shadow-[1px_0_0_#333333]"}`}
@@ -1654,7 +1835,7 @@ function RentRollPanel({ assetKey }) {
                         }
                         className="flex w-full justify-between gap-2"
                       >
-                        <span>{column.label}</span>
+                        <span>{columnLabel}</span>
                         <span>
                           {sort?.key === column.key
                             ? sort.direction === "asc"
@@ -1760,7 +1941,7 @@ function RentRollPanel({ assetKey }) {
                         </button>
                       </div>
                     </td>
-                    {RENT_ROLL_COLUMNS.map((column) => {
+                    {RENT_ROLL_DISPLAY_COLUMNS.map((column) => {
                       const stickyLeft =
                         column.key === "occupancy_status"
                           ? 62
@@ -1770,6 +1951,26 @@ function RentRollPanel({ assetKey }) {
                       const sticky = stickyLeft != null;
                       const cellStyle = sticky ? { left: stickyLeft } : undefined;
                       const cellClass = `border-b border-r border-[#333333] bg-[#252524] px-1 py-1 ${dropLineClass} ${sticky ? "sticky z-10 shadow-[1px_0_0_#333333]" : ""}`;
+                      if (column.key === "rent_free_months") {
+                        const periods = rentFreePeriodsFromRow(row);
+                        const totalMonths = periods.length
+                          ? periods.reduce((sum, period) => sum + calculatePeriodMonths(period.start_date, period.end_date), 0)
+                          : Number(row.rent_free_months || 0);
+                        return (
+                          <td key={column.key} style={cellStyle} className={cellClass}>
+                            <button
+                              data-testid="rent-free-details"
+                              type="button"
+                              onClick={() => setRentFreeRowId(id)}
+                              disabled={rowEditingDisabled}
+                              aria-label={`${rowLabel} 렌트프리 세부입력`}
+                              className="w-full rounded-[6px] border border-[#3A3A3C] px-2 py-1.5 text-left text-xs text-[#D1D1D6] hover:bg-[#303030] disabled:opacity-35"
+                            >
+                              {periods.length ? `${periods.length}개 기간 · ${amount(totalMonths)}개월` : "세부입력"}
+                            </button>
+                          </td>
+                        );
+                      }
                       if (column.kind === "readonly")
                         return (
                           <td
@@ -1859,6 +2060,7 @@ function RentRollPanel({ assetKey }) {
                             </div>
                           </td>
                         );
+                      const moneyField = column.kind === "number" && RENT_ROLL_MONEY_FIELDS.has(column.key);
                       return (
                         <td key={column.key} style={cellStyle} className={cellClass}>
                           {column.key === "tenant_name" ? (
@@ -1885,16 +2087,35 @@ function RentRollPanel({ assetKey }) {
                               aria-invalid={rowInvalid || undefined}
                               aria-describedby={rowInvalid ? "rent-roll-validation-summary" : undefined}
                               type={
-                                column.kind === "number"
+                                moneyField
+                                  ? "text"
+                                  : column.kind === "number"
                                   ? "number"
                                   : column.kind === "date"
                                     ? "date"
                                     : "text"
                               }
-                              value={row[column.key] ?? ""}
-                              onChange={(event) =>
-                                update(id, column.key, event.target.value)
-                              }
+                              inputMode={moneyField ? "numeric" : undefined}
+                              value={moneyField ? formatRentRollMoneyInput(row[column.key]) : row[column.key] ?? ""}
+                              onChange={(event) => {
+                                const value = moneyField
+                                  ? parseRentRollMoneyInput(event.target.value)
+                                  : event.target.value;
+                                if (["fit_out_start_date", "fit_out_end_date"].includes(column.key)) {
+                                  const nextStart = column.key === "fit_out_start_date"
+                                    ? value
+                                    : row.fit_out_start_date;
+                                  const nextEnd = column.key === "fit_out_end_date"
+                                    ? value
+                                    : row.fit_out_end_date;
+                                  updateFields(id, {
+                                    [column.key]: value,
+                                    fit_out_months: calculatePeriodMonths(nextStart, nextEnd),
+                                  });
+                                  return;
+                                }
+                                update(id, column.key, value);
+                              }}
                               disabled={rowEditingDisabled}
                               className={`${INPUT_CLASS} ${column.kind === "number" ? "text-right tabular-nums" : ""}`}
                             />
@@ -1927,6 +2148,29 @@ function RentRollPanel({ assetKey }) {
           </table>
         </div>
       </Section>
+      {rentFreeRow ? (
+        <RentFreePeriodsDialog
+          key={rentFreeRowId}
+          row={rentFreeRow}
+          disabled={rentRollEditingDisabled || rentFreeRow.operation === "delete"}
+          onClose={() => setRentFreeRowId(null)}
+          onSave={(periods) => {
+            const sortedPeriods = [...periods].sort((left, right) => (
+              String(left.start_date).localeCompare(String(right.start_date))
+            ));
+            updateFields(rentFreeRowId, {
+              rent_free_periods: sortedPeriods,
+              rent_free_start_date: sortedPeriods[0]?.start_date || "",
+              rent_free_end_date: sortedPeriods.at(-1)?.end_date || "",
+              rent_free_months: sortedPeriods.reduce(
+                (sum, period) => sum + calculatePeriodMonths(period.start_date, period.end_date),
+                0,
+              ),
+            });
+            setRentFreeRowId(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1993,14 +2237,13 @@ function buildFinanceSeries(entries, accounts, months, aggregation) {
     return { period, ...calculateKoreanLogisticsNoi(totals) };
   });
 }
-function FinanceTrend({ series, comparison }) {
+function FinanceTrend({ series }) {
   const [activeIndex, setActiveIndex] = useState(null);
-  const values = [...series, ...comparison]
+  const values = series
     .flatMap((row) => [row.net_operating_income, row.asset_net_cash_flow])
     .map((value) => Math.abs(Number(value || 0)));
   const max = Math.max(...values, 1);
   const active = activeIndex === null ? null : series[activeIndex];
-  const activeComparison = activeIndex === null ? null : comparison[activeIndex];
   return (
     <div className="relative">
       <div
@@ -2023,12 +2266,10 @@ function FinanceTrend({ series, comparison }) {
               style={{ height: `${Math.max(3, (Math.abs(row.net_operating_income) / max) * 130)}px` }}
               className="w-4 rounded-t bg-[#5E9EFF]"
             />
-            {comparison[index] ? (
-              <span
-                style={{ height: `${Math.max(3, (Math.abs(comparison[index].net_operating_income) / max) * 130)}px` }}
-                className="w-4 rounded-t bg-[#737373]"
-              />
-            ) : null}
+            <span
+              style={{ height: `${Math.max(3, (Math.abs(row.asset_net_cash_flow) / max) * 130)}px` }}
+              className="w-4 rounded-t bg-[#7BD5A0]"
+            />
             <span className="absolute -bottom-4 hidden text-[9px] text-[#86868B] xl:block">{row.period}</span>
           </button>
         ))}
@@ -2049,24 +2290,57 @@ function FinanceTrend({ series, comparison }) {
             <div key={key} className="flex justify-between gap-5 py-0.5">
               <span className="text-[#A1A1AA]">{label}</span>
               <span className="tabular-nums text-white">
-                {amount(active[key])}{activeComparison ? ` · 비교 ${amount(activeComparison[key])}` : ""}
+                {amount(active[key])}
               </span>
             </div>
           ))}
         </div>
       ) : null}
+      <div className="mt-4 flex items-center gap-4 text-[11px] text-[#A1A1AA]">
+        <span><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-[#5E9EFF]" />NOI</span>
+        <span><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-[#7BD5A0]" />NCF</span>
+      </div>
     </div>
   );
+}
+
+function FinanceComparisonLoader({ assetKey, payload, setResources }) {
+  const resource = usePrimaryResource(
+    DATA_PLATFORM_ACTIONS.financeRead,
+    { ...payload, asset_key: assetKey },
+    { enabled: Boolean(assetKey) },
+  );
+  useEffect(() => {
+    setResources((current) => {
+      const previous = current[assetKey];
+      if (
+        previous?.data === resource.data &&
+        previous?.error === resource.error &&
+        previous?.loading === resource.loading
+      ) return current;
+      return {
+        ...current,
+        [assetKey]: {
+          data: resource.data,
+          error: resource.error,
+          loading: resource.loading,
+        },
+      };
+    });
+  }, [assetKey, resource.data, resource.error, resource.loading, setResources]);
+  return null;
 }
 
 function FinancePanel({ assetKey, assets }) {
   const current = currentMonthKst();
   const [start, setStart] = useState(addMonths(current, -11));
   const [end, setEnd] = useState(current);
+  const [periodPreset, setPeriodPreset] = useState("1y");
   const [scenario, setScenario] = useState("actual");
   const [basis, setBasis] = useState("accrual");
   const [aggregation, setAggregation] = useState("month");
-  const [comparisonKey, setComparisonKey] = useState("");
+  const [comparisonKeys, setComparisonKeys] = useState([]);
+  const [comparisonResources, setComparisonResources] = useState({});
   const [entries, setEntries] = useState([]);
   const [saveState, setSaveState] = useState("idle");
   const [error, setError] = useState(null);
@@ -2082,7 +2356,7 @@ function FinancePanel({ assetKey, assets }) {
       } catch {
         // A malformed local preference must not block the statement.
       }
-      return new Set(KOREAN_LOGISTICS_NOI_ACCOUNTS.filter((account) => account.defaultVisible).map((account) => account.code));
+      return new Set(DEFAULT_FINANCE_ACCOUNT_CODES);
     },
   );
   const payload = {
@@ -2096,11 +2370,6 @@ function FinancePanel({ assetKey, assets }) {
     DATA_PLATFORM_ACTIONS.financeRead,
     payload,
     { enabled: Boolean(assetKey) },
-  );
-  const comparison = usePrimaryResource(
-    DATA_PLATFORM_ACTIONS.financeRead,
-    { ...payload, asset_key: comparisonKey },
-    { enabled: Boolean(comparisonKey && comparisonKey !== assetKey) },
   );
   useEffect(() => {
     setEntries(
@@ -2135,19 +2404,26 @@ function FinancePanel({ assetKey, assets }) {
   const calculationAccounts = filterFinanceCalculationAccounts(accounts, selectedAccountCodes);
   const months = monthsBetween(start, end);
   const series = buildFinanceSeries(entries, calculationAccounts, months, aggregation);
-  const comparisonEntries = Array.isArray(comparison.data?.entries)
-    ? comparison.data.entries
-    : [];
-  const comparisonAccounts = filterFinanceCalculationAccounts(
-    Array.isArray(comparison.data?.accounts) ? comparison.data.accounts : accounts,
-    selectedAccountCodes,
-  );
-  const comparisonSeries = buildFinanceSeries(
-    comparisonEntries,
-    comparisonAccounts,
-    months,
-    aggregation,
-  );
+  const comparisonResults = comparisonKeys.map((comparisonAssetKey) => {
+    const comparisonData = comparisonResources[comparisonAssetKey]?.data;
+    const comparisonEntries = Array.isArray(comparisonData?.entries)
+      ? comparisonData.entries
+      : [];
+    const comparisonAccounts = filterFinanceCalculationAccounts(
+      Array.isArray(comparisonData?.accounts) ? comparisonData.accounts : accounts,
+      selectedAccountCodes,
+    );
+    return {
+      assetKey: comparisonAssetKey,
+      assetName: assets.find((asset) => asset.asset_key === comparisonAssetKey)?.name || "비교 자산",
+      series: buildFinanceSeries(
+        comparisonEntries,
+        comparisonAccounts,
+        months,
+        aggregation,
+      ),
+    };
+  });
   const periods = series.map((row) => row.period);
   const writeEnabled = resource.data?.write_enabled === true;
   const toggleFinanceAccount = (row) => {
@@ -2271,13 +2547,30 @@ function FinancePanel({ assetKey, assets }) {
       .reduce((sum, month) => sum + accountMonthTotal(code, month), 0);
   const total = (key) =>
     series.reduce((sum, row) => sum + Number(row[key] || 0), 0);
-  const comparisonTotal = (key) =>
-    comparisonSeries.reduce((sum, row) => sum + Number(row[key] || 0), 0);
+  const seriesTotal = (targetSeries, key) =>
+    targetSeries.reduce((sum, row) => sum + Number(row[key] || 0), 0);
   const selectedAssetName =
     assets.find((asset) => asset.asset_key === assetKey)?.name || "선택 자산";
-  const comparisonAssetName = comparisonKey
-    ? assets.find((asset) => asset.asset_key === comparisonKey)?.name || "비교 자산"
-    : "비교 자산";
+  const applyPeriodPreset = (preset) => {
+    setPeriodPreset(preset.key);
+    if (!preset.months) return;
+    setEnd(current);
+    setStart(addMonths(current, 1 - preset.months));
+    setAggregation("month");
+  };
+  const toggleComparisonAsset = (comparisonAssetKey) => {
+    setComparisonKeys((currentKeys) => (
+      currentKeys.includes(comparisonAssetKey)
+        ? currentKeys.filter((key) => key !== comparisonAssetKey)
+        : [...currentKeys, comparisonAssetKey]
+    ));
+  };
+  const comparisonLoading = comparisonKeys.some(
+    (key) => comparisonResources[key]?.loading,
+  );
+  const comparisonError = comparisonKeys
+    .map((key) => comparisonResources[key]?.error)
+    .find(Boolean);
   const summaryLabels = Object.freeze({
     potential_gross_income: "잠재총수입",
     total_income_loss: "수입손실",
@@ -2321,26 +2614,48 @@ function FinancePanel({ assetKey, assets }) {
   if (!assetKey) return <EmptyText>먼저 자산을 선택해 주세요.</EmptyText>;
   return (
     <div className="space-y-4">
-      <LoadingLine visible={resource.loading || comparison.loading} />
-      <DataPlatformErrorDialog error={error || resource.error || comparison.error} onDismiss={() => setError(null)} />
+      <LoadingLine visible={resource.loading || comparisonLoading} />
+      <DataPlatformErrorDialog error={error || resource.error || comparisonError} onDismiss={() => setError(null)} />
+      {comparisonKeys.map((comparisonAssetKey) => (
+        <FinanceComparisonLoader
+          key={comparisonAssetKey}
+          assetKey={comparisonAssetKey}
+          payload={payload}
+          setResources={setComparisonResources}
+        />
+      ))}
       <div className="flex flex-wrap items-end gap-3 rounded-[14px] border border-[#333333] bg-[#242423] px-4 py-3">
-        {[
-          ["시작 월", "month", start, setStart],
-          ["종료 월", "month", end, setEnd],
-        ].map(([label, type, value, setter]) => (
-          <label
-            key={label}
-            className="min-w-[145px] text-[11px] text-[#86868B]"
-          >
+        <fieldset className="min-w-[370px] flex-1">
+          <legend className="text-[11px] text-[#86868B]">조회 기간</legend>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {FINANCE_PERIOD_PRESETS.map((preset) => (
+              <button
+                key={preset.key}
+                data-testid="finance-period-preset"
+                type="button"
+                aria-pressed={periodPreset === preset.key}
+                onClick={() => applyPeriodPreset(preset)}
+                className={`rounded-[7px] border px-3 py-2 text-xs ${periodPreset === preset.key ? "border-[#5E9EFF] bg-[#17314E] text-[#9AD7FF]" : "border-[#3A3A3C] bg-[#1F1F1E] text-[#D1D1D6]"}`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        {periodPreset === "custom" ? [
+          ["시작 월", start, setStart],
+          ["종료 월", end, setEnd],
+        ].map(([label, value, setter]) => (
+          <label key={label} className="min-w-[140px] text-[11px] text-[#86868B]">
             {label}
             <input
-              type={type}
+              type="month"
               value={value}
               onChange={(event) => setter(event.target.value)}
               className="mt-1 block rounded-[7px] border border-[#3A3A3C] bg-[#1F1F1E] px-2 py-2 text-sm text-white"
             />
           </label>
-        ))}
+        )) : null}
         <label className="text-[11px] text-[#86868B]">
           시나리오
           <select
@@ -2377,24 +2692,85 @@ function FinancePanel({ assetKey, assets }) {
             <option value="year">연도</option>
           </select>
         </label>
-        <label className="min-w-[220px] flex-1 text-[11px] text-[#86868B]">
-          비교 자산
-          <select
-            data-testid="finance-comparison-asset"
-            value={comparisonKey}
-            onChange={(event) => setComparisonKey(event.target.value)}
-            className="mt-1 block w-full rounded-[7px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 py-2 text-sm text-white"
-          >
-            <option value="">비교 안 함</option>
-            {assets
-              .filter((asset) => asset.asset_key !== assetKey)
-              .map((asset) => (
-                <option key={asset.asset_key} value={asset.asset_key}>
-                  {asset.name || asset.asset_code}
-                </option>
-              ))}
-          </select>
-        </label>
+        <details className="relative min-w-[220px] flex-1 text-[11px] text-[#86868B]">
+          <summary className="mt-1 cursor-pointer list-none rounded-[7px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 py-2 text-sm text-white">
+            비교 자산 {comparisonKeys.length ? `${comparisonKeys.length}개` : "선택"}
+          </summary>
+          <div className="absolute right-0 top-full z-50 mt-1 max-h-64 w-full min-w-[280px] overflow-y-auto rounded-[10px] border border-[#3A3A3C] bg-[#202020] p-2 shadow-2xl">
+            {assets.filter((asset) => asset.asset_key !== assetKey).map((asset) => (
+              <label key={asset.asset_key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-xs text-[#D1D1D6] hover:bg-white/5">
+                <input
+                  data-testid="finance-comparison-asset-toggle"
+                  type="checkbox"
+                  checked={comparisonKeys.includes(asset.asset_key)}
+                  onChange={() => toggleComparisonAsset(asset.asset_key)}
+                />
+                <span>{asset.name || asset.asset_code}</span>
+              </label>
+            ))}
+          </div>
+        </details>
+      </div>
+      <div
+        data-testid="finance-analysis-grid"
+        className="grid gap-4 xl:grid-cols-[minmax(0,1.22fr)_minmax(420px,0.78fr)]"
+      >
+        <Section title="NOI·NCF 시계열" className="p-4">
+          <FinanceTrend series={series} />
+        </Section>
+        <Section title="기간 누계 · 자산 비교" className="p-4">
+          <div className="overflow-x-auto rounded-[10px] border border-[#333333]">
+            <table
+              data-testid="finance-period-summary"
+              className="w-full min-w-[520px] table-fixed text-xs"
+            >
+              <colgroup>
+                <col className="w-[34%]" />
+                <col className="w-[22%]" />
+                {comparisonResults.length ? comparisonResults.map((result) => (
+                  <col key={result.assetKey} className="w-[22%]" />
+                )) : <col className="w-[22%]" />}
+              </colgroup>
+              <thead className="bg-[#202020] text-[10px] text-[#86868B]">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">항목</th>
+                  <th className="truncate px-2 py-2 text-right font-medium" title={selectedAssetName}>
+                    {selectedAssetName}
+                  </th>
+                  {comparisonResults.length ? comparisonResults.map((result) => (
+                    <th key={result.assetKey} className="truncate px-2 py-2 text-right font-medium" title={result.assetName}>
+                      {result.assetName}
+                    </th>
+                  )) : (
+                    <th className="px-2 py-2 text-right font-medium">비교 자산 미선택</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {FINANCE_WATERFALL_KEYS.map((key) => {
+                  const isKeyResult = key === "net_operating_income" || key === "asset_net_cash_flow";
+                  return (
+                    <tr key={key} className={isKeyResult ? "bg-[#17314E]" : "bg-[#252524]"}>
+                      <th className={`border-t border-[#333333] px-3 py-2 text-left ${isKeyResult ? "font-semibold text-[#9AD7FF]" : "font-medium text-[#D1D1D6]"}`}>
+                        {summaryLabels[key]}
+                      </th>
+                      <td className={`border-t border-[#333333] px-2 py-2 text-right tabular-nums ${isKeyResult ? "font-semibold text-[#9AD7FF]" : "text-white"}`}>
+                        {amount(total(key))}
+                      </td>
+                      {comparisonResults.length ? comparisonResults.map((result) => (
+                        <td key={result.assetKey} className="border-t border-[#333333] px-2 py-2 text-right tabular-nums text-[#A1A1AA]">
+                          {amount(seriesTotal(result.series, key))}
+                        </td>
+                      )) : (
+                        <td className="border-t border-[#333333] px-2 py-2 text-right text-[#68686D]">비교 없음</td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Section>
       </div>
       <Section
         title="물류센터 NOI 손익표"
@@ -2543,60 +2919,6 @@ function FinancePanel({ assetKey, assets }) {
           자동 저장
         </button>
       </Section>
-      <div className="grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
-        <Section title="기간 누계 · 자산 비교" className="p-4">
-          <div className="overflow-hidden rounded-[10px] border border-[#333333]">
-            <table
-              data-testid="finance-period-summary"
-              className="w-full table-fixed text-xs"
-            >
-              <colgroup>
-                <col className="w-[34%]" />
-                <col className="w-[22%]" />
-                <col className="w-[22%]" />
-                <col className="w-[22%]" />
-              </colgroup>
-              <thead className="bg-[#202020] text-[10px] text-[#86868B]">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium">항목</th>
-                  <th className="truncate px-2 py-2 text-right font-medium" title={selectedAssetName}>
-                    {selectedAssetName}
-                  </th>
-                  <th className="truncate px-2 py-2 text-right font-medium" title={comparisonAssetName}>
-                    {comparisonKey ? comparisonAssetName : "비교 안 함"}
-                  </th>
-                  <th className="px-2 py-2 text-right font-medium">차이</th>
-                </tr>
-              </thead>
-              <tbody>
-                {FINANCE_WATERFALL_KEYS.map((key) => {
-                  const isKeyResult = key === "net_operating_income" || key === "asset_net_cash_flow";
-                  const difference = total(key) - comparisonTotal(key);
-                  return (
-                    <tr key={key} className={isKeyResult ? "bg-[#17314E]" : "bg-[#252524]"}>
-                      <th className={`border-t border-[#333333] px-3 py-2 text-left ${isKeyResult ? "font-semibold text-[#9AD7FF]" : "font-medium text-[#D1D1D6]"}`}>
-                        {summaryLabels[key]}
-                      </th>
-                      <td className={`border-t border-[#333333] px-2 py-2 text-right tabular-nums ${isKeyResult ? "font-semibold text-[#9AD7FF]" : "text-white"}`}>
-                        {amount(total(key))}
-                      </td>
-                      <td className="border-t border-[#333333] px-2 py-2 text-right tabular-nums text-[#A1A1AA]">
-                        {comparisonKey ? amount(comparisonTotal(key)) : "—"}
-                      </td>
-                      <td className="border-t border-[#333333] px-2 py-2 text-right tabular-nums text-[#A1A1AA]">
-                        {comparisonKey ? `${difference > 0 ? "+" : ""}${amount(difference)}` : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-        <Section title="NOI·NCF 시계열" className="p-4">
-          <FinanceTrend series={series} comparison={comparisonSeries} />
-        </Section>
-      </div>
     </div>
   );
 }
@@ -2670,11 +2992,11 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
                 onClick={() => setShowMaturities((value) => !value)}
                 className="rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 py-2 text-sm text-[#D1D1D6]"
               >
-                만기 알림 {maturityRows.length}
+                {maturities.loading ? "만기 알림 불러오는 중" : `만기 알림 ${maturityRows.length}`}
               </button>
               {showMaturities ? (
                 <section className="absolute right-0 top-full z-50 mt-2 w-[min(54rem,calc(100vw-2.5rem))] rounded-[16px] border border-[#3A3A3C] bg-[#252524] p-4 shadow-2xl">
-                  <MaturityList rows={maturityRows} limit={12} />
+                  <MaturityList rows={maturityRows} />
                 </section>
               ) : null}
             </div>

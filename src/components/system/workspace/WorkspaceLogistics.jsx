@@ -14,7 +14,7 @@ import companyOptionsData from './logisticsCompanyOptionsData.json';
 import sectorData from './logisticsSectorData.json';
 import { floorPlanLabelFromRecord, normalizeFloorPlanImageSource } from './floorPlanImageSource';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './logisticsRoutes';
-import { normalizeStackingFloorLabel, normalizeStackingFloorLabelFromRow } from './stackingFloorNormalizer';
+import { StackingPlan, buildStackingFloorsFromRows } from './StackingPlan';
 import LogisticsDataPlatform from '../../../features/logistics-data-platform/LogisticsDataPlatform';
 import { deriveCompanySearchPreviewMetrics, sortCompanySearchPreviewRows } from './searchPreviewUtils';
 import {
@@ -8653,40 +8653,6 @@ function RichStackedPeriodChart({ rows, series, labelKey = 'month', onClick }) {
   );
 }
 
-function StackingPlan({ floors, onTenantClick }) {
-  const rows = (floors || []).slice().sort((a, b) => floorSortValue(b.floorLabel) - floorSortValue(a.floorLabel));
-  if (!rows.length) return <div className="text-[13px] text-[#86868B]">층별 배치 정보가 없습니다.</div>;
-  return (
-    <div className="space-y-2">
-      {rows.map((floor) => (
-        <div key={floor.floorLabel} className="grid grid-cols-[52px_1fr] gap-3 items-stretch">
-          <div
-            className="rounded-[8px] border border-[#333333] bg-[#1F1F1E] flex items-center justify-center text-[13px] text-white font-semibold"
-            data-stacking-floor-label={floor.floorLabel}
-          >
-            {floor.floorLabel}
-          </div>
-          <div className="min-h-[38px] rounded-[8px] border border-[#333333] bg-[#191918] overflow-hidden flex">
-            {(floor.tenants || []).map((tenant, index) => (
-              <button
-                type="button"
-                key={`${tenant.tenantId}-${index}`}
-                onClick={() => onTenantClick?.(tenant)}
-                className="text-left border-r border-[#252524] last:border-r-0 bg-[#263A45] px-3 py-2 text-[12px] text-white overflow-hidden hover:bg-[#315268] focus:outline-none focus:ring-2 focus:ring-[#9AD7FF]"
-                style={{ width: `${Math.max(8, Number(tenant.share || 0.08) * 100)}%` }}
-                title={`${tenant.tenantMasterName || '-'}${tenant.detailAreaLabel ? ` · ${tenant.detailAreaLabel}` : ''} · ${formatArea(tenant.leasedAreaSqm)}`}
-              >
-                <div className="truncate font-semibold">{tenant.tenantMasterName || '-'}</div>
-                <div className="truncate text-[#B8DFFF]">{[tenant.detailAreaLabel, formatArea(tenant.leasedAreaSqm)].filter(Boolean).join(' · ')}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function floorSortValue(label) {
   const value = String(label || '').trim().toUpperCase();
   const matches = [...value.matchAll(/B\s*\d+|\d+(?:\.\d+)?\s*(?:F|층)?/giu)];
@@ -8844,93 +8810,6 @@ function sortExpiryRows(rows = []) {
     return String(firstDefined(a.tenantMasterName, a.spaceLabel, a.leaseSpaceId, '') || '')
       .localeCompare(String(firstDefined(b.tenantMasterName, b.spaceLabel, b.leaseSpaceId, '') || ''), 'ko-KR');
   });
-}
-
-function buildStackingFloorsFromRows(rows = [], fallbackFloors = []) {
-  const grouped = new Map();
-  const expansionGroups = new Map();
-  (rows || []).forEach((row, rowIndex) => {
-    const floorLabels = normalizeStackingFloorLabelFromRow(row, { expandRanges: true });
-    if (!floorLabels.length) return;
-    const leasedAreaSqm = Number(row.leasedAreaSqm || 0);
-    const tenantDisplayName = firstHumanTenantName(row.tenantMasterName, row.tenantName, row.companyName);
-    const leaseSpaceId = firstDefined(row.leaseSpaceId, row.lease_space_id);
-    const sourceFloorLabel = firstDefined(
-      row.sourceFloorLabel,
-      row.source_floor_label,
-      row.floorLabel,
-      row.floor_label,
-      floorLabels.join(','),
-    );
-    const leaseKey = leaseSpaceId ? String(leaseSpaceId) : `row-${rowIndex}`;
-    const sourceFloorKey = String(sourceFloorLabel || '').replace(/\s+/gu, '').toUpperCase();
-    const tenantKey = String(tenantDisplayName || '-').trim().toUpperCase();
-    const expansionKey = `${leaseKey}|${sourceFloorKey}|${tenantKey}`;
-    if (!expansionGroups.has(expansionKey)) {
-      expansionGroups.set(expansionKey, {
-        row,
-        floorLabels,
-        sourceFloorLabel,
-        tenantDisplayName: tenantDisplayName || '-',
-        totalLeasedAreaSqm: 0,
-      });
-    }
-    const expansionGroup = expansionGroups.get(expansionKey);
-    expansionGroup.totalLeasedAreaSqm += Number.isFinite(leasedAreaSqm) ? leasedAreaSqm : 0;
-  });
-  expansionGroups.forEach((expansionGroup) => {
-    const leasedAreaSqm = expansionGroup.totalLeasedAreaSqm / expansionGroup.floorLabels.length;
-    expansionGroup.floorLabels.forEach((floorLabel) => {
-      const key = floorLabel.toUpperCase();
-      if (!grouped.has(key)) grouped.set(key, { floorLabel, totalLeasedAreaSqm: 0, tenants: [] });
-      const group = grouped.get(key);
-      group.totalLeasedAreaSqm += leasedAreaSqm;
-      group.tenants.push({
-        ...expansionGroup.row,
-        floorLabel,
-        sourceFloorLabel: expansionGroup.sourceFloorLabel,
-        tenantMasterName: expansionGroup.tenantDisplayName,
-        detailAreaLabel: cleanDisplay(expansionGroup.row.detailAreaLabel, ''),
-        leasedAreaSqm,
-        monthlyCostTotal: firstDefined(
-          expansionGroup.row.monthlyCostTotal,
-          expansionGroup.row.monthlyCombinedTotal,
-          expansionGroup.row.currentMonthlyCostTotal,
-        ),
-      });
-    });
-  });
-  if (grouped.size) {
-    return [...grouped.values()].map((floor) => ({
-      ...floor,
-      tenants: floor.tenants.map((tenant) => ({
-        ...tenant,
-        share: floor.totalLeasedAreaSqm > 0 ? Number(tenant.leasedAreaSqm || 0) / floor.totalLeasedAreaSqm : 1 / floor.tenants.length,
-      })),
-    }));
-  }
-  return (fallbackFloors || []).map((floor) => {
-    const floorLabel = normalizeStackingFloorLabel(floor.floorLabel);
-    if (!floorLabel) return null;
-    const floorArea = Number(floor.leasedAreaSqm || 0);
-    const tenants = (floor.tenants || []).map((tenant, index, tenantRows) => (
-      typeof tenant === 'string'
-        ? {
-            tenantMasterName: tenant,
-            leasedAreaSqm: floorArea,
-            monthlyCostTotal: floor.monthlyCostTotal,
-            share: tenantRows.length ? 1 / tenantRows.length : 1,
-          }
-        : {
-            ...tenant,
-            tenantMasterName: firstHumanTenantName(tenant.tenantMasterName, tenant.tenantName, tenant.companyName) || '-',
-            leasedAreaSqm: firstDefined(tenant.leasedAreaSqm, floorArea),
-            monthlyCostTotal: firstDefined(tenant.monthlyCostTotal, floor.monthlyCostTotal),
-            share: firstDefined(tenant.share, tenantRows.length ? 1 / tenantRows.length : 1),
-          }
-    ));
-    return { ...floor, floorLabel, tenants };
-  }).filter(Boolean);
 }
 
 function buildExpiryRowsFromRows(rows = []) {

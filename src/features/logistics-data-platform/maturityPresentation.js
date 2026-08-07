@@ -76,6 +76,6 @@ export function maturityDetailRows(row = {}) {
     ['이자 금리(Coupon)', row.coupon_rate],
     ['All-in 금리', row.all_in_rate],
     ['수수료', row.fee_rate],
-    ['연계 펀드', row.fund_name],
+    ['연계 펀드', humanFallback(row.fund_name, '펀드 정보 확인 필요')],
   ];
 }

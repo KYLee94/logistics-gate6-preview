@@ -9,6 +9,14 @@ const DIST_DIR = path.join(ROOT, 'dist');
 const DEFAULT_DEPLOY_BASE_PATH = '/logistics-gate6-preview/';
 const DEFAULT_LIVE_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
 const DEFAULT_TIMEOUT_MS = 30_000;
+const HOME_MATURITY_ALERT_CONTRACT = Object.freeze({
+  routeKey: 'data-platform-home',
+  assetName: '안성 홈플러스 중부허브 물류센터',
+  expectedCount: 2,
+  expectedDate: '2026-08-11',
+  expectedLenders: Object.freeze(['국민은행', '신한은행']),
+});
+const INTERNAL_MATURITY_IDENTIFIER = /\b(?:[0-9a-f]{8}-[0-9a-f-]{27,}|(?:asset|tenant|lease|contract|maturity|loan|fund)_[a-z0-9_-]+)\b/iu;
 const ROUTES = Object.freeze([
   {
     key: 'root',
@@ -372,6 +380,139 @@ async function anonymousAuthProbe(browser, baseUrl, route, timeoutMs) {
   return report;
 }
 
+async function homeMaturityAlertProbe(page, dataPlatformMain, edgeActions, timeoutMs) {
+  const contract = HOME_MATURITY_ALERT_CONTRACT;
+  const assetSelect = dataPlatformMain.locator('[data-testid="data-platform-asset-select"]');
+  const maturityButton = dataPlatformMain.locator('[data-testid="data-platform-maturity-button"]');
+  await assetSelect.waitFor({ state: 'visible', timeout: timeoutMs });
+  await page.waitForFunction(
+    ({ assetName }) => Array.from(document.querySelectorAll('[data-testid="data-platform-asset-select"] option'))
+      .some((option) => option.textContent?.trim() === assetName && option.value),
+    { assetName: contract.assetName },
+    { timeout: timeoutMs },
+  );
+
+  const optionState = await assetSelect.evaluate((select, assetName) => ({
+    currentValue: select.value,
+    target: Array.from(select.options)
+      .map((option) => ({ value: option.value, label: option.textContent?.trim() || '' }))
+      .find((option) => option.label === assetName && option.value) || null,
+    alternative: Array.from(select.options)
+      .map((option) => ({ value: option.value, label: option.textContent?.trim() || '' }))
+      .find((option) => option.value && option.label !== assetName) || null,
+  }), contract.assetName);
+  assert.ok(optionState.target, `${contract.assetName} 자산 선택 옵션을 찾지 못했습니다.`);
+
+  // Always create an actual target-asset transition. This makes the loading-state
+  // observation deterministic even when the browser initially restored this asset.
+  if (optionState.currentValue === optionState.target.value) {
+    assert.ok(optionState.alternative, '만기 알림 전환 검증에 사용할 다른 자산 옵션이 없습니다.');
+    await assetSelect.selectOption(optionState.alternative.value);
+    await page.waitForFunction(
+      ({ value }) => {
+        const select = document.querySelector('[data-testid="data-platform-asset-select"]');
+        const button = document.querySelector('[data-testid="data-platform-maturity-button"]');
+        return select?.value === value && /^만기 알림 \d+$/u.test(button?.textContent?.trim() || '');
+      },
+      { value: optionState.alternative.value },
+      { timeout: timeoutMs },
+    );
+  }
+
+  await page.evaluate(() => {
+    const probe = {
+      observedTexts: [],
+      zeroExposed: false,
+      inspect: null,
+      observer: null,
+    };
+    probe.inspect = () => {
+      const text = document.querySelector('[data-testid="data-platform-maturity-button"]')
+        ?.textContent?.trim() || '';
+      if (text && probe.observedTexts.at(-1) !== text) probe.observedTexts.push(text);
+      if (/^만기 알림 0$/u.test(text)) probe.zeroExposed = true;
+    };
+    probe.observer = new MutationObserver(probe.inspect);
+    probe.observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    window.__gate6HomeMaturityAlertProbe = probe;
+  });
+
+  const actionStart = edgeActions.length;
+  await assetSelect.selectOption(optionState.target.value);
+  await page.evaluate(() => window.__gate6HomeMaturityAlertProbe?.inspect?.());
+  await page.waitForFunction(
+    ({ targetValue, expectedCount }) => {
+      const select = document.querySelector('[data-testid="data-platform-asset-select"]');
+      const button = document.querySelector('[data-testid="data-platform-maturity-button"]');
+      return select?.value === targetValue
+        && button?.textContent?.trim() === `만기 알림 ${expectedCount}`;
+    },
+    { targetValue: optionState.target.value, expectedCount: contract.expectedCount },
+    { timeout: timeoutMs },
+  );
+  await page.evaluate(() => window.__gate6HomeMaturityAlertProbe?.inspect?.());
+
+  const headerText = (await maturityButton.innerText()).trim();
+  assert.equal(headerText, `만기 알림 ${contract.expectedCount}`);
+  await maturityButton.click();
+  const popup = maturityButton.locator('xpath=following-sibling::section[1]');
+  await popup.waitFor({ state: 'visible', timeout: timeoutMs });
+  const maturityRows = popup.locator('[data-testid="maturity-row"]');
+  await maturityRows.first().waitFor({ state: 'visible', timeout: timeoutMs });
+  const rowCount = await maturityRows.count();
+  assert.equal(rowCount, contract.expectedCount, `${contract.assetName} 만기 목록 건수가 다릅니다.`);
+
+  const rowTexts = (await maturityRows.allInnerTexts()).map((text) => text.trim());
+  const detailChecks = [];
+  for (const lender of contract.expectedLenders) {
+    const rowIndex = rowTexts.findIndex((text) => text.includes(lender));
+    assert.ok(rowIndex >= 0, `${lender} 대출 만기 행을 찾지 못했습니다.`);
+    assert.ok(rowTexts[rowIndex].includes(contract.expectedDate), `${lender} 만기 행에 만기일이 없습니다.`);
+    assert.doesNotMatch(rowTexts[rowIndex], INTERNAL_MATURITY_IDENTIFIER);
+
+    await maturityRows.nth(rowIndex).click();
+    const detailDialog = popup.locator('[data-testid="maturity-detail-dialog"]');
+    await detailDialog.waitFor({ state: 'visible', timeout: timeoutMs });
+    const detailText = (await detailDialog.innerText()).trim();
+    assert.ok(detailText.includes(lender), `${lender} 상세 팝업에 대주명이 없습니다.`);
+    assert.ok(detailText.includes(contract.expectedDate), `${lender} 상세 팝업에 만기일이 없습니다.`);
+    assert.doesNotMatch(detailText, INTERNAL_MATURITY_IDENTIFIER);
+    detailChecks.push({ lender, date: contract.expectedDate, visible: true });
+    await detailDialog.getByRole('button', { name: '닫기' }).click();
+    await detailDialog.waitFor({ state: 'hidden', timeout: timeoutMs });
+  }
+
+  const observerState = await page.evaluate(() => {
+    const probe = window.__gate6HomeMaturityAlertProbe;
+    probe?.observer?.disconnect();
+    return {
+      zero_exposed: Boolean(probe?.zeroExposed),
+      observed_texts: Array.isArray(probe?.observedTexts) ? probe.observedTexts : [],
+    };
+  });
+  const alertActions = edgeActions.slice(actionStart);
+  const writeActions = alertActions.filter((action) => /(?:batch-save|save|write|delete|archive)/iu.test(action));
+  assert.deepEqual(writeActions, [], '만기 알림 검증 중 쓰기 API가 호출되었습니다.');
+  assert.ok(alertActions.includes('v2/maturities/read'), '대상 자산의 만기 읽기 API 호출을 확인하지 못했습니다.');
+
+  return {
+    checked: true,
+    selected_asset: contract.assetName,
+    header_text: headerText,
+    row_count: rowCount,
+    row_texts: rowTexts,
+    detail_checks: detailChecks,
+    loading_zero_exposed: observerState.zero_exposed,
+    loading_text_history: observerState.observed_texts,
+    edge_actions: alertActions,
+    write_action_count: writeActions.length,
+  };
+}
+
 async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expectWriteEnabled, screenshotDir = '') {
   const targetUrl = joinRoute(baseUrl, route.publicPath);
   const expectedPath = normalizedPathname(joinRoute(baseUrl, route.expectedPublicPath ?? route.publicPath));
@@ -599,6 +740,10 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       maturity_button_count: await dataPlatformMain.locator('header [data-testid="data-platform-maturity-button"]').count(),
       top_tab_count: await dataPlatformMain.locator('header nav, header [role="tablist"]').count(),
     } : null;
+    let homeMaturityAlertUi = { checked: false };
+    if (isDataPlatform && route.key === HOME_MATURITY_ALERT_CONTRACT.routeKey) {
+      homeMaturityAlertUi = await homeMaturityAlertProbe(page, dataPlatformMain, edgeActions, timeoutMs);
+    }
     let writeUi = { checked: false };
     if (expectWriteEnabled && isDataPlatform && !route.internalPath.endsWith('/home')) {
       const writeSelector = route.key.endsWith('rent-roll')
@@ -714,6 +859,7 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       return_focus_ui: returnFocusUi,
       finance_trend_hover: financeTrendHover,
       home_brief_ui: homeBriefUi,
+      home_maturity_alert_ui: homeMaturityAlertUi,
       rent_roll_draft: rentRollDraft,
       screenshot_path: screenshotPath,
       errors,
@@ -753,6 +899,14 @@ async function authenticatedProbe(browser, baseUrl, route, timeoutMs, auth, expe
       ))
       && (!financeTrendHover.checked || (financeTrendHover.tooltip_visible && financeTrendHover.tooltip_text.length > 0))
       && (!homeBriefUi.checked || (homeBriefUi.visible && homeBriefUi.legacy_grid_count === 0 && !homeBriefUi.horizontal_overflow))
+      && (!homeMaturityAlertUi.checked || (
+        homeMaturityAlertUi.selected_asset === HOME_MATURITY_ALERT_CONTRACT.assetName
+        && homeMaturityAlertUi.header_text === `만기 알림 ${HOME_MATURITY_ALERT_CONTRACT.expectedCount}`
+        && homeMaturityAlertUi.row_count === HOME_MATURITY_ALERT_CONTRACT.expectedCount
+        && homeMaturityAlertUi.detail_checks.length === HOME_MATURITY_ALERT_CONTRACT.expectedLenders.length
+        && !homeMaturityAlertUi.loading_zero_exposed
+        && homeMaturityAlertUi.write_action_count === 0
+      ))
       && (!rentRollDraft.checked || (!rentRollDraft.popup_visible && rentRollDraft.save_request_count === 0))
       && (!writeUi.checked || writeUi.write_control_enabled)
       && errors.length === 0;
@@ -785,6 +939,12 @@ function runSelfTest() {
   const dataPlatformRoutes = routesForScope(true);
   assert.deepEqual(legacyRoutes.map((route) => route.publicPath), ['work-platform', 'home']);
   assert.equal(dataPlatformRoutes.length, 5);
+  assert.equal(
+    dataPlatformRoutes.find((route) => route.key === HOME_MATURITY_ALERT_CONTRACT.routeKey)?.publicPath,
+    'data-platform/home',
+  );
+  assert.equal(HOME_MATURITY_ALERT_CONTRACT.expectedCount, HOME_MATURITY_ALERT_CONTRACT.expectedLenders.length);
+  assert.doesNotMatch(HOME_MATURITY_ALERT_CONTRACT.assetName, INTERNAL_MATURITY_IDENTIFIER);
   assert.equal(routesForScope(false), ROUTES);
   for (const route of dataPlatformRoutes) {
     assert.match(route.internalPath, /\/data-platform\/(?:home|rent-roll|income-expense)$/u);

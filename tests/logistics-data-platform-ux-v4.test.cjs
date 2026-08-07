@@ -40,11 +40,12 @@ test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 �
   const formulas = await importFresh('src/features/logistics-data-platform/formulas.js');
   const core = formulas.KOREAN_LOGISTICS_NOI_ACCOUNTS.filter((account) => account.defaultVisible);
   const optional = formulas.KOREAN_LOGISTICS_NOI_ACCOUNTS.filter((account) => !account.defaultVisible);
-  assert.deepEqual(core.map((account) => account.code), [
+  const expectedCore = [
     'POTENTIAL_BASE_RENT',
     'POTENTIAL_CAM_INCOME',
     'EXPENSE_REIMBURSEMENT_INCOME',
-    'DEPOSIT_OPERATING_INCOME',
+    'PARKING_YARD_INCOME',
+    'ROOF_SOLAR_ANTENNA_INCOME',
     'OTHER_PROPERTY_INCOME',
     'VACANCY_LOSS',
     'RENT_FREE_CONCESSION_LOSS',
@@ -54,9 +55,20 @@ test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 �
     'UTILITIES',
     'PROPERTY_TAX_PUBLIC_DUES',
     'PROPERTY_INSURANCE',
+    'GENERAL_PROPERTY_ADMIN',
     'OTHER_PROPERTY_OPEX',
-  ]);
-  assert.ok(optional.some((account) => account.code === 'CAPEX'));
+    'CLEANING',
+    'SECURITY',
+    'LANDSCAPING_SNOW',
+    'CAPEX',
+    'TENANT_IMPROVEMENT',
+    'LEASING_COMMISSION',
+  ];
+  assert.deepEqual(
+    [...core.map((account) => account.code)].sort(),
+    [...expectedCore].sort(),
+  );
+  assert.ok(optional.some((account) => account.code === 'DEPOSIT_OPERATING_INCOME'));
   assert.ok(optional.some((account) => account.code === 'INTEREST_PAID'));
 
   const hierarchy = formulas.buildFinanceAccountHierarchy(

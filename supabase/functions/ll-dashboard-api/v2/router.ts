@@ -24,6 +24,8 @@ const WRITE_ACTIONS: ReadonlySet<V2PublicAction> = new Set([
 ]);
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
+const UNSIGNED_DECIMAL_PATTERN = /^(?:\d+(?:\.\d*)?|\.\d+)$/u;
 
 export type V2ActionRequest = {
   client_request_id?: string;
@@ -108,6 +110,118 @@ function normalizeFinancePayload(
   return { ...rest, operations };
 }
 
+function normalizeIsoDate(value: unknown, errorCode: string): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string') throw new Error(errorCode);
+  const normalized = value.trim();
+  if (!ISO_DATE_PATTERN.test(normalized)) throw new Error(errorCode);
+  const [year, month, day] = normalized.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year
+    || parsed.getUTCMonth() + 1 !== month
+    || parsed.getUTCDate() !== day
+  ) {
+    throw new Error(errorCode);
+  }
+  return normalized;
+}
+
+function canonicalPercent(value: number): string {
+  const rounded = Number(value.toPrecision(12));
+  return `${rounded}%`;
+}
+
+function normalizeEscalationRate(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    throw new Error('INVALID_ESCALATION_RATE');
+  }
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const hasPercent = raw.endsWith('%');
+  const numericText = hasPercent ? raw.slice(0, -1).trim() : raw;
+  if (!UNSIGNED_DECIMAL_PATTERN.test(numericText)) throw new Error('INVALID_ESCALATION_RATE');
+  let numeric = Number(numericText);
+  if (!Number.isFinite(numeric) || numeric < 0) throw new Error('INVALID_ESCALATION_RATE');
+  if (!hasPercent && numeric > 0 && numeric < 1) numeric *= 100;
+  if (numeric > 100) throw new Error('INVALID_ESCALATION_RATE');
+  return canonicalPercent(numeric);
+}
+
+function normalizeOptionTerm(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  if (['n', 'no'].includes(normalized.toLowerCase()) || normalized === '없음') return '없음';
+  if (['y', 'yes'].includes(normalized.toLowerCase()) || normalized === '있음') return '있음';
+  return normalized;
+}
+
+function normalizeRentFreePeriods(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) throw new Error('RENT_FREE_PERIODS_ARRAY_REQUIRED');
+  if (value.length > 120) throw new Error('RENT_FREE_PERIOD_LIMIT_EXCEEDED');
+  return value.map((period) => {
+    if (!period || typeof period !== 'object' || Array.isArray(period)) {
+      throw new Error('INVALID_RENT_FREE_PERIOD');
+    }
+    const source = period as Record<string, unknown>;
+    const startDate = normalizeIsoDate(source.start_date, 'INVALID_RENT_FREE_PERIOD');
+    const endDate = normalizeIsoDate(source.end_date, 'INVALID_RENT_FREE_PERIOD');
+    if (startDate && endDate && endDate < startDate) throw new Error('INVALID_RENT_FREE_PERIOD');
+
+    let months: number | null = null;
+    if (source.months !== null && source.months !== undefined && source.months !== '') {
+      months = Number(source.months);
+      if (!Number.isFinite(months) || months < 0) throw new Error('INVALID_RENT_FREE_PERIOD');
+    }
+    const reason = typeof source.reason === 'string' ? source.reason.trim() : source.reason;
+    const notes = typeof source.notes === 'string' ? source.notes.trim() : source.notes;
+    if (!startDate && !endDate && months === null && !reason && !notes) {
+      throw new Error('INVALID_RENT_FREE_PERIOD');
+    }
+    return {
+      ...source,
+      start_date: startDate,
+      end_date: endDate,
+      months,
+      reason: reason || null,
+      notes: notes || null,
+    };
+  });
+}
+
+function normalizeRentRollPayload(payload: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(payload.rows)) return payload;
+  const rows = payload.rows.map((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('INVALID_RENT_ROLL_ROW');
+    }
+    const row = { ...(value as Record<string, unknown>) };
+    if (Object.hasOwn(row, 'rent_escalation_rate')) {
+      row.rent_escalation_rate = normalizeEscalationRate(row.rent_escalation_rate);
+    }
+    if (Object.hasOwn(row, 'cam_escalation_rate')) {
+      row.cam_escalation_rate = normalizeEscalationRate(row.cam_escalation_rate);
+    }
+    if (Object.hasOwn(row, 'renewal_terms')) row.renewal_terms = normalizeOptionTerm(row.renewal_terms);
+    if (Object.hasOwn(row, 'termination_terms')) row.termination_terms = normalizeOptionTerm(row.termination_terms);
+
+    const fitOutStartDate = normalizeIsoDate(row.fit_out_start_date, 'FIT_OUT_DATE_INVALID');
+    const fitOutEndDate = normalizeIsoDate(row.fit_out_end_date, 'FIT_OUT_DATE_INVALID');
+    if (fitOutStartDate && fitOutEndDate && fitOutEndDate < fitOutStartDate) {
+      throw new Error('FIT_OUT_DATE_RANGE_INVALID');
+    }
+    if (Object.hasOwn(row, 'fit_out_start_date')) row.fit_out_start_date = fitOutStartDate;
+    if (Object.hasOwn(row, 'fit_out_end_date')) row.fit_out_end_date = fitOutEndDate;
+    if (Object.hasOwn(row, 'rent_free_periods')) {
+      row.rent_free_periods = normalizeRentFreePeriods(row.rent_free_periods);
+    }
+    return row;
+  });
+  return { ...payload, rows };
+}
+
 export function buildRpcArguments(
   action: string,
   request: V2ActionRequest = {},
@@ -135,7 +249,9 @@ export function buildRpcArguments(
   }
   const rpcPayload = action === 'v2/finance/batch-save'
     ? normalizeFinancePayload(request.payload ?? {}, request.client_request_id as string)
-    : request.payload ?? {};
+    : action === 'v2/rent-roll/batch-save'
+      ? normalizeRentRollPayload(request.payload ?? {})
+      : request.payload ?? {};
   return {
     p_request_id: request.client_request_id ?? crypto.randomUUID(),
     p_asset_key: request.asset_key ?? null,

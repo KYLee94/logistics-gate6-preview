@@ -25,6 +25,21 @@ test('만기 행 클릭은 종류별 상세 팝업을 열고 내부 식별자를
   assert.doesNotMatch(source, /maturity_key[^\n]{0,120}(?:display|target_name|title)/u);
 });
 
+test('만기 알림은 로딩과 빈 상태를 구분하고 유형별 전체 목록을 조용히 자르지 않는다', () => {
+  const source = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
+  assert.match(source, /maturities\.loading\s*\?\s*["']만기 알림 불러오는 중["']/u);
+  assert.match(source, /365일 이내 \{label\} 만기가 없습니다/u);
+  assert.doesNotMatch(source, /\.filter\(\(row\)[\s\S]{0,180}\.slice\(0,\s*limit\)/u);
+  assert.doesNotMatch(source, /<MaturityList[^>]*limit=/u);
+});
+
+test('대출 만기 상세의 연계 펀드는 내부 키를 사람용 안내로 차단한다', async () => {
+  const modulePath = path.join(ROOT, 'src/features/logistics-data-platform/maturityPresentation.js');
+  const presentation = await import(`${pathToFileURL(modulePath).href}?fund=${Date.now()}`);
+  const rows = presentation.maturityDetailRows({ type: 'loan', fund_name: 'fund_8fd3_internal' });
+  assert.equal(rows.find(([label]) => label === '연계 펀드')?.[1], '펀드 정보 확인 필요');
+});
+
 test('만기 API projection은 임차인 기업명과 펀드·대출 상세를 조인한다', () => {
   const migrationDir = path.join(ROOT, 'supabase/migrations');
   const candidates = fs.readdirSync(migrationDir)

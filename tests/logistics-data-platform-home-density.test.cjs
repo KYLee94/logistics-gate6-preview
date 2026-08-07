@@ -7,25 +7,41 @@ const source = fs.readFileSync(
   path.resolve(__dirname, '../src/features/logistics-data-platform/LogisticsDataPlatform.jsx'),
   'utf8',
 );
+const stackingSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/components/system/workspace/StackingPlan.jsx'),
+  'utf8',
+);
+const workspaceSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/components/system/workspace/WorkspaceLogistics.jsx'),
+  'utf8',
+);
 
-test('홈 상단은 카드 격자 없이 하나의 연속형 자산 브리프로 구성한다', () => {
+test('홈 상단은 자산 개요·임대 운영·층별 배치의 세 개 세로 열로 구성한다', () => {
   assert.match(source, /function\s+AssetBrief\s*\(/u);
   assert.match(source, /data-testid=["']home-asset-brief["']/u);
   assert.match(source, /data-testid=["']home-asset-brief-masthead["']/u);
-  assert.match(source, /data-testid=["']home-asset-specification["']/u);
+  assert.match(source, /data-testid=["']home-asset-overview["']/u);
   assert.match(source, /data-testid=["']home-lease-operations["']/u);
+  assert.match(source, /data-testid=["']home-stacking-plan["']/u);
   assert.match(source, /aria-labelledby=["']home-asset-brief-title["']/u);
-  assert.match(source, /xl:grid-cols-\[minmax\(0,1fr\)_minmax\(280px,0\.38fr\)\]/u);
+  assert.match(source, /xl:grid-cols-\[minmax\(0,0\.9fr\)_minmax\(0,0\.85fr\)_minmax\(280px,1\.25fr\)\]/u);
 
-  for (const section of ['기본정보', '면적', '담당 · 가치']) {
-    assert.ok(source.includes(section), `연속 명세 구획 누락: ${section}`);
+  const briefFields = source.slice(
+    source.indexOf('const HOME_ASSET_OVERVIEW_FIELDS'),
+    source.indexOf('function AssetBrief'),
+  );
+  for (const label of ['자산명', '주소', '용도지역', '대지면적', '건축면적', '연면적', '임대가능면적', '주용도', '건폐율', '용적률', '층수', '구조', '주차대수', '준공일']) {
+    assert.ok(briefFields.includes(label), `자산 개요 필드 누락: ${label}`);
+  }
+  for (const removed of ['자산 코드', '섹터', '기준 통화', '담당팀', '담당자', '취득가', '현재 평가액', '건축물대장']) {
+    assert.equal(briefFields.includes(removed), false, `제거 대상 필드 잔존: ${removed}`);
   }
   assert.doesNotMatch(source, /data-testid=["']home-asset-overview-grid["']/u);
   assert.doesNotMatch(source, /data-testid=["']home-tenant-summary["']/u);
   assert.doesNotMatch(source, /data-home-group=\{group\}/u);
 });
 
-test('임대 운영 요약은 점유율 막대와 실제 임차인명·공실·운영 수치를 선형 정보로 표시한다', () => {
+test('임대 운영은 임대율과 월 임대료·관리비 총액 및 평단가를 정렬해 표시한다', () => {
   assert.match(source, /row\.occupancy_status === ["']occupied["']/u);
   assert.match(source, /row\.occupancy_status === ["']planned["']/u);
   assert.match(source, /row\.monthly_rent_total_krw/u);
@@ -35,11 +51,15 @@ test('임대 운영 요약은 점유율 막대와 실제 임차인명·공실·�
   assert.match(source, /const\s+tenantSummaries\s*=\s*\[\.\.\.tenantMap\.values\(\)\]/u);
   assert.match(source, /tenant\.leased_area_sqm/u);
   assert.match(source, /tenant\.monthly_rent_total_krw/u);
-  for (const label of ['임대율', '임차인', '점유 공간', '공실 공간', '입주 예정', '임대면적', '월 임대료', '월 관리비', '평균 E.NOC\/평']) {
+  assert.match(source, /const\s+averageRentPerPy\s*=/u);
+  assert.match(source, /const\s+averageCamPerPy\s*=/u);
+  assert.match(source, /maximumFractionDigits:\s*0/u);
+  for (const label of ['임대율', '임차인', '점유 공간', '공실 공간', '입주 예정', '임대면적', '월 임대료 총액', '임대료\/평', '월 관리비 총액', '관리비\/평', '평균 E.NOC\/평']) {
     assert.ok(source.includes(label), `임차 현황 항목 누락: ${label}`);
   }
   assert.match(source, /data-testid=["']home-tenant-operations["']/u);
   assert.match(source, /tenantSummaries\.map\(\(tenant\)/u);
+  assert.match(source, /grid-cols-\[minmax\(0,1fr\)_minmax\(90px,auto\)_minmax\(90px,auto\)\]/u);
 });
 
 test('자산 브리프는 기존 편집·저장 계약과 ㎡·평 병기 및 하단 영역을 보존한다', () => {
@@ -48,8 +68,19 @@ test('자산 브리프는 기존 편집·저장 계약과 ㎡·평 병기 및 �
   assert.match(source, /data-testid=["']home-edit["']/u);
   assert.match(source, /data-testid=["']home-cancel["']/u);
   assert.match(source, /data-testid=["']home-save["']/u);
-  assert.match(source, /format\s*===\s*["']area["'][\s\S]*?area\(asset\[field\.key\]\)/u);
+  assert.match(source, /formatHomeOverviewValue\(field, asset\[field\.key\]\)/u);
+  assert.match(source, /buildStackingFloorsFromRows\(\s*occupiedRows,\s*\[\],\s*\)/u);
+  assert.doesNotMatch(source, /overviewForAsset|stackingPlanForAsset/u);
   assert.match(source, /title=["']펀드·수익증권 투자["']/u);
   assert.match(source, /title=["']대출 현황["']/u);
   assert.match(source, /title=["']다가오는 만기["']/u);
+});
+
+test('기존 화면과 신규 홈은 하나의 공용 적층도 구현을 사용하고 정적 자산 JSON에 의존하지 않는다', () => {
+  assert.match(stackingSource, /export function\s+StackingPlan\s*\(/u);
+  assert.match(stackingSource, /export function\s+buildStackingFloorsFromRows\s*\(/u);
+  assert.doesNotMatch(stackingSource, /logisticsAssetData|STATIC_STACKING|STATIC_ASSET/u);
+  assert.match(workspaceSource, /import\s*\{\s*StackingPlan,\s*buildStackingFloorsFromRows\s*\}\s*from\s*["']\.\/StackingPlan["']/u);
+  assert.doesNotMatch(workspaceSource, /function\s+StackingPlan\s*\(/u);
+  assert.doesNotMatch(workspaceSource, /function\s+buildStackingFloorsFromRows\s*\(/u);
 });
