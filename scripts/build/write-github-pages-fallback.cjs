@@ -8,6 +8,8 @@ const routeFallbacks = [
   'auth-setup',
   'work-platform',
   'home',
+  'rent-roll',
+  'income-expense',
   'data-platform',
   'data-platform/home',
   'data-platform/rent-roll',

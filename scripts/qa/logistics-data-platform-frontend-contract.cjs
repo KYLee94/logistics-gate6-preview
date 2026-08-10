@@ -15,7 +15,10 @@ const api = read('src/features/logistics-data-platform/api.js');
 const formulas = read('src/features/logistics-data-platform/formulas.js');
 const fallbacks = read('scripts/build/write-github-pages-fallback.cjs');
 
-for (const route of ['data-platform', 'data-platform/home', 'data-platform/rent-roll', 'data-platform/income-expense']) {
+for (const route of [
+  'home', 'rent-roll', 'income-expense',
+  'data-platform', 'data-platform/home', 'data-platform/rent-roll', 'data-platform/income-expense',
+]) {
   assert.ok(routes.includes(route), `missing route: ${route}`);
   assert.ok(fallbacks.includes(`'${route}'`), `missing Pages fallback: ${route}`);
 }
