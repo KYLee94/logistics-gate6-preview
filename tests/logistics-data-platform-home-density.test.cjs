@@ -85,11 +85,14 @@ test('기존 화면과 신규 홈은 하나의 공용 적층도 구현을 사용
   assert.doesNotMatch(workspaceSource, /function\s+buildStackingFloorsFromRows\s*\(/u);
 });
 
-test('층별 배치의 임차 구획은 호버와 키보드 포커스로 운영 세부정보를 보여준다', () => {
+test('층별 배치 상세는 포인터 이탈·클릭 시 닫히고 키보드 focus-visible 접근성을 유지한다', () => {
   assert.match(stackingSource, /["']data-testid["']:\s*["']stacking-plan-tenant["']/u);
   assert.match(stackingSource, /data-testid=["']stacking-plan-tooltip["']/u);
-  assert.match(stackingSource, /group-hover\/tenant:opacity-100/u);
-  assert.match(stackingSource, /group-focus-within\/tenant:opacity-100/u);
+  assert.match(stackingSource, /onPointerEnter:\s*openTooltip/u);
+  assert.match(stackingSource, /onPointerLeave:\s*closeTooltip/u);
+  assert.match(stackingSource, /matches\(["']:focus-visible["']\)/u);
+  assert.match(stackingSource, /onClick=\{handleClick\}/u);
+  assert.doesNotMatch(stackingSource, /group-focus-within\/tenant/u);
   assert.match(stackingSource, /aria-describedby/u);
   for (const label of ['임차인', '층·구역', '임대면적', '월 임대료', '월 관리비', '월 합계']) {
     assert.ok(stackingSource.includes(label), `층별 배치 툴팁 항목 누락: ${label}`);
@@ -122,5 +125,5 @@ test('층별 배치는 자산 브리프 오른쪽 열 폭 안에서 적응하고
   assert.match(stackingSource, /flexBasis:\s*0/u);
   assert.doesNotMatch(stackingSource, /style:\s*\{\s*width:/u);
   assert.match(stackingSource, /data-testid=["']stacking-plan-tooltip["']/u);
-  assert.match(stackingSource, /group-focus-within\/tenant:visible/u);
+  assert.match(stackingSource, /aria-hidden=\{!tooltipVisible\}/u);
 });

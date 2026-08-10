@@ -103,6 +103,7 @@ test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 �
   );
 
   const source = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
+  const presentationSource = read('src/features/logistics-data-platform/financePresentation.js');
   assert.doesNotMatch(source, /data-testid=["']finance-account-picker["']/u);
   assert.match(source, /data-testid=["']finance-account-row["']/u);
   assert.match(source, /data-testid=["']finance-account-toggle["']/u);
@@ -110,16 +111,17 @@ test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 �
   assert.match(source, /disabled=\{!writeEnabled \|\| !row\.active \|\| saveState === ["']saving["']\}/u);
   assert.match(source, /pendingAccountFocusRef/u);
   assert.match(source, /accountSelectionAnnouncement/u);
-  assert.match(source, /영업수익 소계/u);
-  assert.match(source, /영업비용 소계/u);
+  assert.match(presentationSource, /영업수익 소계/u);
+  assert.match(presentationSource, /영업비용 소계/u);
+  assert.match(presentationSource, /수익 차감/u);
 });
 
-test('NOI·NCF 차트는 키보드와 마우스 호버 상세 툴팁을 제공한다', () => {
+test('NOI·부채상환 후 현금흐름 차트는 키보드와 마우스 호버 상세 툴팁을 제공한다', () => {
   const source = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
   assert.match(source, /data-testid=["']finance-trend-tooltip["']/u);
   assert.match(source, /onMouseEnter/u);
   assert.match(source, /onFocus/u);
-  for (const label of ['유효총수입', '운영비용', '순영업소득', '자산 NCF']) {
+  for (const label of ['유효총수입', '운영비용', '순영업소득', '부채상환 후 현금흐름']) {
     assert.ok(source.includes(label), `차트 툴팁 상세값 누락: ${label}`);
   }
 });

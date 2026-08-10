@@ -331,6 +331,29 @@ export function primaryHomeDataForAsset(data, assetCode) {
   return selectedAssetCode && responseAssetCode === selectedAssetCode ? data : null;
 }
 
+function finiteOccupancyNumber(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+export function normalizeHomeOccupancySummary(summary = {}) {
+  const occupiedArea = finiteOccupancyNumber(summary?.occupied_area_sqm);
+  const denominatorArea = finiteOccupancyNumber(summary?.denominator_area_sqm);
+  const rate = finiteOccupancyNumber(summary?.occupancy_rate);
+  const occupiedAreaSqm = occupiedArea != null && occupiedArea >= 0 ? occupiedArea : null;
+  const denominatorAreaSqm = denominatorArea != null && denominatorArea >= 0
+    ? denominatorArea
+    : null;
+  return {
+    occupiedAreaSqm,
+    denominatorAreaSqm,
+    occupancyRate: occupiedAreaSqm != null && denominatorAreaSqm > 0 && rate != null
+      ? rate
+      : null,
+  };
+}
+
 function currentDateKst() {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Seoul',

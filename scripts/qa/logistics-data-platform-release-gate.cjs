@@ -76,6 +76,16 @@ const releaseSteps = Object.freeze([
     target: 'tests/logistics-occupancy-expired-rent-guard-contract.test.cjs',
   },
   {
+    id: 'occupancy-rent-roll-basis-contract',
+    kind: 'node',
+    target: 'tests/logistics-occupancy-rent-roll-basis-contract.test.cjs',
+  },
+  {
+    id: 'occupancy-live-audit-unit',
+    kind: 'node',
+    target: 'tests/logistics-occupancy-live-audit.test.cjs',
+  },
+  {
     id: 'maturity-revision-contract',
     kind: 'node',
     target: 'tests/logistics-maturity-revision-fix-contract.test.cjs',

@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   normalizeStackingFloorLabel,
   normalizeStackingFloorLabelFromRow,
 } from "./stackingFloorNormalizer";
+import { hoverDetailVisibility } from "./hoverDetailInteraction";
 
 function firstDefined(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
@@ -43,6 +44,91 @@ function formatCurrency(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "미입력";
   return `${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(numeric)}원`;
+}
+
+function StackingPlanTenant({ floor, tenant, index, onTenantClick }) {
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const updateTooltip = (eventType) => {
+    setTooltipVisible((current) => hoverDetailVisibility(current, eventType));
+  };
+  const openTooltip = () => updateTooltip("pointer-enter");
+  const closeTooltip = () => updateTooltip("pointer-leave");
+  const handleFocus = (event) => {
+    if (event.currentTarget.matches(":focus-visible")) updateTooltip("keyboard-focus");
+  };
+  const handleBlur = () => updateTooltip("blur");
+  const handleClick = () => {
+    updateTooltip("click");
+    onTenantClick?.(tenant);
+  };
+  const tooltipId = `stacking-plan-${String(floor.floorLabel || "floor").replace(/[^a-zA-Z0-9가-힣_-]/gu, "-")}-${index}`;
+  const monthlyRent = firstDefined(tenant.monthlyRentTotal, tenant.monthly_rent_total_krw);
+  const monthlyCam = firstDefined(tenant.monthlyCamTotal, tenant.monthly_cam_total_krw);
+  const monthlyTotal = firstDefined(
+    tenant.monthlyCostTotal,
+    Number(monthlyRent || 0) + Number(monthlyCam || 0),
+  );
+  const detailRows = [
+    ["임차인", tenant.tenantMasterName || "임차인 미입력"],
+    ["층·구역", [tenant.sourceFloorLabel || floor.floorLabel, tenant.detailAreaLabel].filter(Boolean).join(" · ") || "미입력"],
+    ["임대면적", formatAreaDetail(tenant.leasedAreaSqm)],
+    ["월 임대료", formatCurrency(monthlyRent)],
+    ["월 관리비", formatCurrency(monthlyCam)],
+    ["월 합계", formatCurrency(monthlyTotal)],
+  ];
+  const content = (
+    <>
+      <span className="block min-w-0 overflow-hidden">
+        <span className="block truncate font-semibold">{tenant.tenantMasterName || "임차인 미입력"}</span>
+        <span className="block truncate text-[#B8DFFF]">
+          {[tenant.detailAreaLabel, formatArea(tenant.leasedAreaSqm)].filter(Boolean).join(" · ")}
+        </span>
+      </span>
+      <span
+        id={tooltipId}
+        role="tooltip"
+        data-testid="stacking-plan-tooltip"
+        aria-hidden={!tooltipVisible}
+        className={`pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-40 w-64 -translate-x-1/2 rounded-[10px] border border-[#4A4A4D] bg-[#111111] p-3 text-left shadow-2xl transition-opacity ${tooltipVisible ? "visible opacity-100" : "invisible opacity-0"}`}
+      >
+        <span className="mb-2 block text-[11px] font-semibold text-white">임대 운영 세부정보</span>
+        <span className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+          {detailRows.map(([label, value]) => (
+            <React.Fragment key={label}>
+              <span className="text-[10px] text-[#86868B]">{label}</span>
+              <span className="truncate text-right text-[11px] text-[#D1D1D6] tabular-nums" title={String(value)}>{value}</span>
+            </React.Fragment>
+          ))}
+        </span>
+      </span>
+    </>
+  );
+  const sharedProps = {
+    "data-testid": "stacking-plan-tenant",
+    "aria-describedby": tooltipId,
+    onPointerEnter: openTooltip,
+    onPointerLeave: closeTooltip,
+    onFocus: handleFocus,
+    onBlur: handleBlur,
+    className: "group/tenant relative min-w-0 border-r border-[#252524] bg-[#263A45] px-3 py-2 text-left text-[12px] text-white first:rounded-l-[7px] last:rounded-r-[7px] last:border-r-0",
+    style: {
+      flexGrow: Math.max(1, Number(tenant.share || 0.08) * 100),
+      flexShrink: 1,
+      flexBasis: 0,
+    },
+  };
+  return onTenantClick ? (
+    <button
+      {...sharedProps}
+      type="button"
+      onClick={handleClick}
+      className={`${sharedProps.className} hover:bg-[#315268] focus:outline-none focus:ring-2 focus:ring-[#9AD7FF]`}
+    >
+      {content}
+    </button>
+  ) : (
+    <div {...sharedProps} role="group" tabIndex={0}>{content}</div>
+  );
 }
 
 export function buildStackingFloorsFromRows(rows = [], fallbackFloors = []) {
@@ -159,72 +245,15 @@ export function StackingPlan({ floors, onTenantClick }) {
             data-testid="stacking-plan-track"
             className="flex min-h-[38px] w-full min-w-0 max-w-full overflow-visible rounded-[8px] border border-[#333333] bg-[#191918]"
           >
-            {(floor.tenants || []).map((tenant, index) => {
-              const tooltipId = `stacking-plan-${String(floor.floorLabel || "floor").replace(/[^a-zA-Z0-9가-힣_-]/gu, "-")}-${index}`;
-              const monthlyRent = firstDefined(tenant.monthlyRentTotal, tenant.monthly_rent_total_krw);
-              const monthlyCam = firstDefined(tenant.monthlyCamTotal, tenant.monthly_cam_total_krw);
-              const monthlyTotal = firstDefined(
-                tenant.monthlyCostTotal,
-                Number(monthlyRent || 0) + Number(monthlyCam || 0),
-              );
-              const detailRows = [
-                ["임차인", tenant.tenantMasterName || "임차인 미입력"],
-                ["층·구역", [tenant.sourceFloorLabel || floor.floorLabel, tenant.detailAreaLabel].filter(Boolean).join(" · ") || "미입력"],
-                ["임대면적", formatAreaDetail(tenant.leasedAreaSqm)],
-                ["월 임대료", formatCurrency(monthlyRent)],
-                ["월 관리비", formatCurrency(monthlyCam)],
-                ["월 합계", formatCurrency(monthlyTotal)],
-              ];
-              const content = (
-                <>
-                  <span className="block min-w-0 overflow-hidden">
-                    <span className="block truncate font-semibold">{tenant.tenantMasterName || "임차인 미입력"}</span>
-                    <span className="block truncate text-[#B8DFFF]">
-                      {[tenant.detailAreaLabel, formatArea(tenant.leasedAreaSqm)].filter(Boolean).join(" · ")}
-                    </span>
-                  </span>
-                  <span
-                    id={tooltipId}
-                    role="tooltip"
-                    data-testid="stacking-plan-tooltip"
-                    className="pointer-events-none invisible absolute bottom-[calc(100%+8px)] left-1/2 z-40 w-64 -translate-x-1/2 rounded-[10px] border border-[#4A4A4D] bg-[#111111] p-3 text-left shadow-2xl opacity-0 transition-opacity group-hover/tenant:visible group-hover/tenant:opacity-100 group-focus-within/tenant:visible group-focus-within/tenant:opacity-100"
-                  >
-                    <span className="mb-2 block text-[11px] font-semibold text-white">임대 운영 세부정보</span>
-                    <span className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-1.5">
-                      {detailRows.map(([label, value]) => (
-                        <React.Fragment key={label}>
-                          <span className="text-[10px] text-[#86868B]">{label}</span>
-                          <span className="truncate text-right text-[11px] text-[#D1D1D6] tabular-nums" title={String(value)}>{value}</span>
-                        </React.Fragment>
-                      ))}
-                    </span>
-                  </span>
-                </>
-              );
-              const sharedProps = {
-                key: `${tenant.tenantId || tenant.row_key || tenant.tenantMasterName}-${index}`,
-                "data-testid": "stacking-plan-tenant",
-                "aria-describedby": tooltipId,
-                className: "group/tenant relative min-w-0 border-r border-[#252524] bg-[#263A45] px-3 py-2 text-left text-[12px] text-white first:rounded-l-[7px] last:rounded-r-[7px] last:border-r-0",
-                style: {
-                  flexGrow: Math.max(1, Number(tenant.share || 0.08) * 100),
-                  flexShrink: 1,
-                  flexBasis: 0,
-                },
-              };
-              return onTenantClick ? (
-                <button
-                  {...sharedProps}
-                  type="button"
-                  onClick={() => onTenantClick(tenant)}
-                  className={`${sharedProps.className} hover:bg-[#315268] focus:outline-none focus:ring-2 focus:ring-[#9AD7FF]`}
-                >
-                  {content}
-                </button>
-              ) : (
-                <div {...sharedProps} role="group" tabIndex={0}>{content}</div>
-              );
-            })}
+            {(floor.tenants || []).map((tenant, index) => (
+              <StackingPlanTenant
+                key={`${tenant.tenantId || tenant.row_key || tenant.tenantMasterName}-${index}`}
+                floor={floor}
+                tenant={tenant}
+                index={index}
+                onTenantClick={onTenantClick}
+              />
+            ))}
           </div>
         </div>
       ))}

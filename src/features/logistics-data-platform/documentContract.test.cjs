@@ -480,10 +480,35 @@ test('asset directory keeps all unique assets and reconciles refresh selection',
 
 test('home detail accepts only the currently selected asset document', async () => {
   const { primaryHomeDataForAsset } = await contract();
-  const gyeongsan = { asset: { asset_code: 'ASSET-GYEONGSAN' }, occupancy_summary: { occupancy_rate: 100 } };
+  const gyeongsan = { asset: { asset_code: 'ASSET-GYEONGSAN' }, occupancy_summary: { occupancy_rate: 0 } };
   assert.equal(primaryHomeDataForAsset(gyeongsan, 'ASSET-GYEONGSAN'), gyeongsan);
   assert.equal(primaryHomeDataForAsset(gyeongsan, 'ASSET-ICHEON'), null);
   assert.equal(primaryHomeDataForAsset({ assets: [] }, 'ASSET-GYEONGSAN'), null);
+});
+
+test('home occupancy summary preserves a valid zero rate and requires a positive denominator', async () => {
+  const { normalizeHomeOccupancySummary } = await contract();
+
+  assert.deepEqual(normalizeHomeOccupancySummary({
+    occupied_area_sqm: 0,
+    denominator_area_sqm: 1250,
+    occupancy_rate: 0,
+    denominator_basis: 'current_rent_roll_area',
+  }), {
+    occupiedAreaSqm: 0,
+    denominatorAreaSqm: 1250,
+    occupancyRate: 0,
+  });
+  assert.equal(normalizeHomeOccupancySummary({
+    occupied_area_sqm: 0,
+    denominator_area_sqm: 0,
+    occupancy_rate: 0,
+  }).occupancyRate, null);
+  assert.equal(normalizeHomeOccupancySummary({
+    occupied_area_sqm: null,
+    denominator_area_sqm: null,
+    occupancy_rate: null,
+  }).occupancyRate, null);
 });
 
 test('home current occupancy includes only occupied rows active on the as-of date', async () => {

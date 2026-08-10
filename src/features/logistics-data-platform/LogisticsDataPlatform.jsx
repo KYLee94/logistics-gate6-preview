@@ -36,9 +36,12 @@ import {
   calculateKoreanLogisticsNoi,
   filterFinanceCalculationAccounts,
   FINANCE_SECTION_ORDER,
-  FINANCE_WATERFALL_KEYS,
   KOREAN_LOGISTICS_NOI_ACCOUNTS,
 } from "./formulas";
+import {
+  buildFinanceStatementPresentationRows,
+  FINANCE_COMPARISON_PRESENTATION_KEYS,
+} from "./financePresentation";
 import {
   maturityDetailRows,
   maturityDisplayName,
@@ -53,6 +56,7 @@ import {
   isCurrentOccupiedRentRollRow,
   isExpiredRentRollRow,
   normalizeAssetDirectory,
+  normalizeHomeOccupancySummary,
   normalizeMaturityRows,
   primaryHomeDataForAsset,
   projectIncomeExpenseStatement,
@@ -725,10 +729,16 @@ function HomePanel({ assetCode, resource, maturities }) {
   );
   const occupancySummary = sourceData.occupancy_summary || {};
   const summarizedOccupiedArea = homeFiniteNumber(occupancySummary.occupied_area_sqm);
-  const occupiedArea = summarizedOccupiedArea != null && summarizedOccupiedArea >= 0
-    ? summarizedOccupiedArea
-    : 0;
-  const occupancyRate = homeFiniteNumber(occupancySummary.occupancy_rate);
+  const summarizedDenominatorArea = homeFiniteNumber(occupancySummary.denominator_area_sqm);
+  const summarizedOccupancyRate = homeFiniteNumber(occupancySummary.occupancy_rate);
+  const normalizedOccupancySummary = normalizeHomeOccupancySummary({
+    ...occupancySummary,
+    occupied_area_sqm: summarizedOccupiedArea,
+    denominator_area_sqm: summarizedDenominatorArea,
+    occupancy_rate: summarizedOccupancyRate,
+  });
+  const occupiedArea = normalizedOccupancySummary.occupiedAreaSqm ?? 0;
+  const occupancyRate = normalizedOccupancySummary.occupancyRate;
   const activeTenantCount = Number.isFinite(Number(occupancySummary.active_tenant_count))
     ? Number(occupancySummary.active_tenant_count)
     : tenantSummaries.length;
@@ -2561,7 +2571,7 @@ function buildFinanceSeries(entries, accounts, months, aggregation) {
 function FinanceTrend({ series }) {
   const [activeIndex, setActiveIndex] = useState(null);
   const values = series
-    .flatMap((row) => [row.net_operating_income, row.asset_net_cash_flow])
+    .flatMap((row) => [row.net_operating_income, row.after_debt_service_cash_flow])
     .map((value) => Math.abs(Number(value || 0)));
   const max = Math.max(...values, 1);
   const active = activeIndex === null ? null : series[activeIndex];
@@ -2588,7 +2598,7 @@ function FinanceTrend({ series }) {
               className="w-4 rounded-t bg-[#5E9EFF]"
             />
             <span
-              style={{ height: `${Math.max(3, (Math.abs(row.asset_net_cash_flow) / max) * 130)}px` }}
+              style={{ height: `${Math.max(3, (Math.abs(row.after_debt_service_cash_flow) / max) * 130)}px` }}
               className="w-4 rounded-t bg-[#7BD5A0]"
             />
             <span className="absolute -bottom-4 hidden text-[9px] text-[#86868B] xl:block">{row.period}</span>
@@ -2606,7 +2616,7 @@ function FinanceTrend({ series }) {
             ["유효총수입", "effective_gross_income"],
             ["운영비용", "total_operating_expense"],
             ["순영업소득", "net_operating_income"],
-            ["자산 NCF", "asset_net_cash_flow"],
+            ["부채상환 후 현금흐름", "after_debt_service_cash_flow"],
           ].map(([label, key]) => (
             <div key={key} className="flex justify-between gap-5 py-0.5">
               <span className="text-[#A1A1AA]">{label}</span>
@@ -2618,8 +2628,8 @@ function FinanceTrend({ series }) {
         </div>
       ) : null}
       <div className="mt-4 flex items-center gap-4 text-[11px] text-[#A1A1AA]">
-        <span><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-[#5E9EFF]" />NOI</span>
-        <span><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-[#7BD5A0]" />NCF</span>
+        <span><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-[#5E9EFF]" />순영업소득</span>
+        <span><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-[#7BD5A0]" />부채상환 후 현금흐름</span>
       </div>
     </div>
   );
@@ -2970,47 +2980,13 @@ function FinancePanel({ assetCode, assets }) {
   const summaryLabels = Object.freeze({
     potential_gross_income: "잠재총수입",
     total_income_loss: "수입손실",
-    effective_gross_income: "유효총수입",
+    effective_gross_income: "영업수익",
     total_operating_expense: "운영비용",
     net_operating_income: "순영업소득(NOI)",
     asset_net_cash_flow: "자산 NCF",
     after_debt_service_cash_flow: "부채상환 후 현금흐름",
   });
-  const rows = [];
-  financeHierarchy.forEach(({ key: section, label, accounts: sectionAccounts }) => {
-    rows.push({ kind: "section", key: section, label });
-    const firstInactiveIndex = sectionAccounts.findIndex((account) => !account.active);
-    sectionAccounts.forEach((account, index) => {
-      if (index === firstInactiveIndex) {
-        rows.push({ kind: "custom-add", key: `${section}-custom-add`, section });
-        rows.push({ kind: "inactive-divider", key: `${section}-inactive`, label: "미사용 계정" });
-      }
-      rows.push({
-        kind: "account",
-        key: account.account_code,
-        label: account.label,
-        account,
-        active: account.active,
-      });
-    });
-    if (firstInactiveIndex === -1) {
-      rows.push({ kind: "custom-add", key: `${section}-custom-add`, section });
-    }
-    if (section === "potential_income") rows.push({ kind: "metric", key: "potential_gross_income", label: "영업수익 소계" });
-    if (section === "income_loss") rows.push({ kind: "metric", key: "effective_gross_income", label: "유효총수입(EGI)" });
-    if (section === "operating_expense") {
-      rows.push({ kind: "metric", key: "total_operating_expense", label: "영업비용 소계" });
-      rows.push({ kind: "metric", key: "net_operating_income", label: "순영업소득(NOI)" });
-    }
-    if (section === "below_noi") rows.push({ kind: "metric", key: "asset_net_cash_flow", label: "자산 순현금흐름(NCF)" });
-    if (section === "debt_service") rows.push({ kind: "metric", key: "after_debt_service_cash_flow", label: "부채상환 후 현금흐름" });
-  });
-  if (!financeHierarchy.some((section) => section.key === "below_noi")) {
-    rows.push({ kind: "metric", key: "asset_net_cash_flow", label: "자산 순현금흐름(NCF)" });
-  }
-  if (!financeHierarchy.some((section) => section.key === "debt_service")) {
-    rows.push({ kind: "metric", key: "after_debt_service_cash_flow", label: "부채상환 후 현금흐름" });
-  }
+  const rows = buildFinanceStatementPresentationRows(financeHierarchy);
   const comparisonAction = (
     <div
       data-testid="finance-comparison-controls"
@@ -3053,7 +3029,7 @@ function FinancePanel({ assetCode, assets }) {
         data-testid="finance-analysis-grid"
         className="grid gap-4 xl:grid-cols-[minmax(0,1.22fr)_minmax(420px,0.78fr)]"
       >
-        <Section title="NOI·NCF 시계열" className="p-4">
+        <Section title="NOI·부채상환 후 현금흐름 시계열" className="p-4">
           <div
             data-testid="finance-period-controls"
             className="mb-4 border-b border-[#333333] pb-3"
@@ -3132,8 +3108,8 @@ function FinancePanel({ assetCode, assets }) {
                 </tr>
               </thead>
               <tbody>
-                {FINANCE_WATERFALL_KEYS.map((key) => {
-                  const isKeyResult = key === "net_operating_income" || key === "asset_net_cash_flow";
+                {FINANCE_COMPARISON_PRESENTATION_KEYS.map((key) => {
+                  const isKeyResult = key === "net_operating_income" || key === "after_debt_service_cash_flow";
                   return (
                     <tr key={key} className={isKeyResult ? "bg-[#17314E]" : "bg-[#252524]"}>
                       <th className={`border-t border-[#333333] px-3 py-2 text-left ${isKeyResult ? "font-semibold text-[#9AD7FF]" : "font-medium text-[#D1D1D6]"}`}>
@@ -3209,6 +3185,15 @@ function FinancePanel({ assetCode, assets }) {
                           key={period}
                           className="border-b border-[#414145] bg-[#1D1D1D]"
                         />
+                      ))}
+                    </>
+                  ) : row.kind === "subsection" ? (
+                    <>
+                      <th className="sticky left-0 z-10 border-b border-r border-[#3A3A3C] bg-[#222222] px-6 py-1.5 text-left text-[11px] font-semibold text-[#A1A1AA]">
+                        {row.label}
+                      </th>
+                      {periods.map((period) => (
+                        <td key={period} className="border-b border-[#3A3A3C] bg-[#222222]" />
                       ))}
                     </>
                   ) : row.kind === "inactive-divider" ? (

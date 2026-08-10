@@ -16,7 +16,7 @@ test('수익비용 누계 요약은 가로 KPI 중복 없이 단일 비교표로
   assert.match(source, /<col className="w-\[22%\]"\s*\/>/u);
 });
 
-test('NOI·NCF 시계열과 기간 누계 자산 비교가 입력표보다 먼저 좌우로 배치된다', () => {
+test('NOI·부채상환 후 현금흐름 시계열과 기간 누계 자산 비교가 입력표보다 먼저 좌우로 배치된다', () => {
   const statementIndex = source.indexOf('data-testid="finance-statement-table"');
   const summaryIndex = source.indexOf('data-testid="finance-period-summary"');
   const trendIndex = source.indexOf('<FinanceTrend');
@@ -36,7 +36,7 @@ test('기간은 시계열 안에서 선택하고 비교 자산은 누계 비교 
   for (const label of ['최근 1개월', '최근 3개월', '최근 6개월', '최근 1년', '직접 지정']) {
     assert.ok(source.includes(label), `기간 프리셋 누락: ${label}`);
   }
-  const trendSectionIndex = source.indexOf('<Section title="NOI·NCF 시계열"');
+  const trendSectionIndex = source.indexOf('<Section title="NOI·부채상환 후 현금흐름 시계열"');
   const periodControlsIndex = source.indexOf('data-testid="finance-period-controls"');
   const trendIndex = source.indexOf('<FinanceTrend');
   const comparisonSectionIndex = source.indexOf('title="기간 누계 · 자산 비교"');
