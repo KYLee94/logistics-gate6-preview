@@ -16,7 +16,7 @@ const EDITABLE_FIELDS = Object.freeze([
   'security_type', 'security_ratio', 'monthly_rent_total_krw', 'monthly_cam_total_krw',
   'pallet_rack_fee', 'rent_free_months', 'rent_free_start_date', 'rent_free_end_date',
   'fit_out_months', 'fit_out_amount', 'tenant_improvement_amount',
-  'deposit_escalation_first_date', 'deposit_escalation_interval_months',
+  'deposit_escalation_enabled', 'deposit_escalation_first_date', 'deposit_escalation_interval_months',
   'deposit_escalation_rate', 'rent_escalation_first_date',
   'rent_escalation_interval_months', 'rent_escalation_rate',
   'cam_escalation_first_date', 'cam_escalation_interval_months', 'cam_escalation_rate',
@@ -36,7 +36,7 @@ async function schema() {
   return import(`${pathToFileURL(target).href}?cell-save=${Date.now()}-${Math.random()}`);
 }
 
-test('렌트롤 55개 컬럼은 편집 43개와 자동계산 12개로 1:1 분류된다', async () => {
+test('렌트롤 56개 컬럼은 편집 44개와 자동계산 12개로 1:1 분류된다', async () => {
   const module = await schema();
   assert.deepEqual(module.RENT_ROLL_EDITABLE_FIELDS, EDITABLE_FIELDS);
   assert.deepEqual(module.RENT_ROLL_DERIVED_FIELDS, DERIVED_FIELDS);

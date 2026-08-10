@@ -153,8 +153,10 @@ test('홈 전체 문서는 자산과 펀드 xmin을 각각 한 번 검사하고 
 test('렌트롤 고정 열의 제목은 본문 셀과 같은 왼쪽 위치에 함께 고정된다', () => {
   const source = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
   assert.match(source, /data-sticky-column-header=\{stickyLeft == null \? undefined : column\.key\}/u);
-  assert.match(source, /column\.key === ["']occupancy_status["'][\s\S]*?\? 62/u);
-  assert.match(source, /column\.key === ["']tenant_name["'][\s\S]*?\? 166/u);
+  assert.ok(
+    (source.match(/const stickyLeft = rentRollStickyLeft\(column\.key\)/gu) || []).length >= 2,
+    'column headers and body cells must use the same sticky offset helper',
+  );
   assert.match(source, /left: stickyLeft == null \? undefined : stickyLeft/u);
   assert.match(source, /style=\{cellStyle\}/u);
   assert.match(source, /z-\[60\] shadow-\[1px_0_0_#333333\]/u);

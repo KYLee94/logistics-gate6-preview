@@ -16,13 +16,19 @@ import {
   emptyRentRollRow,
   formatRentRollNumber,
   normalizeCostTerms,
+  normalizeRentRollGoodsTypes,
   normalizeFitOutMonths,
   normalizeRentFreePeriod,
   parseRentRollMoneyInput,
   RENT_ROLL_COLUMNS,
   RENT_ROLL_EDITABLE_FIELDS,
+  RENT_ROLL_GOODS_OPTIONS,
   RENT_ROLL_PASTE_COLUMNS,
+  rentRollFloorSortValue,
+  rentRollGroupSegments,
+  rentRollStickyLeft,
   serializeCostTerms,
+  serializeRentRollGoodsTypes,
   validateRentRollDelta,
 } from "./rentRollSchema";
 import {
@@ -80,6 +86,9 @@ const RENT_ROLL_DISPLAY_COLUMNS = Object.freeze(
     }
     return [column];
   }),
+);
+const RENT_ROLL_GROUP_SEGMENTS = Object.freeze(
+  rentRollGroupSegments(RENT_ROLL_DISPLAY_COLUMNS).map((segment) => Object.freeze(segment)),
 );
 const FINANCE_PERIOD_PRESETS = Object.freeze([
   { key: "1m", label: "최근 1개월", months: 1 },
@@ -144,15 +153,6 @@ function display(value) {
 }
 function normalizeMaturities(data) {
   return normalizeMaturityRows(data);
-}
-function floorValue(value) {
-  const text = String(value || "")
-    .trim()
-    .toUpperCase();
-  const number = Number(text.match(/\d+(?:\.\d+)?/u)?.[0] || 0);
-  if (/^B|지하/u.test(text)) return -number;
-  if (/옥탑|ROOF/u.test(text)) return 1000 + number;
-  return text ? number : -Infinity;
 }
 function rowId(row) {
   return row._draft_id;
@@ -932,7 +932,7 @@ function HomePanel({ assetCode, resource, maturities }) {
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="text-[11px] text-[#86868B]">
-                    {["펀드", "구분", "투자자", "약정액", "투입액"].map(
+                    {["종 구분", "투자자", "약정액", "투입액"].map(
                       (label) => (
                         <th
                           key={label}
@@ -948,27 +948,22 @@ function HomePanel({ assetCode, resource, maturities }) {
                   {investments.map((row, investmentIndex) => (
                     <tr key={`${row.beneficiary_name || "investment"}-${investmentIndex}`}>
                       {[
-                        ["fund_name", "text"],
                         ["tranche", "text"],
                         ["beneficiary_name", "text"],
                         ["agreed_amount_krw", "number"],
                         ["contributed_amount_krw", "number"],
-                      ].map(([field, type], index) => (
+                      ].map(([field, type]) => (
                         <td
                           key={field}
                           className="border-b border-[#333333] px-1 py-1"
                         >
-                          {index === 0 ? (
-                            <span className="block px-2 py-1.5 text-sm text-[#A1A1AA]">{display(row[field])}</span>
-                          ) : (
-                            <HomeValue
-                              value={row[field]}
-                              type={type}
-                              editing={isHomeEditing}
-                              onChange={(value) => updateHomeDraft("beneficiary", investmentIndex, field, value)}
-                              align={type === "number" ? "right" : "left"}
-                            />
-                          )}
+                          <HomeValue
+                            value={row[field]}
+                            type={type}
+                            editing={isHomeEditing}
+                            onChange={(value) => updateHomeDraft("beneficiary", investmentIndex, field, value)}
+                            align={type === "number" ? "right" : "left"}
+                          />
                         </td>
                       ))}
                     </tr>
@@ -1056,12 +1051,16 @@ function sortRows(rows, sort) {
       let left = a.row[column.key];
       let right = b.row[column.key];
       if (column.key === "floor_label") {
-        left = floorValue(left);
-        right = floorValue(right);
+        left = rentRollFloorSortValue(left);
+        right = rentRollFloorSortValue(right);
       }
       if (column.kind === "multi_select") {
         left = normalizeCostTerms(left, column.options).join(", ");
         right = normalizeCostTerms(right, column.options).join(", ");
+      }
+      if (column.kind === "goods_multi_select") {
+        left = normalizeRentRollGoodsTypes(left).join(", ");
+        right = normalizeRentRollGoodsTypes(right).join(", ");
       }
       if (column.kind === "number" || column.kind === "readonly") {
         left = left === "" || left == null ? null : Number(left);
@@ -1506,6 +1505,94 @@ function MultiSelectCell({
   );
 }
 
+function GoodsMultiSelectCell({
+  value,
+  options,
+  disabled,
+  invalid = false,
+  describedBy,
+  rowLabel,
+  onChange,
+}) {
+  const [customItem, setCustomItem] = useState("");
+  const selected = normalizeRentRollGoodsTypes(value);
+  const availableOptions = [...new Set([
+    ...(Array.isArray(options) ? options : []),
+    ...selected,
+  ])];
+  const apply = (items) => onChange(serializeRentRollGoodsTypes(items));
+  const toggle = (item) => apply(
+    selected.includes(item)
+      ? selected.filter((selectedItem) => selectedItem !== item)
+      : [...selected, item],
+  );
+  const addCustom = () => {
+    const next = customItem.trim();
+    if (!next) return;
+    apply([...selected, next]);
+    setCustomItem("");
+  };
+  return (
+    <details className="relative min-w-[118px]">
+      <summary
+        data-draft-field="goods_type"
+        aria-label={`${rowLabel} 취급 화물`}
+        aria-disabled={disabled ? "true" : undefined}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? describedBy : undefined}
+        title={selected.join(", ")}
+        onClick={(event) => {
+          if (disabled) event.preventDefault();
+        }}
+        className="cursor-pointer list-none overflow-hidden text-ellipsis whitespace-nowrap rounded-[6px] px-2 py-1.5 text-xs text-[#D1D1D6] hover:bg-[#303030] focus:outline-none focus:ring-1 focus:ring-[#5E9EFF] aria-disabled:cursor-not-allowed aria-disabled:opacity-35"
+      >
+        {selected.length ? selected.join(", ") : "항목 선택"}
+      </summary>
+      <div className="absolute left-0 top-full z-[70] mt-1 w-[320px] rounded-[10px] border border-[#3A3A3C] bg-[#202020] p-3 shadow-2xl">
+        <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
+          {availableOptions.map((option) => (
+            <label key={option} className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs text-[#E5E5E5] hover:bg-white/5">
+              <input
+                type="checkbox"
+                checked={selected.includes(option)}
+                onChange={() => toggle(option)}
+                disabled={disabled}
+                className="mt-0.5"
+              />
+              <span>{option}</span>
+            </label>
+          ))}
+        </div>
+        <div className="mt-2 flex items-center gap-1">
+          <input
+            type="text"
+            aria-label="취급 화물 사용자 항목"
+            value={customItem}
+            onChange={(event) => setCustomItem(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addCustom();
+              }
+            }}
+            disabled={disabled}
+            placeholder="취급 화물 항목 추가"
+            className={INPUT_CLASS}
+          />
+          <button
+            type="button"
+            onClick={addCustom}
+            disabled={disabled || !customItem.trim()}
+            className="shrink-0 rounded-[6px] border border-[#3A3A3C] px-2 py-1.5 text-xs text-white disabled:opacity-35"
+          >
+            추가
+          </button>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 function parsePaste(text) {
   return String(text || "")
     .split(/\r?\n/u)
@@ -1519,6 +1606,8 @@ function parsePaste(text) {
         const trimmed = value.trim();
         row[key] = column?.kind === "multi_select"
           ? serializeCostTerms({}, trimmed ? [trimmed] : [])
+          : column?.kind === "goods_multi_select"
+            ? serializeRentRollGoodsTypes(trimmed)
           : column?.kind === "percent"
             ? percentStoredValue(percentInputValue(trimmed))
             : column?.kind === "number"
@@ -1640,6 +1729,10 @@ function RentRollPanel({ assetCode }) {
     setDraftReady(true);
   }, [draftStorageKey, resource.data, resource.revision]);
   const displayedRows = useMemo(() => sortRows(rows, sort), [rows, sort]);
+  const goodsOptions = useMemo(() => [...new Set([
+    ...RENT_ROLL_GOODS_OPTIONS,
+    ...rows.flatMap((row) => normalizeRentRollGoodsTypes(row.goods_type)),
+  ])], [rows]);
   useEffect(() => {
     if (!draftReady || !draftHydratedRef.current) return;
     try {
@@ -1975,19 +2068,19 @@ function RentRollPanel({ assetCode }) {
                 >
                   순서
                 </th>
-                {[
-                  ...new Set(RENT_ROLL_DISPLAY_COLUMNS.map((column) => column.group)),
-                ].map((group) => (
+                {RENT_ROLL_GROUP_SEGMENTS.map((segment) => (
                   <th
-                    key={group}
-                    colSpan={
-                      RENT_ROLL_DISPLAY_COLUMNS.filter(
-                        (column) => column.group === group,
-                      ).length
-                    }
-                    className="sticky top-0 z-30 border-b border-r border-[#333333] bg-[#202020] px-2 py-2 text-center text-xs font-semibold text-[#A1A1AA]"
+                    key={`${segment.group}-${segment.keys[0]}`}
+                    data-sticky-group-header={segment.stickyLeft == null ? undefined : segment.keys[0]}
+                    colSpan={segment.colSpan}
+                    style={{
+                      left: segment.stickyLeft == null ? undefined : segment.stickyLeft,
+                      minWidth: segment.width,
+                      width: segment.width,
+                    }}
+                    className={`sticky top-0 border-b border-r border-[#333333] bg-[#202020] px-2 py-2 text-center text-xs font-semibold text-[#A1A1AA] ${segment.stickyLeft == null ? "z-30" : "z-[55] shadow-[1px_0_0_#333333]"}`}
                   >
-                    {group}
+                    {segment.group}
                   </th>
                 ))}
                 <th
@@ -2001,12 +2094,7 @@ function RentRollPanel({ assetCode }) {
                 {RENT_ROLL_DISPLAY_COLUMNS.map((column) => {
                   const columnLabel = column.label;
                   const columnWidth = column.width;
-                  const stickyLeft =
-                    column.key === "occupancy_status"
-                      ? 62
-                      : column.key === "tenant_name"
-                        ? 166
-                        : null;
+                  const stickyLeft = rentRollStickyLeft(column.key);
                   return (
                     <th
                       key={column.key}
@@ -2140,15 +2228,19 @@ function RentRollPanel({ assetCode }) {
                       </div>
                     </td>
                     {RENT_ROLL_DISPLAY_COLUMNS.map((column) => {
-                      const stickyLeft =
-                        column.key === "occupancy_status"
-                          ? 62
-                          : column.key === "tenant_name"
-                            ? 166
-                            : null;
+                      const stickyLeft = rentRollStickyLeft(column.key);
                       const sticky = stickyLeft != null;
+                      const depositEscalationDetailsDisabled =
+                        row.deposit_escalation_enabled !== "Y"
+                        && [
+                          "deposit_escalation_first_date",
+                          "deposit_escalation_interval_months",
+                          "deposit_escalation_rate",
+                        ].includes(column.key);
+                      const fieldEditingDisabled = rowEditingDisabled || depositEscalationDetailsDisabled;
+                      const fieldDisplayValue = depositEscalationDetailsDisabled ? "" : row[column.key];
                       const cellStyle = sticky ? { left: stickyLeft } : undefined;
-                      const cellClass = `border-b border-r border-[#333333] bg-[#252524] px-1 py-1 ${dropLineClass} ${sticky ? "sticky z-10 shadow-[1px_0_0_#333333]" : ""}`;
+                      const cellClass = `border-b border-r border-[#333333] px-1 py-1 ${depositEscalationDetailsDisabled ? "bg-[#202020] text-[#68686D]" : "bg-[#252524]"} ${dropLineClass} ${sticky ? "sticky z-10 shadow-[1px_0_0_#333333]" : ""}`;
                       if (column.key === "rent_free_months") {
                         const periods = rentFreePeriodsFromRow(row);
                         const totalMonths = periods.length
@@ -2191,7 +2283,7 @@ function RentRollPanel({ assetCode }) {
                               onChange={(event) =>
                                 update(id, column.key, event.target.value)
                               }
-                              disabled={rowEditingDisabled}
+                              disabled={fieldEditingDisabled}
                               className={INPUT_CLASS}
                             >
                               {column.options.map(([value, label]) => (
@@ -2202,13 +2294,27 @@ function RentRollPanel({ assetCode }) {
                             </select>
                           </td>
                         );
+                      if (column.kind === "goods_multi_select")
+                        return (
+                          <td key={column.key} style={cellStyle} className={cellClass}>
+                            <GoodsMultiSelectCell
+                              value={row[column.key]}
+                              options={goodsOptions}
+                              disabled={fieldEditingDisabled}
+                              invalid={rowInvalid}
+                              describedBy="rent-roll-validation-summary"
+                              rowLabel={rowLabel}
+                              onChange={(value) => update(id, column.key, value)}
+                            />
+                          </td>
+                        );
                       if (column.kind === "preset_text")
                         return (
                           <td key={column.key} style={cellStyle} className={cellClass}>
                             <PresetTextCell
                               column={column}
                               value={row[column.key]}
-                              disabled={rowEditingDisabled}
+                              disabled={fieldEditingDisabled}
                               invalid={rowInvalid}
                               describedBy="rent-roll-validation-summary"
                               rowLabel={rowLabel}
@@ -2223,7 +2329,7 @@ function RentRollPanel({ assetCode }) {
                             <MultiSelectCell
                               column={column}
                               value={row[column.key]}
-                              disabled={rowEditingDisabled}
+                              disabled={fieldEditingDisabled}
                               invalid={rowInvalid}
                               describedBy="rent-roll-validation-summary"
                               rowLabel={rowLabel}
@@ -2245,9 +2351,9 @@ function RentRollPanel({ assetCode }) {
                                 min="0"
                                 max="100"
                                 step="0.01"
-                                value={percentInputValue(row[column.key])}
+                                value={percentInputValue(fieldDisplayValue)}
                                 onChange={(event) => update(id, column.key, percentStoredValue(event.target.value))}
-                                disabled={rowEditingDisabled}
+                                 disabled={fieldEditingDisabled}
                                 className={`${INPUT_CLASS} text-right tabular-nums`}
                               />
                               <span className="pr-1 text-xs text-[#86868B]">%</span>
@@ -2280,10 +2386,10 @@ function RentRollPanel({ assetCode }) {
                               ariaLabel={`${rowLabel} ${column.label}`}
                               invalid={rowInvalid}
                               describedBy="rent-roll-validation-summary"
-                              value={row[column.key]}
+                              value={fieldDisplayValue}
                               onChange={(value) => update(id, column.key, value)}
                               disabled={
-                                rowEditingDisabled
+                                fieldEditingDisabled
                                 || (column.key === "fit_out_months"
                                   && Boolean(row.fit_out_start_date || row.fit_out_end_date))
                               }
@@ -2301,7 +2407,7 @@ function RentRollPanel({ assetCode }) {
                                     ? "date"
                                     : "text"
                               }
-                              value={row[column.key] ?? ""}
+                              value={fieldDisplayValue ?? ""}
                               onChange={(event) => {
                                 const value = event.target.value;
                                 if (["fit_out_start_date", "fit_out_end_date"].includes(column.key)) {
@@ -2329,7 +2435,7 @@ function RentRollPanel({ assetCode }) {
                                 }
                                 update(id, column.key, value);
                               }}
-                              disabled={rowEditingDisabled}
+                              disabled={fieldEditingDisabled}
                               className={`${INPUT_CLASS} ${column.kind === "number" ? "text-right tabular-nums" : ""}`}
                             />
                           )}

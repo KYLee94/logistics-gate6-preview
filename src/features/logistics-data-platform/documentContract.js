@@ -1,4 +1,8 @@
-import { normalizeFitOutMonths, normalizeRentFreePeriod } from './rentRollSchema.js';
+import {
+  normalizeFitOutMonths,
+  normalizeRentFreePeriod,
+  serializeRentRollGoodsTypes,
+} from './rentRollSchema.js';
 
 const DOCUMENT_META_FIELDS = new Set([
   'revision',
@@ -45,7 +49,7 @@ const RENT_ROLL_FIELDS = Object.freeze([
   'deposit_total_krw', 'security_type', 'security_ratio',
   'monthly_rent_total_krw', 'monthly_cam_total_krw', 'pallet_rack_fee',
   'rent_free_periods', 'fit_out_start_date', 'fit_out_end_date', 'fit_out_months', 'fit_out_amount',
-  'tenant_improvement_amount', 'deposit_escalation_first_date',
+  'tenant_improvement_amount', 'deposit_escalation_enabled', 'deposit_escalation_first_date',
   'deposit_escalation_interval_months', 'deposit_escalation_rate',
   'rent_escalation_first_date', 'rent_escalation_interval_months',
   'rent_escalation_rate', 'cam_escalation_first_date',
@@ -199,6 +203,14 @@ function canonicalScalarTerm(value) {
 
 function canonicalRentRow(value) {
   const row = pickFields(value, RENT_ROLL_FIELDS);
+  if (Object.prototype.hasOwnProperty.call(value || {}, 'goods_type')) {
+    row.goods_type = serializeRentRollGoodsTypes(value?.goods_type);
+  }
+  row.deposit_escalation_enabled = value?.deposit_escalation_enabled === true
+    || value?.deposit_escalation_enabled === 1
+    || ['y', 'yes', 'true', '1', '있음'].includes(
+      String(value?.deposit_escalation_enabled ?? '').trim().toLowerCase(),
+    );
   for (const field of RENT_ROLL_NUMBER_FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(row, field)) continue;
     const numeric = canonicalHomeNumber(row[field]);

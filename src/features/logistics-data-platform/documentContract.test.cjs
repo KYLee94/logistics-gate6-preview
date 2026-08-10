@@ -43,7 +43,7 @@ test('렌트롤 저장은 전체 rows 문서만 보내고 배열 순서가 행 �
   ]);
 
   assert.deepEqual(payload, {
-    rows: [{ tenant_name: 'A' }],
+    rows: [{ tenant_name: 'A', deposit_escalation_enabled: false }],
   });
 });
 
@@ -278,7 +278,7 @@ test('렌트롤 문서는 삭제 행과 서버 파생 필드를 제외하고 ren
 
   assert.deepEqual(payload, {
     rows: [{
-      tenant_name: 'A', floor_label: '2F',
+      tenant_name: 'A', floor_label: '2F', deposit_escalation_enabled: false,
       rent_free_periods: [{ start_date: '2026-01-01', end_date: '2026-01-31', months: 0.99, reason: '신규', notes: '' }],
     }],
   });
@@ -326,7 +326,35 @@ test('rent-roll document converts numeric input strings and omits blank optional
     leased_area_sqm: 1234.5,
     monthly_rent_total_krw: 1000000,
     commencement_date: '2026-01-01',
+    deposit_escalation_enabled: false,
   });
+});
+
+test('rent-roll document canonicalizes multi-value goods and preserves disabled deposit escalation details', async () => {
+  const { buildRentRollDocumentPayload } = await contract();
+  const payload = buildRentRollDocumentPayload([
+    {
+      tenant_name: 'multi',
+      goods_type: ['식품', ' 의약품 ', '식품'],
+      deposit_escalation_enabled: 'N',
+      deposit_escalation_first_date: '2027-01-01',
+      deposit_escalation_interval_months: '12',
+      deposit_escalation_rate: '2%',
+    },
+    { tenant_name: 'legacy single', goods_type: '기존 단일값' },
+  ]);
+
+  assert.deepEqual(payload.rows, [
+    {
+      tenant_name: 'multi',
+      goods_type: ['식품', '의약품'],
+      deposit_escalation_enabled: false,
+      deposit_escalation_first_date: '2027-01-01',
+      deposit_escalation_interval_months: 12,
+      deposit_escalation_rate: '2%',
+    },
+    { tenant_name: 'legacy single', goods_type: ['기존 단일값'], deposit_escalation_enabled: false },
+  ]);
 });
 
 test('렌트롤 비용 조건은 items 문자열 배열, 갱신·해지·복구 조건은 문자열로만 저장한다', async () => {
@@ -349,6 +377,7 @@ test('렌트롤 비용 조건은 items 문자열 배열, 갱신·해지·복구 
 
   assert.deepEqual(payload, { rows: [{
     tenant_name: 'A',
+    deposit_escalation_enabled: false,
     tenant_cost_terms: { items: ['전기료', '수도료'] },
     landlord_cost_terms: { items: ['보험료'] },
     renewal_terms: '3년 1회',

@@ -112,7 +112,13 @@ async function verifyModules() {
     source_kind: 'projection',
     effective_rent: 1,
   }]);
-  assert.deepEqual(rentPayload, { rows: [{ tenant_name: '임차인', leased_area_sqm: 100 }] });
+  assert.deepEqual(rentPayload, {
+    rows: [{
+      tenant_name: '임차인',
+      leased_area_sqm: 100,
+      deposit_escalation_enabled: false,
+    }],
+  });
   const financePayload = documents.buildIncomeExpenseDocumentPayload({
     periods: ['2026-08'],
     potential_income: [{

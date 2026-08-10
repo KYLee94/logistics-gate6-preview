@@ -36,6 +36,31 @@ const releaseSteps = Object.freeze([
     target: 'tests/logistics-data-platform-document-integrity.test.cjs',
   },
   {
+    id: 'rent-roll-taxonomy-audit-unit',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-taxonomy-audit.test.cjs',
+  },
+  {
+    id: 'rent-roll-document-taxonomy-contract',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-document-taxonomy-contract.test.cjs',
+  },
+  {
+    id: 'rent-roll-floor-audit-unit',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-floor-audit.test.cjs',
+  },
+  {
+    id: 'rent-roll-floor-backfill-contract',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-floor-backfill-contract.test.cjs',
+  },
+  {
+    id: 'rent-roll-goods-escalation-ui',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-goods-escalation-ui.test.cjs',
+  },
+  {
     id: 'home-numeric-input-contract',
     kind: 'node',
     target: 'tests/logistics-home-numeric-input-normalization-contract.test.cjs',

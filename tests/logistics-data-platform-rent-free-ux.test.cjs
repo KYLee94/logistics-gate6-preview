@@ -57,7 +57,7 @@ test('렌트롤 인상률은 fraction readback을 화면 퍼센트로 바꾸고 
   assert.equal(inputValue(''), '');
   assert.equal(storedValue('3'), '3%');
   assert.equal(storedValue(''), '');
-  assert.match(source, /value=\{percentInputValue\(row\[column\.key\]\)\}/u);
+  assert.match(source, /value=\{percentInputValue\(fieldDisplayValue\)\}/u);
   assert.match(source, /percentStoredValue\(event\.target\.value\)/u);
 });
 

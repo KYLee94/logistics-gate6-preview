@@ -1,5 +1,38 @@
 const PY_PER_SQM = 0.3025;
 
+export function rentRollFloorSortValue(value) {
+  const text = String(value || '').trim().toUpperCase();
+  const number = Number(text.match(/\d+(?:\.\d+)?/u)?.[0] || 0);
+  if (/^(?:B|지하)/u.test(text)) return -number;
+  if (/(?:옥탑|ROOF)/u.test(text)) return 1000 + number;
+  return text ? number : Number.NEGATIVE_INFINITY;
+}
+
+// 운영 19개 자산에서 확인된 기존 atomic 값만 사용합니다. 임의 샘플은 추가하지 않습니다.
+export const RENT_ROLL_GOODS_OPTIONS = Object.freeze([
+  '하중물',
+  '생필품',
+  '공산품',
+  '의약품',
+  '의류',
+  '반도체(고가 화물)',
+  '의류(중하중)',
+  '식품(온도)',
+  '화장품',
+  '화장품 등',
+  '유제품',
+  '가전제품',
+  '전자기기(컴퓨터 등)',
+  '라이프스타일 용품',
+  '가전제품 등',
+  '가구',
+  '유제품 등',
+  '어패럴',
+  '식음료',
+  '전체 상품 취급(풀필먼트)',
+  '신선식품',
+]);
+
 export const TENANT_COST_OPTIONS = Object.freeze([
   '전기·수도·가스 등 공과금',
   '임차인 설치시설·영업상 수선',
@@ -48,15 +81,15 @@ const column = (key, label, group, kind = 'text', width = 128, extra = {}) => Ob
 
 // 네 개의 운영 렌트롤 원본에서 반복되는 필드를 한 셀 한 값 원칙으로 평탄화했습니다.
 export const RENT_ROLL_COLUMNS = Object.freeze([
-  column('occupancy_status', '임대 상태', '공간', 'select', 104, { options: [['occupied', '임대'], ['vacant', '공실'], ['planned', '예정']] }),
+  column('occupancy_status', '임대 상태', '임대 상태', 'select', 104, { options: [['occupied', '임대'], ['vacant', '공실'], ['planned', '예정']] }),
   column('tenant_name', '임차인', '임차인', 'text', 190),
-  column('business_registration_number', '사업자등록번호', '임차인', 'text', 142),
+  column('business_registration_number', '사업자등록번호', '임차인 정보', 'text', 142),
   column('temperature_type', '용도', '공간', 'select', 94, { options: [['저온', '저온'], ['상온', '상온'], ['복합', '복합'], ['사무실', '사무실']] }),
-  column('goods_type', '취급 화물', '공간', 'text', 118),
+  column('goods_type', '취급 화물', '공간', 'goods_multi_select', 118, { options: RENT_ROLL_GOODS_OPTIONS }),
   column('floor_label', '층', '공간', 'text', 72),
   column('zone_label', '구역', '공간', 'text', 96),
-  column('subtenant_name', '전대 임차인', '공간', 'text', 140),
-  column('free_area_type', '유·무상', '공간', 'text', 92),
+  column('subtenant_name', '전대 임차인', '전차 여부', 'text', 140),
+  column('free_area_type', '유·무상', '전차 여부', 'text', 92),
   column('exclusive_area_sqm', '전용면적(㎡)', '면적', 'number', 118),
   column('exclusive_area_py', '전용면적(평)', '면적', 'readonly', 112),
   column('common_area_sqm', '공용면적(㎡)', '면적', 'number', 118),
@@ -88,6 +121,7 @@ export const RENT_ROLL_COLUMNS = Object.freeze([
   column('fit_out_months', 'Fit-out(개월)', '무상·지원', 'number', 112),
   column('fit_out_amount', 'Fit-out 금액', '무상·지원', 'number', 128),
   column('tenant_improvement_amount', 'TI 지원금', '무상·지원', 'number', 128),
+  column('deposit_escalation_enabled', '보증금 인상 여부', '인상 조건', 'select', 118, { options: [['N', 'N'], ['Y', 'Y']] }),
   column('deposit_escalation_first_date', '보증금 인상일', '인상 조건', 'date', 124),
   column('deposit_escalation_interval_months', '보증금 주기(개월)', '인상 조건', 'number', 126),
   column('deposit_escalation_rate', '보증금 인상률', '인상 조건', 'percent', 120),
@@ -104,6 +138,35 @@ export const RENT_ROLL_COLUMNS = Object.freeze([
   column('restoration_terms', '원상복구', '권리·비용', 'preset_text', 220, { options: RESTORATION_PRESETS }),
   column('notes', '비고', '기타', 'text', 220),
 ]);
+
+const RENT_ROLL_STICKY_LEFT = Object.freeze({
+  occupancy_status: 62,
+  tenant_name: 166,
+});
+
+export function rentRollStickyLeft(columnKey) {
+  return RENT_ROLL_STICKY_LEFT[columnKey] ?? null;
+}
+
+export function rentRollGroupSegments(columns = RENT_ROLL_COLUMNS) {
+  return (Array.isArray(columns) ? columns : []).reduce((segments, columnValue) => {
+    const previous = segments.at(-1);
+    if (previous?.group === columnValue.group) {
+      previous.keys.push(columnValue.key);
+      previous.colSpan += 1;
+      previous.width += columnValue.width;
+      return segments;
+    }
+    segments.push({
+      group: columnValue.group,
+      keys: [columnValue.key],
+      colSpan: 1,
+      width: columnValue.width,
+      stickyLeft: rentRollStickyLeft(columnValue.key),
+    });
+    return segments;
+  }, []);
+}
 
 export const RENT_ROLL_DETAIL_FIELDS = Object.freeze([]);
 export const RENT_ROLL_PASTE_COLUMNS = Object.freeze(
@@ -196,6 +259,27 @@ export function normalizeFitOutMonths(startDate, endDate, months) {
 
 const uniqueTextItems = (values) => [...new Set((Array.isArray(values) ? values : [])
   .map((value) => String(value || '').trim()).filter(Boolean))];
+
+export function normalizeRentRollGoodsTypes(value) {
+  let source = value;
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    source = value.items ?? value.values ?? value.selected ?? value.text ?? '';
+  }
+  const items = Array.isArray(source)
+    ? source
+    : String(source ?? '').split(/[\n,;]+/u);
+  return uniqueTextItems(items);
+}
+
+export function serializeRentRollGoodsTypes(value) {
+  return normalizeRentRollGoodsTypes(value);
+}
+
+export function normalizeDepositEscalationEnabled(value) {
+  if (value === true || value === 1) return 'Y';
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return ['y', 'yes', 'true', '1', '있음'].includes(normalized) ? 'Y' : 'N';
+}
 
 export function normalizeRentRollOptionTerm(value) {
   if (value === null || value === undefined) return value;
@@ -302,6 +386,8 @@ export function deriveRentRollRow(row) {
   const leasedAreaPy = leasedAreaPyRaw === null ? null : Math.round(leasedAreaPyRaw * 100) / 100;
   return {
     ...row,
+    goods_type: serializeRentRollGoodsTypes(row?.goods_type),
+    deposit_escalation_enabled: normalizeDepositEscalationEnabled(row?.deposit_escalation_enabled),
     renewal_terms: normalizeRentRollOptionTerm(row?.renewal_terms),
     termination_terms: normalizeRentRollOptionTerm(row?.termination_terms),
     exclusive_area_py: exclusive === null ? null : Math.round(exclusive * PY_PER_SQM * 100) / 100,
@@ -357,6 +443,7 @@ function canonicalPercentValue(value) {
 
 function comparableRentRollValue(field, value) {
   if (field === 'rent_free_periods') return rentFreePeriodsForSave(value);
+  if (field === 'goods_type') return serializeRentRollGoodsTypes(value);
   if (field === 'tenant_cost_terms' || field === 'landlord_cost_terms') {
     return normalizeCostTerms(value).slice().sort((left, right) => left.localeCompare(right, 'ko'));
   }
@@ -432,6 +519,7 @@ export function buildRentRollSaveRow(source = {}, changedFields = null) {
   RENT_ROLL_COLUMNS.forEach((column) => {
     if (column.kind === 'readonly' || !saveFields.has(column.key)) return;
     let value = row[column.key];
+    if (column.key === 'goods_type') value = serializeRentRollGoodsTypes(value);
     if (column.kind === 'number' || column.kind === 'readonly') value = numberOrNull(value);
     if (column.key === 'renewal_terms' || column.key === 'termination_terms') {
       value = normalizeRentRollOptionTerm(value);
@@ -464,6 +552,7 @@ export function emptyRentRollRow(draftId) {
   };
   RENT_ROLL_COLUMNS.forEach(({ key: fieldKey }) => { row[fieldKey] = ''; });
   row.occupancy_status = 'occupied';
+  row.deposit_escalation_enabled = 'N';
   row.tenant_cost_terms = { items: [] };
   row.landlord_cost_terms = { items: [] };
   return row;
