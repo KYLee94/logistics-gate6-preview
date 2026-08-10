@@ -83,11 +83,20 @@ test('NOI 계정 선택은 별도 선택칸이 아니라 손익표 첫 열에서
   assert.match(statement, /data-testid="finance-account-toggle"/u);
   assert.match(statement, /data-finance-account-active=/u);
   assert.match(statement, /미사용 계정/u);
-  assert.match(statement, /disabled=\{!writeEnabled \|\| !row\.active\}/u);
+  assert.match(statement, /disabled=\{!writeEnabled \|\| !row\.active \|\| saveState === ["']saving["']\}/u);
   assert.match(source, /accountToggleRefs/u);
   assert.match(source, /pendingAccountFocusRef/u);
   assert.match(source, /finance-account-selection-status/u);
   assert.match(source, /filterFinanceCalculationAccounts/u);
   assert.match(source, /buildFinanceSeries\(entries, calculationAccounts/u);
-  assert.doesNotMatch(statement, /setEntries[\s\S]{0,160}finance-account-toggle/u);
+  assert.doesNotMatch(statement, new RegExp("setEntries[\\s\\S]{0,160}finance-account-toggle", "u"));
+});
+
+test('finance saves periods from stored entries instead of display-only date range', () => {
+  const financeSource = source.slice(
+    source.indexOf('function FinancePanel'),
+    source.indexOf('export default function LogisticsDataPlatform'),
+  );
+  assert.match(financeSource, /periods:\s*financePeriodsFromEntries\(nextEntries\)/u);
+  assert.doesNotMatch(financeSource, /\[\.\.\.statementPeriods,\s*\.\.\.months\]/u);
 });

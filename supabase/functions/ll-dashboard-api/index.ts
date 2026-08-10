@@ -27727,10 +27727,11 @@ Deno.serve(async (request): Promise<Response> => {
         client: ctx.userRpcClient,
       }, action, {
         client_request_id: safeText(payload.client_request_id) || undefined,
+        asset_code: safeText(payload.asset_code) || undefined,
         asset_key: safeText(payload.asset_key) || undefined,
         payload,
         expected_revisions: payload.expected_revisions && typeof payload.expected_revisions === 'object'
-          ? payload.expected_revisions as Record<string, number>
+          ? payload.expected_revisions as Record<string, number | string>
           : {},
       });
       return jsonResponse(response, 200, origin);

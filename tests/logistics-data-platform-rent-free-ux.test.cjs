@@ -103,6 +103,9 @@ test('Fit-out은 시작일과 종료일을 별도 입력하고 개월 수를 함
   assert.match(source, /fit_out_end_date/u);
   assert.match(source, /Fit-out 시작일/u);
   assert.match(source, /Fit-out 종료일/u);
-  assert.match(source, /calculatePeriodMonths/u);
+  assert.match(source, /label:\s*["']Fit-out 개월["']/u);
+  assert.match(source, /calculateRentFreePeriodMonths/u);
+  assert.match(source, new RegExp('nextFields\\.fit_out_months\\s*=\\s*calculatedMonths', 'u'));
+  assert.match(source, new RegExp("disabled=\\{[\\s\\S]{0,180}column\\.key === [\"']fit_out_months[\"']", "u"));
   assert.doesNotMatch(source, /function\s+FitOutPeriodCell\s*\(/u);
 });

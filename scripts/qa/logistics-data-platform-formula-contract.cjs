@@ -12,6 +12,19 @@ const FORMULA_PATH = path.join(
   'v2',
   'formulas.ts',
 );
+const DOCUMENT_PATH = path.join(
+  ROOT,
+  'src',
+  'features',
+  'logistics-data-platform',
+  'documentContract.js',
+);
+const MIGRATION_PATH = path.join(
+  ROOT,
+  'supabase',
+  'migrations',
+  '20260807180000_simplify_logistics_core_to_four_ui_tables.sql',
+);
 
 async function main() {
   const checks = [];
@@ -24,10 +37,17 @@ async function main() {
   };
 
   let formulas;
+  let documents;
   await check('formula-module-loads', async () => {
     assert.ok(fs.existsSync(FORMULA_PATH), 'missing v2/formulas.ts');
     formulas = await import(`${pathToFileURL(FORMULA_PATH).href}?contract=${Date.now()}`);
     return FORMULA_PATH;
+  });
+
+  await check('finance-document-module-loads', async () => {
+    assert.ok(fs.existsSync(DOCUMENT_PATH), 'missing documentContract.js');
+    documents = await import(`${pathToFileURL(DOCUMENT_PATH).href}?contract=${Date.now()}`);
+    return DOCUMENT_PATH;
   });
 
   if (formulas) {
@@ -151,7 +171,7 @@ async function main() {
       return { escalated, rentFree, prorated };
     });
 
-    await check('monthly-is-the-only-source-and-quarter-year-are-derived', () => {
+    await check('monthly-calculations-derive-quarter-and-year-without-persisting-them', () => {
       const rows = [
         { month: '2026-01-01', amount: 10 },
         { month: '2026-02-01', amount: 20 },
@@ -172,12 +192,6 @@ async function main() {
       return result;
     });
 
-    await check('scenario-and-accounting-basis-are-explicit', () => {
-      assert.deepEqual([...formulas.LEDGER_SCENARIOS], ['actual', 'budget', 'forecast']);
-      assert.deepEqual([...formulas.ACCOUNTING_BASES], ['accrual', 'cash']);
-      return { scenarios: formulas.LEDGER_SCENARIOS, bases: formulas.ACCOUNTING_BASES };
-    });
-
     await check('loan-repayment-schedule-is-never-synthesized', () => {
       assert.equal(formulas.LOAN_REPAYMENT_SCHEDULE_STATUS, 'not_provided');
       assert.equal(typeof formulas.projectLoanRepaymentSchedule, 'function');
@@ -192,6 +206,41 @@ async function main() {
         reason: 'SOURCE_HAS_NO_MONTHLY_REPAYMENT_SCHEDULE',
       });
       return projection;
+    });
+  }
+
+  if (documents) {
+    await check('finance-document-uses-yyyy-mm-periods-and-visible-amounts', () => {
+      const statement = documents.buildIncomeExpenseStatement({
+        periods: ['2026-02-01', '2026-01', 'invalid'],
+        accounts: [{
+          account_code: 'BASE_RENT',
+          name: '임대료',
+          statement_section: 'potential_income',
+        }],
+        entries: [
+          { account_code: 'BASE_RENT', month: '2026-01-01', amount: 10, scenario: 'actual' },
+          { account_code: 'BASE_RENT', month: '2026-02-01', amount: 20, accounting_basis: 'cash' },
+        ],
+        selectedAccountCodes: ['BASE_RENT'],
+      });
+      assert.deepEqual(statement.periods, ['2026-01', '2026-02']);
+      assert.deepEqual(statement.potential_income, [{
+        name: '임대료',
+        selected: true,
+        amounts: { '2026-01': 10, '2026-02': 20 },
+      }]);
+      const payload = documents.buildIncomeExpenseDocumentPayload(statement);
+      assert.equal(JSON.stringify(payload).includes('scenario'), false);
+      assert.equal(JSON.stringify(payload).includes('accounting_basis'), false);
+      return payload.statement;
+    });
+
+    await check('database-formula-version-is-the-simple-document-version', () => {
+      const migration = fs.readFileSync(MIGRATION_PATH, 'utf8');
+      assert.match(migration, /'formula_version',\s*'LOGISTICS_NOI_SIMPLE_V1'/u);
+      assert.match(migration, /income_expense[\s\S]*statement/iu);
+      return 'LOGISTICS_NOI_SIMPLE_V1';
     });
   }
 

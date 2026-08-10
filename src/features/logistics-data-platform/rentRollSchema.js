@@ -151,6 +151,49 @@ const numberOrNull = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+export function calculateRentFreePeriodMonths(startDate, endDate) {
+  if (!startDate || !endDate) return null;
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end < start) return null;
+  return Math.round(((end - start) / 2_629_800_000) * 100) / 100;
+}
+
+export function normalizeRentFreePeriod(period = {}) {
+  const startDate = String(period?.start_date || period?.start || '').trim() || null;
+  const endDate = String(period?.end_date || period?.end || '').trim() || null;
+  const calculatedMonths = calculateRentFreePeriodMonths(startDate, endDate);
+  const enteredMonths = numberOrNull(period?.months);
+  return {
+    start_date: startDate,
+    end_date: endDate,
+    months: calculatedMonths ?? (enteredMonths !== null && enteredMonths > 0 ? enteredMonths : null),
+    reason: period?.reason === null || period?.reason === undefined
+      ? null
+      : String(period.reason).trim(),
+    notes: period?.notes === null || period?.notes === undefined
+      ? null
+      : String(period.notes).trim(),
+  };
+}
+
+export function isValidRentFreePeriod(period = {}) {
+  const startDate = String(period?.start_date || period?.start || '').trim();
+  const endDate = String(period?.end_date || period?.end || '').trim();
+  if (startDate || endDate) {
+    return Boolean(startDate && endDate && calculateRentFreePeriodMonths(startDate, endDate) !== null);
+  }
+  const months = numberOrNull(period?.months);
+  return months !== null && months > 0;
+}
+
+export function normalizeFitOutMonths(startDate, endDate, months) {
+  const calculatedMonths = calculateRentFreePeriodMonths(startDate, endDate);
+  if (calculatedMonths !== null) return calculatedMonths;
+  const enteredMonths = numberOrNull(months);
+  return enteredMonths !== null && enteredMonths > 0 ? enteredMonths : null;
+}
+
 const uniqueTextItems = (values) => [...new Set((Array.isArray(values) ? values : [])
   .map((value) => String(value || '').trim()).filter(Boolean))];
 
@@ -278,13 +321,14 @@ export function deriveRentRollRow(row) {
 
 function rentFreePeriodsForSave(value) {
   if (!Array.isArray(value)) return [];
-  return value.map((period) => ({
-    start_date: String(period?.start_date || period?.start || '').trim() || null,
-    end_date: String(period?.end_date || period?.end || '').trim() || null,
-    months: numberOrNull(period?.months),
-    reason: String(period?.reason || '').trim() || null,
-    notes: String(period?.notes || '').trim() || null,
-  }));
+  return value.map((period) => {
+    const normalized = normalizeRentFreePeriod(period);
+    return {
+      ...normalized,
+      reason: normalized.reason || null,
+      notes: normalized.notes || null,
+    };
+  });
 }
 
 const RENT_ROLL_READBACK_META_FIELDS = new Set([
@@ -415,11 +459,6 @@ export function emptyRentRollRow(draftId) {
   const key = String(draftId || globalThis.crypto?.randomUUID?.() || Date.now());
   const row = {
     _draft_id: key,
-    row_key: `space-${key}`,
-    space_key: `space-${key}`,
-    contract_key: `contract-${key}`,
-    contract_space_key: `allocation-${key}`,
-    rent_term_key: `rent-${key}`,
     operation: 'create',
     display_order: null,
   };
@@ -466,7 +505,7 @@ export function validateUniversalRentRoll(rows) {
 }
 
 export function validateRentRollDelta(row, changedFields = []) {
-  if (row?.operation === 'create' || row?._draft_id) return validateUniversalRentRoll([row]);
+  if (row?.operation === 'create') return validateUniversalRentRoll([row]);
   if (row?.operation === 'delete') return [];
   const fields = new Set(changedFields);
   const errors = [];

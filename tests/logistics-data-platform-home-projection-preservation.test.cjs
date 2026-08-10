@@ -19,13 +19,12 @@ test('홈 복제는 서버 응답 전체를 재귀 복사해 점유 요약과 �
   assert.match(cloneRegion, /Object\.fromEntries\([\s\S]*Object\.entries\(value\)/u);
   assert.match(cloneRegion, /const\s+cloned\s*=\s*cloneHomeProjection\(data\s*\|\|\s*\{\}\)/u);
   assert.match(cloneRegion, /return\s*\{\s*\.\.\.cloned,/u);
-  assert.match(source, /sourceData\.tenant_summary\s*\|\|\s*sourceData\.occupancy_summary/u);
-  assert.match(source, /tenantSummary\.denominator_area_sqm/u);
-  assert.match(source, /tenantSummary\.occupancy_rate/u);
+  assert.match(source, /const\s+occupancySummary\s*=\s*sourceData\.occupancy_summary\s*\|\|\s*\{\}/u);
+  assert.match(source, /homeFiniteNumber\(occupancySummary\.occupancy_rate\)/u);
+  assert.doesNotMatch(source, /sourceData\.tenant_summary|occupancyDenominator/u);
   assert.match(source, /function\s+homeFiniteNumber\s*\(value\)/u);
   assert.match(source, /if\s*\(value\s*===\s*["']{2}\s*\|\|\s*value\s*==\s*null\)\s*return\s+null/u);
-  assert.match(source, /homeFiniteNumber\(tenantSummary\.occupied_area_sqm\)/u);
-  assert.match(source, /homeFiniteNumber\(tenantSummary\.occupancy_rate\)/u);
+  assert.match(source, /homeFiniteNumber\(occupancySummary\.occupied_area_sqm\)/u);
 });
 
 test('정규화가 필요한 홈 엔티티도 복제본에서 만들고 서버 원본 참조를 공유하지 않는다', () => {
@@ -36,12 +35,13 @@ test('정규화가 필요한 홈 엔티티도 복제본에서 만들고 서버 �
   assert.doesNotMatch(cloneRegion, /data\?\.(?:asset|funds|investments|loans)/u);
 });
 
-test('홈 저장 payload는 보존한 서버 메타데이터를 포함하지 않고 허용 엔티티 필드만 전송한다', () => {
-  const operationsRegion = source.slice(
-    source.indexOf('export function buildHomeOperations'),
-    source.indexOf('function MaturityList'),
+test('홈 저장은 행별 key mutation 대신 허용 필드만 담은 전체 문서 builder를 사용한다', () => {
+  const homePanelRegion = source.slice(
+    source.indexOf('function HomePanel'),
+    source.indexOf('function RentRollPanel'),
   );
-  assert.match(operationsRegion, /HOME_ENTITY_CONFIG\.forEach/u);
-  assert.match(operationsRegion, /config\.fields/u);
-  assert.doesNotMatch(operationsRegion, /tenant_summary|occupancy_summary|asset_source_provenance/u);
+  assert.match(homePanelRegion, /buildHomeDocumentPayload\(homeDraft\)/u);
+  assert.match(homePanelRegion, /asset_code:\s*assetCode/u);
+  assert.match(homePanelRegion, /documentsEqual\(homeDocument,\s*readbackDocument\)/u);
+  assert.doesNotMatch(homePanelRegion, /entity_key|asset_key|fund_key|beneficiary_key|loan_key/u);
 });

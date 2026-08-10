@@ -96,11 +96,14 @@ test('렌트롤 저장 생명주기는 저장 중 편집 잠금과 세션 초안
 
   assert.match(rentRollSource, /saveState === ["']saving["']/u);
   assert.match(rentRollSource, /rentRollEditingDisabled/u);
-  assert.match(rentRollSource, /saveReadbackPendingRef/u);
+  assert.match(rentRollSource, /expected_xmin:\s*rentRevision/u);
+  assert.match(rentRollSource, /buildRentRollDocumentPayload\(rows,\s*\{\s*asOfDate:\s*todayKst\(\)\s*\}\)/u);
+  assert.match(rentRollSource, /documentsEqual\(intendedDocument,\s*serverDocument\)/u);
   assert.match(rentRollSource, /sessionStorage\?\.setItem\(draftStorageKey/u);
   assert.match(rentRollSource, /sessionStorage\?\.removeItem\(draftStorageKey/u);
   assert.match(rentRollSource, /addEventListener\?\.\(["']beforeunload["']/u);
   assert.match(rentRollSource, /operation === ["']delete["']/u);
+  assert.doesNotMatch(rentRollSource, /expected_revisions|asset_key|key_mappings/u);
 });
 
 class MemoryStorage {

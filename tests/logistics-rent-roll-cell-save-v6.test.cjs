@@ -49,6 +49,30 @@ test('렌트롤 55개 컬럼은 편집 43개와 자동계산 12개로 1:1 분류
   );
 });
 
+test('rent-free periods accept a complete date pair or positive manual months', async () => {
+  const module = await schema();
+  assert.equal(module.isValidRentFreePeriod({ start_date: '2026-01-01', end_date: '2026-01-31', months: 0 }), true);
+  assert.equal(module.isValidRentFreePeriod({ start_date: '', end_date: '', months: '2.5' }), true);
+  assert.equal(module.isValidRentFreePeriod({ start_date: '2026-01-01', end_date: '', months: 2 }), false);
+  assert.equal(module.isValidRentFreePeriod({ start_date: '', end_date: '', months: 0 }), false);
+  assert.deepEqual(
+    module.normalizeRentFreePeriod({ start_date: '', end_date: '', months: '2.5', reason: 'legacy' }),
+    { start_date: null, end_date: null, months: 2.5, reason: 'legacy', notes: null },
+  );
+  assert.equal(
+    module.normalizeRentFreePeriod({ start_date: '2026-02-01', end_date: '2026-02-28', months: 99 }).months,
+    0.89,
+  );
+});
+
+test('fit-out months preserve positive month-only values and recalculate complete date pairs', async () => {
+  const module = await schema();
+  assert.equal(module.normalizeFitOutMonths('', '', '3'), 3);
+  assert.equal(module.normalizeFitOutMonths('2026-03-01', '2026-03-31', 99), 0.99);
+  assert.equal(module.normalizeFitOutMonths('2026-03-01', '', '2'), 2);
+  assert.equal(module.normalizeFitOutMonths('', '', 0), null);
+});
+
 test('셀 저장 payload는 허용된 컬럼·복수 렌트프리·fit-out·revision만 포함한다', async () => {
   const module = await schema();
   const row = {
@@ -181,6 +205,26 @@ test('기존 복합 만기 원문은 다른 셀의 sparse 저장을 막지 않�
   ), []);
 });
 
+test('browser _draft_id is only row identity and does not turn an existing row into create validation', async () => {
+  const module = await schema();
+  const existing = {
+    _draft_id: 'browser-existing-row',
+    occupancy_status: 'occupied',
+    tenant_name: '기존 임차인 수정',
+    expiry_date: '2024-12-31',
+  };
+
+  assert.deepEqual(module.validateRentRollDelta(existing, ['tenant_name']), []);
+  assert.notDeepEqual(module.validateRentRollDelta(
+    { ...existing, expiry_date: 'invalid-date' },
+    ['expiry_date'],
+  ), []);
+
+  const created = module.emptyRentRollRow('browser-new-row');
+  assert.equal(created.operation, 'create');
+  assert.ok(module.validateRentRollDelta(created, ['tenant_name']).length >= 3);
+});
+
 test('저장 readback은 변경 셀과 복수 렌트프리 배열을 의미값으로 비교한다', async () => {
   const module = await schema();
   const payloadRows = [{
@@ -282,12 +326,14 @@ test('직접 입력 금액과 자동계산값은 콤마 표시하고 실효 임�
 test('UI는 입력 중 원격 저장·오류 팝업을 열지 않고 저장 버튼에서만 허용 payload를 전송한다', () => {
   const source = fs.readFileSync(JSX_PATH, 'utf8');
   const rentRoll = source.slice(source.indexOf('function RentRollPanel'), source.indexOf('function periodFor'));
-  assert.match(rentRoll, /payloadRows\s*=\s*attemptRows\.map\(\(row\)\s*=>\s*buildRentRollSaveRow\([\s\S]*?dirtyFieldsByRow\.get\(rowId\(row\)\)/u);
-  assert.match(rentRoll, /rows:\s*payloadRows/u);
-  assert.match(rentRoll, /expected_revisions:\s*buildRentRollExpectedRevisions\(attemptRows\)/u);
+  assert.match(rentRoll, /const\s+intendedDocument\s*=\s*buildRentRollDocumentPayload\(rows,\s*\{\s*asOfDate:\s*todayKst\(\)\s*\}\)/u);
+  assert.match(rentRoll, /asset_code:\s*assetCode/u);
+  assert.match(rentRoll, /expected_xmin:\s*rentRevision/u);
+  assert.match(rentRoll, /\.\.\.intendedDocument/u);
   assert.match(rentRoll, /onClick=\{\(\)\s*=>\s*void saveDirtyRows\(\)\}/u);
   assert.match(rentRoll, /saveInFlightRef\.current/u);
-  assert.match(rentRoll, /DATA_PLATFORM_ACTIONS\.rentRollRead[\s\S]*?rentRollReadbackMismatches\([\s\S]*?payloadRows,[\s\S]*?readbackRows,[\s\S]*?saveResponse\.data\?\.key_mappings/u);
+  assert.match(rentRoll, /DATA_PLATFORM_ACTIONS\.rentRollRead[\s\S]*?buildRentRollDocumentPayload\([\s\S]{0,120}readbackRows,[\s\S]{0,120}asOfDate:\s*todayKst\(\)[\s\S]*?documentsEqual\(intendedDocument,\s*readbackDocument\)/u);
+  assert.doesNotMatch(rentRoll, /expected_revisions|asset_key|key_mappings|buildRentRollSaveRow/u);
   assert.match(rentRoll, /validateRentRollDelta\(row, changedFields\)/u);
   assert.doesNotMatch(rentRoll, /on(?:Change|Blur)=\{[^}]*invokeDataPlatform/u);
   assert.doesNotMatch(rentRoll, /onBlur=.*saveRows/u);
@@ -301,4 +347,7 @@ test('UI는 입력 중 원격 저장·오류 팝업을 열지 않고 저장 버�
   assert.match(liveMatrix, /rentFreeBusinessValues\(readback\.rent_free_periods\)/u);
   assert.match(source, /렌트프리 사유/u);
   assert.match(source, /렌트프리 비고/u);
+  assert.match(source, /type="number"[\s\S]{0,320}rent-free-months/u);
+  assert.match(source, /isValidRentFreePeriod\(period\)/u);
+  assert.match(source, /normalizeRentFreePeriod/u);
 });

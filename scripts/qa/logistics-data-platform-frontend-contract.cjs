@@ -41,7 +41,12 @@ assert.doesNotMatch(ui, /data-platform-account-button|data-platform-sign-out/u);
 for (const token of ['data-autosave-field', 'data-save-state', 'homeBatchSave', 'rentRollBatchSave', 'financeBatchSave']) {
   assert.ok(ui.includes(token), `missing automatic save contract: ${token}`);
 }
-assert.match(ui, /resource\.reload\(\)/u);
+for (const token of [
+  'buildHomeDocumentPayload', 'buildRentRollDocumentPayload',
+  'buildIncomeExpenseDocumentPayload', 'replaceFinanceCellValue', 'documentsEqual',
+  'HOME_DOCUMENT_READBACK_MISMATCH', 'RENT_ROLL_DOCUMENT_READBACK_MISMATCH',
+  'FINANCE_DOCUMENT_READBACK_MISMATCH', 'expected_xmin',
+]) assert.ok(ui.includes(token), `missing canonical document save contract: ${token}`);
 assert.match(ui, /sessionStorage/u);
 
 for (const field of [
@@ -96,10 +101,25 @@ async function verifyModules() {
   assert.ok(rent.RENT_ROLL_COLUMNS.length >= 50);
   assert.equal(rent.RENT_ROLL_COLUMNS.find((column) => column.key === 'tenant_name').kind, 'text');
   assert.equal(rent.calculateRentRollENoc({ leased_area_sqm: 1000, monthly_rent_total_krw: 10_000_000, monthly_cam_total_krw: 2_000_000 }), 39669.42);
-  const finance = await import(`${pathToFileURL(path.join(root, 'src/features/logistics-data-platform/financeSchema.js')).href}?qa=${Date.now()}`);
-  const saved = finance.financeEntryForSave({ scenario: 'forecast', source_ref: 'server', amount: 1 });
-  assert.equal(saved.scenario, 'forecast');
-  assert.equal(Object.hasOwn(saved, 'source_ref'), false);
+  const documents = await import(`${pathToFileURL(path.join(root, 'src/features/logistics-data-platform/documentContract.js')).href}?qa=${Date.now()}`);
+  const rentPayload = documents.buildRentRollDocumentPayload([{
+    tenant_name: '임차인',
+    leased_area_sqm: 100,
+    row_key: 'legacy-row',
+    source_kind: 'projection',
+    effective_rent: 1,
+  }]);
+  assert.deepEqual(rentPayload, { rows: [{ tenant_name: '임차인', leased_area_sqm: 100 }] });
+  const financePayload = documents.buildIncomeExpenseDocumentPayload({
+    periods: ['2026-08'],
+    potential_income: [{
+      name: '임대료', selected: true, amounts: { '2026-08': 1 }, entry_key: 'legacy-entry',
+    }],
+  });
+  assert.equal(JSON.stringify(financePayload).includes('entry_key'), false);
+  assert.deepEqual(Object.keys(financePayload.statement), [
+    'periods', 'potential_income', 'income_loss', 'operating_expense', 'below_noi', 'debt_service',
+  ]);
 }
 
 verifyModules().then(() => console.log('PASS logistics data platform frontend contract')).catch((error) => { console.error(error); process.exitCode = 1; });

@@ -18,8 +18,11 @@ test('홈은 읽기 화면이 기본이고 명시적인 수정·취소·저장 �
   assert.match(source, /data-testid=["']home-cancel["']/u);
   assert.match(source, /data-testid=["']home-save["']/u);
   assert.match(source, /isHomeEditing/u);
-  assert.match(source, /buildHomeOperations/u);
-  assert.match(source, /operations:\s*homeOperations/u);
+  assert.match(source, /buildHomeDocumentPayload/u);
+  assert.match(source, /\.\.\.homeDocument/u);
+  assert.match(source, /expected_revisions:\s*\{/u);
+  assert.match(source, /HOME_DOCUMENT_READBACK_MISMATCH/u);
+  assert.doesNotMatch(source, /buildHomeOperations|operations:\s*homeOperations/u);
 });
 
 test('렌트롤 용도는 네 가지 운영 용도만 선택한다', async () => {
@@ -104,7 +107,7 @@ test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 �
   assert.match(source, /data-testid=["']finance-account-row["']/u);
   assert.match(source, /data-testid=["']finance-account-toggle["']/u);
   assert.match(source, /data-finance-account-active=/u);
-  assert.match(source, /disabled=\{!writeEnabled \|\| !row\.active\}/u);
+  assert.match(source, /disabled=\{!writeEnabled \|\| !row\.active \|\| saveState === ["']saving["']\}/u);
   assert.match(source, /pendingAccountFocusRef/u);
   assert.match(source, /accountSelectionAnnouncement/u);
   assert.match(source, /영업수익 소계/u);
@@ -133,15 +136,18 @@ test('서버 오류와 저장 실패는 원문을 노출하지 않고 팝업으�
   assert.doesNotMatch(api, /result\.error\.message\s*\|\|/u);
 });
 
-test('홈 한 번 저장에서 동일 엔티티 여러 필드를 수정해도 최초 revision을 한 번만 검사한다', () => {
-  const migrationDir = path.join(ROOT, 'supabase', 'migrations');
-  const candidates = fs.readdirSync(migrationDir)
-    .filter((name) => /home.*batch.*revision|save.*reliability/iu.test(name))
-    .sort();
-  assert.ok(candidates.length, '홈 다중 필드 저장 revision 보정 migration이 필요합니다.');
-  const sql = read(path.join('supabase', 'migrations', candidates.at(-1)));
-  assert.match(sql, /checked_entities/iu);
-  assert.match(sql, /not\s*\(entity_name\s*\|\|\s*':'\s*\|\|\s*entity_key\s*=\s*any\s*\(checked_entities\)\)/iu);
+test('홈 전체 문서는 자산과 펀드 xmin을 각각 한 번 검사하고 저장 후 동일 문서를 재조회한다', () => {
+  const source = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
+  assert.match(source, /expected_revisions:\s*\{[\s\S]{0,180}asset:[\s\S]{0,180}fund:/u);
+  assert.match(source, /buildHomeDocumentPayload\(readback\.data\)/u);
+  assert.match(source, /documentsEqual\(homeDocument,\s*readbackDocument\)/u);
+
+  const sql = read('supabase/migrations/20260807180000_simplify_logistics_core_to_four_ui_tables.sql');
+  assert.match(sql, /expected_xmin\(p_payload,\s*p_expected_revisions,\s*'asset'\)/iu);
+  assert.match(sql, /expected_xmin\(p_payload,\s*p_expected_revisions,\s*'fund'\)/iu);
+  assert.match(sql, /assert_expected_xmin\(v_actual,\s*v_expected\)/iu);
+  assert.match(sql, /v_readback\s*:=\s*logistics_core\.home_read_entry/iu);
+  assert.match(sql, /'readback',\s*'verified'/iu);
 });
 
 test('렌트롤 고정 열의 제목은 본문 셀과 같은 왼쪽 위치에 함께 고정된다', () => {

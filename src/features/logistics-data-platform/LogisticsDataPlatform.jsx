@@ -10,17 +10,18 @@ import {
 } from "./api";
 import {
   calculateRentRollENoc,
-  buildRentRollExpectedRevisions,
-  buildRentRollSaveRow,
+  calculateRentFreePeriodMonths,
+  isValidRentFreePeriod,
   deriveRentRollRow,
   emptyRentRollRow,
   formatRentRollNumber,
   normalizeCostTerms,
+  normalizeFitOutMonths,
+  normalizeRentFreePeriod,
   parseRentRollMoneyInput,
   RENT_ROLL_COLUMNS,
   RENT_ROLL_EDITABLE_FIELDS,
   RENT_ROLL_PASTE_COLUMNS,
-  rentRollReadbackMismatches,
   serializeCostTerms,
   validateRentRollDelta,
 } from "./rentRollSchema";
@@ -36,6 +37,22 @@ import {
   maturityDetailRows,
   maturityDisplayName,
 } from "./maturityPresentation";
+import {
+  buildHomeDocumentPayload,
+  buildIncomeExpenseDocumentPayload,
+  buildIncomeExpenseStatement,
+  buildRentRollDocumentPayload,
+  documentsEqual,
+  financePeriodsFromEntries,
+  isCurrentOccupiedRentRollRow,
+  isExpiredRentRollRow,
+  normalizeAssetDirectory,
+  normalizeMaturityRows,
+  primaryHomeDataForAsset,
+  projectIncomeExpenseStatement,
+  reconcileAssetCode,
+  replaceFinanceCellValue,
+} from "./documentContract";
 import {
   StackingPlan,
   buildStackingFloorsFromRows,
@@ -58,6 +75,7 @@ const RENT_ROLL_DISPLAY_COLUMNS = Object.freeze(
       return [
         { key: "fit_out_start_date", label: "Fit-out 시작일", group: column.group, kind: "date", width: 124 },
         { key: "fit_out_end_date", label: "Fit-out 종료일", group: column.group, kind: "date", width: 124 },
+        { ...column, label: "Fit-out 개월", width: 112 },
       ];
     }
     return [column];
@@ -125,11 +143,7 @@ function display(value) {
   return value === "" || value == null ? "—" : String(value);
 }
 function normalizeMaturities(data) {
-  return Array.isArray(data?.maturities)
-    ? data.maturities
-    : Array.isArray(data?.rows)
-      ? data.rows
-      : [];
+  return normalizeMaturityRows(data);
 }
 function floorValue(value) {
   const text = String(value || "")
@@ -141,7 +155,7 @@ function floorValue(value) {
   return text ? number : -Infinity;
 }
 function rowId(row) {
-  return row.row_key || row._draft_id;
+  return row._draft_id;
 }
 
 function LoadingLine({ visible }) {
@@ -508,78 +522,24 @@ const HOME_ENTITY_CONFIG = Object.freeze([
   {
     entity: "asset",
     collection: "asset",
-    key: "asset_key",
     fields: ["name", "address", "zoning_text", "land_area_sqm", "building_area_sqm", "gross_area_sqm", "leasable_area_sqm", "primary_use", "building_coverage_ratio", "floor_area_ratio", "floor_count", "structure_text", "parking_count", "completion_date"],
   },
   {
     entity: "fund",
     collection: "funds",
-    key: "fund_key",
     fields: ["name", "fund_type", "investment_strategy", "inception_date", "maturity_date", "ownership_ratio"],
   },
   {
     entity: "beneficiary",
     collection: "investments",
-    key: "beneficiary_key",
     fields: ["tranche", "beneficiary_name", "agreed_amount_krw", "contributed_amount_krw"],
   },
   {
     entity: "loan",
     collection: "loans",
-    key: "loan_key",
     fields: ["tranche", "lender_name", "committed_amount_krw", "drawdown_date", "maturity_date", "loan_type", "interest_type", "coupon_rate", "all_in_rate", "fee_rate"],
   },
 ]);
-
-function homeRecords(data, config) {
-  if (config.collection === "asset") return data?.asset ? [data.asset] : [];
-  return Array.isArray(data?.[config.collection]) ? data[config.collection] : [];
-}
-
-function normalizedHomeValue(value) {
-  return value === "" || value === undefined ? null : value;
-}
-
-function homeExpectedRevision(source, entity, field) {
-  if (entity === "fund") {
-    return field === "ownership_ratio"
-      ? source.link_revision ?? source.revision
-      : source.fund_revision ?? source.revision;
-  }
-  if (entity === "loan") {
-    return field === "lender_name"
-      ? source.lender_revision ?? source.revision
-      : source.loan_revision ?? source.revision;
-  }
-  return source.revision;
-}
-
-export function buildHomeOperations(original, draft) {
-  const operations = [];
-  HOME_ENTITY_CONFIG.forEach((config) => {
-    const originalRows = homeRecords(original, config);
-    const draftRows = homeRecords(draft, config);
-    originalRows.forEach((source) => {
-      const entityKey = source[config.key] || (config.entity === "loan" ? source.row_key : null);
-      const changed = draftRows.find((row) => (row[config.key] || (config.entity === "loan" ? row.row_key : null)) === entityKey);
-      if (!changed || !entityKey) return;
-      config.fields.forEach((field) => {
-        const before = normalizedHomeValue(source[field]);
-        const after = normalizedHomeValue(changed[field]);
-        if (String(before ?? "") === String(after ?? "")) return;
-        operations.push({
-          entity: config.entity,
-          entity_key: entityKey,
-          field,
-          value: after,
-          expected_revision: homeExpectedRevision(source, config.entity, field),
-          reason: "홈 화면 일괄 수정",
-        });
-      });
-    });
-  });
-  return operations;
-}
 
 function MaturityList({ rows }) {
   const [selected, setSelected] = useState(null);
@@ -704,21 +664,34 @@ function cloneHomeData(data) {
     })),
     loans: (Array.isArray(cloned?.loans) ? cloned.loans : []).map((row) => ({
       ...row,
+      committed_amount_krw: row.committed_amount_krw
+        ?? row.commitment_amount_krw
+        ?? row.commitment_amount
+        ?? "",
       coupon_rate: row.coupon_rate ?? row.loan_rate ?? row.interest_rate ?? "",
       all_in_rate: row.all_in_rate ?? row.all_in ?? "",
+      fee_rate: row.fee_rate ?? row.fee ?? "",
     })),
   };
 }
 
-function HomePanel({ assetKey, resource, maturities }) {
-  const sourceData = useMemo(() => cloneHomeData(resource.data || {}), [resource.data]);
+function HomePanel({ assetCode, resource, maturities }) {
+  const primaryHomeData = primaryHomeDataForAsset(resource.data, assetCode);
+  const appliedHomeRequestIdRef = useRef(null);
+  const [homeSnapshot, setHomeSnapshot] = useState(() => cloneHomeData(primaryHomeData || {}));
+  const sourceData = useMemo(() => cloneHomeData(homeSnapshot), [homeSnapshot]);
   const [isHomeEditing, setIsHomeEditing] = useState(false);
-  const [homeDraft, setHomeDraft] = useState(() => cloneHomeData(resource.data || {}));
+  const [homeDraft, setHomeDraft] = useState(() => cloneHomeData(primaryHomeData || {}));
   const [saveState, setSaveState] = useState("idle");
   const [homeError, setHomeError] = useState(null);
   useEffect(() => {
-    if (!isHomeEditing) setHomeDraft(cloneHomeData(resource.data || {}));
-  }, [isHomeEditing, resource.data]);
+    if (!primaryHomeData || isHomeEditing) return;
+    if (appliedHomeRequestIdRef.current === resource.requestId) return;
+    appliedHomeRequestIdRef.current = resource.requestId;
+    const snapshot = cloneHomeData(primaryHomeData);
+    setHomeSnapshot(snapshot);
+    setHomeDraft(snapshot);
+  }, [isHomeEditing, primaryHomeData, resource.requestId]);
   const workingData = isHomeEditing ? homeDraft : sourceData;
   const asset = workingData.asset;
   const funds = workingData.funds;
@@ -726,11 +699,12 @@ function HomePanel({ assetKey, resource, maturities }) {
   const loans = workingData.loans;
   const rent = usePrimaryResource(
     DATA_PLATFORM_ACTIONS.rentRollRead,
-    { asset_key: assetKey, limit: 500 },
-    { enabled: Boolean(assetKey) },
+    { asset_code: assetCode, limit: 500 },
+    { enabled: Boolean(assetCode) },
   );
   const rows = Array.isArray(rent.data?.rows) ? rent.data.rows : [];
-  const occupiedRows = rows.filter((row) => row.occupancy_status === "occupied");
+  const homeAsOfDate = todayKst();
+  const occupiedRows = rows.filter((row) => isCurrentOccupiedRentRollRow(row, homeAsOfDate));
   const plannedRows = rows.filter((row) => row.occupancy_status === "planned");
   const vacantRows = rows.filter((row) => row.occupancy_status === "vacant");
   const tenantMap = new Map();
@@ -749,36 +723,20 @@ function HomePanel({ assetKey, resource, maturities }) {
   const tenantSummaries = [...tenantMap.values()].sort(
     (left, right) => right.leased_area_sqm - left.leased_area_sqm,
   );
-  const occupiedAreaFromRows = occupiedRows.reduce(
-    (sum, row) => sum + Number(row.leased_area_sqm || 0),
-    0,
-  );
-  const tenantSummary = sourceData.tenant_summary || sourceData.occupancy_summary || {};
-  const summarizedOccupiedArea = homeFiniteNumber(tenantSummary.occupied_area_sqm);
+  const occupancySummary = sourceData.occupancy_summary || {};
+  const summarizedOccupiedArea = homeFiniteNumber(occupancySummary.occupied_area_sqm);
   const occupiedArea = summarizedOccupiedArea != null && summarizedOccupiedArea >= 0
     ? summarizedOccupiedArea
-    : occupiedAreaFromRows;
-  const occupancyDenominator = [
-    tenantSummary.denominator_area_sqm,
-    asset?.leasable_area_sqm,
-    asset?.gross_area_sqm,
-  ]
-    .map(Number)
-    .find((value) => Number.isFinite(value) && value > 0) || 0;
-  const summarizedOccupancyRate = homeFiniteNumber(tenantSummary.occupancy_rate);
-  const occupancyRate = summarizedOccupancyRate != null
-    ? summarizedOccupancyRate
-    : occupancyDenominator > 0
-      ? (occupiedArea / occupancyDenominator) * 100
-      : null;
-  const activeTenantCount = Number.isFinite(Number(tenantSummary.active_tenant_count))
-    ? Number(tenantSummary.active_tenant_count)
+    : 0;
+  const occupancyRate = homeFiniteNumber(occupancySummary.occupancy_rate);
+  const activeTenantCount = Number.isFinite(Number(occupancySummary.active_tenant_count))
+    ? Number(occupancySummary.active_tenant_count)
     : tenantSummaries.length;
-  const occupiedSpaceCount = Number.isFinite(Number(tenantSummary.occupied_space_count))
-    ? Number(tenantSummary.occupied_space_count)
+  const occupiedSpaceCount = Number.isFinite(Number(occupancySummary.occupied_space_count))
+    ? Number(occupancySummary.occupied_space_count)
     : occupiedRows.length;
-  const vacantSpaceCount = Number.isFinite(Number(tenantSummary.vacant_space_count))
-    ? Number(tenantSummary.vacant_space_count)
+  const vacantSpaceCount = Number.isFinite(Number(occupancySummary.vacant_space_count))
+    ? Number(occupancySummary.vacant_space_count)
     : vacantRows.length;
   const monthlyRent = occupiedRows.reduce(
     (sum, row) => sum + Number(row.monthly_rent_total_krw || 0),
@@ -796,56 +754,82 @@ function HomePanel({ assetKey, resource, maturities }) {
     occupiedRows,
     [],
   );
-  const homeOperations = useMemo(
-    () => buildHomeOperations(sourceData, homeDraft),
-    [homeDraft, sourceData],
-  );
-  const updateHomeDraft = (entity, entityKey, field, value) => {
+  const homeDocument = useMemo(() => buildHomeDocumentPayload(homeDraft), [homeDraft]);
+  const sourceDocument = useMemo(() => buildHomeDocumentPayload(sourceData), [sourceData]);
+  const homeChanged = !documentsEqual(homeDocument, sourceDocument);
+  const updateHomeDraft = (entity, rowIndex, field, value) => {
     const config = HOME_ENTITY_CONFIG.find((item) => item.entity === entity);
     if (!config) return;
-    setSaveState("idle");
+    setSaveState("dirty");
     setHomeDraft((current) => {
       if (config.collection === "asset") {
         return { ...current, asset: { ...current.asset, [field]: value } };
       }
       return {
         ...current,
-        [config.collection]: current[config.collection].map((row) => {
-          const key = row[config.key] || (entity === "loan" ? row.row_key : null);
-          return key === entityKey ? { ...row, [field]: value } : row;
-        }),
+        [config.collection]: current[config.collection].map((row, index) => (
+          index === rowIndex ? { ...row, [field]: value } : row
+        )),
       };
     });
   };
   const saveHome = async () => {
-    if (!homeOperations.length) {
+    if (!homeChanged) {
       setIsHomeEditing(false);
       return;
     }
     setSaveState("saving");
     setHomeError(null);
     try {
-      await invokeDataPlatform(DATA_PLATFORM_ACTIONS.homeBatchSave, {
-        asset_key: assetKey,
-        client_request_id: createClientRequestId("home"),
-        operations: homeOperations,
+      let readback = null;
+      try {
+        await invokeDataPlatform(DATA_PLATFORM_ACTIONS.homeBatchSave, {
+          asset_code: assetCode,
+          client_request_id: createClientRequestId("home"),
+          expected_revisions: {
+            asset: sourceData.asset?.revision ?? resource.revision,
+            fund: sourceData.funds?.[0]?.revision,
+          },
+          ...homeDocument,
+        });
+      } catch (cause) {
+        if (!isDataPlatformRevisionConflict(cause)) throw cause;
+        const conflictReadback = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.homeRead, {
+          asset_code: assetCode,
+          as_of_date: todayKst(),
+        });
+        if (!documentsEqual(homeDocument, buildHomeDocumentPayload(conflictReadback.data))) {
+          throw cause;
+        }
+        readback = conflictReadback;
+      }
+      readback ||= await invokeDataPlatform(DATA_PLATFORM_ACTIONS.homeRead, {
+        asset_code: assetCode,
+        as_of_date: todayKst(),
       });
+      const readbackDocument = buildHomeDocumentPayload(readback.data);
+      if (!documentsEqual(homeDocument, readbackDocument)) {
+        throw new Error("HOME_DOCUMENT_READBACK_MISMATCH");
+      }
+      const snapshot = cloneHomeData(readback.data);
+      setHomeSnapshot(snapshot);
+      setHomeDraft(snapshot);
       setSaveState("saved");
       setIsHomeEditing(false);
       resource.reload();
     } catch (cause) {
-      setSaveState("error");
+      setSaveState(isDataPlatformRevisionConflict(cause) ? "dirty" : "error");
       setHomeError(cause);
     }
   };
   const cancelHome = () => {
-    setHomeDraft(cloneHomeData(resource.data || {}));
+    setHomeDraft(cloneHomeData(homeSnapshot));
     setIsHomeEditing(false);
     setSaveState("idle");
     setHomeError(null);
   };
-  const writeEnabled = resource.data?.write_enabled === true;
-  if (!assetKey) return <EmptyText>조회 가능한 자산이 없습니다.</EmptyText>;
+  const writeEnabled = sourceData.write_enabled === true;
+  if (!assetCode) return <EmptyText>조회 가능한 자산이 없습니다.</EmptyText>;
   return (
     <div className="space-y-4">
       <LoadingLine
@@ -862,15 +846,13 @@ function HomePanel({ assetKey, resource, maturities }) {
           saveState={saveState}
           writeEnabled={writeEnabled}
           onEdit={() => {
-            setHomeDraft(cloneHomeData(resource.data || {}));
+            setHomeDraft(cloneHomeData(homeSnapshot));
             setIsHomeEditing(true);
             setSaveState("idle");
           }}
           onCancel={cancelHome}
           onSave={() => void saveHome()}
-          onAssetChange={(field, value) =>
-            updateHomeDraft("asset", asset.asset_key, field, value)
-          }
+          onAssetChange={(field, value) => updateHomeDraft("asset", 0, field, value)}
           occupancyRate={occupancyRate}
           tenantSummaries={tenantSummaries}
           activeTenantCount={activeTenantCount}
@@ -914,8 +896,8 @@ function HomePanel({ assetKey, resource, maturities }) {
                 </tr>
               </thead>
               <tbody>
-                {funds.map((fund) => (
-                  <tr key={fund.fund_key}>
+                {funds.map((fund, fundIndex) => (
+                  <tr key={fund.fund_code || fundIndex}>
                     {[
                       ["name", "text"],
                       ["fund_type", "text"],
@@ -932,7 +914,7 @@ function HomePanel({ assetKey, resource, maturities }) {
                           value={fund[field]}
                           type={type}
                           editing={isHomeEditing}
-                          onChange={(value) => updateHomeDraft("fund", fund.fund_key, field, value)}
+                          onChange={(value) => updateHomeDraft("fund", fundIndex, field, value)}
                           align={type === "number" ? "right" : "left"}
                         />
                       </td>
@@ -963,8 +945,8 @@ function HomePanel({ assetKey, resource, maturities }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {investments.map((row) => (
-                    <tr key={row.beneficiary_key}>
+                  {investments.map((row, investmentIndex) => (
+                    <tr key={`${row.beneficiary_name || "investment"}-${investmentIndex}`}>
                       {[
                         ["fund_name", "text"],
                         ["tranche", "text"],
@@ -983,7 +965,7 @@ function HomePanel({ assetKey, resource, maturities }) {
                               value={row[field]}
                               type={type}
                               editing={isHomeEditing}
-                              onChange={(value) => updateHomeDraft("beneficiary", row.beneficiary_key, field, value)}
+                              onChange={(value) => updateHomeDraft("beneficiary", investmentIndex, field, value)}
                               align={type === "number" ? "right" : "left"}
                             />
                           )}
@@ -1027,8 +1009,8 @@ function HomePanel({ assetKey, resource, maturities }) {
               </tr>
             </thead>
             <tbody>
-              {loans.map((loan) => (
-                <tr key={loan.loan_key || loan.row_key}>
+              {loans.map((loan, loanIndex) => (
+                <tr key={`${loan.tranche || loan.lender_name || "loan"}-${loanIndex}`}>
                   {[
                     ["tranche", "text"],
                     ["lender_name", "text"],
@@ -1049,7 +1031,7 @@ function HomePanel({ assetKey, resource, maturities }) {
                         value={loan[field]}
                         type={type}
                         editing={isHomeEditing}
-                        onChange={(value) => updateHomeDraft("loan", loan.loan_key || loan.row_key, field, value)}
+                        onChange={(value) => updateHomeDraft("loan", loanIndex, field, value)}
                         align={type === "number" ? "right" : "left"}
                       />
                     </td>
@@ -1172,29 +1154,21 @@ function formatRentRollReadonlyValue(column, row) {
   return formatRentRollNumber(value, maximumFractionDigits) || "—";
 }
 
-function calculatePeriodMonths(startDate, endDate) {
-  if (!startDate || !endDate) return 0;
-  const start = new Date(`${startDate}T00:00:00Z`);
-  const end = new Date(`${endDate}T00:00:00Z`);
-  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end < start) return 0;
-  return Math.round(((end - start) / 2_629_800_000) * 100) / 100;
-}
-
 function rentFreePeriodsFromRow(row = {}) {
-  if (Array.isArray(row.rent_free_periods)) {
-    return row.rent_free_periods.map((period, index) => ({
-      id: period.id || `rent-free-${index}`,
-      start_date: period.start_date || period.start || "",
-      end_date: period.end_date || period.end || "",
-      months: period.months ?? calculatePeriodMonths(
-        period.start_date || period.start,
-        period.end_date || period.end,
-      ),
-      reason: period.reason || "",
-      notes: period.notes || "",
-    }));
+  if (Array.isArray(row.rent_free_periods) && row.rent_free_periods.length) {
+    return row.rent_free_periods.map((period, index) => {
+      const normalized = normalizeRentFreePeriod(period);
+      return {
+        id: period.id || `rent-free-${index}`,
+        start_date: normalized.start_date || "",
+        end_date: normalized.end_date || "",
+        months: normalized.months ?? "",
+        reason: normalized.reason || "",
+        notes: normalized.notes || "",
+      };
+    });
   }
-  if (row.rent_free_start_date || row.rent_free_end_date) {
+  if (row.rent_free_start_date || row.rent_free_end_date || Number(row.rent_free_months) > 0) {
     return [{
       id: "rent-free-legacy",
       start_date: row.rent_free_start_date || "",
@@ -1218,12 +1192,20 @@ function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
     globalThis.addEventListener?.("keydown", closeOnEscape);
     return () => globalThis.removeEventListener?.("keydown", closeOnEscape);
   }, [onClose]);
-  const invalid = periods.some((period) => (
-    !period.start_date || !period.end_date || period.end_date < period.start_date
-  ));
-  const updatePeriod = (id, field, value) => setPeriods((current) => current.map(
-    (period) => period.id === id ? { ...period, [field]: value } : period,
-  ));
+  const invalid = periods.some((period) => !isValidRentFreePeriod(period));
+  const updatePeriod = (id, field, value) => setPeriods((current) => current.map((period) => {
+    if (period.id !== id) return period;
+    const next = { ...period, [field]: value };
+    if (
+      ["start_date", "end_date"].includes(field)
+      && next.start_date
+      && next.end_date
+      && next.end_date >= next.start_date
+    ) {
+      next.months = normalizeRentFreePeriod(next).months ?? "";
+    }
+    return next;
+  }));
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4">
       <section
@@ -1231,7 +1213,7 @@ function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="rent-free-period-dialog-title"
-        className="w-full max-w-[920px] rounded-[16px] border border-[#3A3A3C] bg-[#252524] p-5 shadow-2xl"
+        className="w-full max-w-[1040px] rounded-[16px] border border-[#3A3A3C] bg-[#252524] p-5 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -1242,7 +1224,7 @@ function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
         </div>
         <div className="mt-4 max-h-[52vh] divide-y divide-[#333333] overflow-y-auto border-y border-[#333333]">
           {periods.length ? periods.map((period, index) => (
-            <div key={period.id} className="grid gap-2 py-3 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] sm:items-end">
+            <div key={period.id} className="grid gap-2 py-3 sm:grid-cols-[1fr_1fr_0.7fr_1fr_1fr_auto] sm:items-end">
               <label className="text-[11px] text-[#86868B]">
                 {index + 1}차 시작일
                 <input
@@ -1262,6 +1244,22 @@ function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
                   onChange={(event) => updatePeriod(period.id, "end_date", event.target.value)}
                   disabled={disabled}
                   className={`${INPUT_CLASS} mt-1 bg-[#202020]`}
+                />
+              </label>
+              <label className="text-[11px] text-[#86868B]">
+                {index + 1}차 개월
+                <input
+                  type="number"
+                  data-testid="rent-free-months"
+                  min="0.01"
+                  step="0.01"
+                  value={period.months ?? ""}
+                  onChange={(event) => updatePeriod(period.id, "months", event.target.value)}
+                  disabled={disabled}
+                  readOnly={Boolean(period.start_date && period.end_date)}
+                  aria-label={`${index + 1}차 렌트프리 개월`}
+                  title={period.start_date && period.end_date ? "시작일과 종료일 기준으로 자동 계산됩니다." : "양수 개월을 직접 입력하세요."}
+                  className={`${INPUT_CLASS} mt-1 bg-[#202020] text-right tabular-nums read-only:text-[#86868B]`}
                 />
               </label>
               <label className="text-[11px] text-[#86868B]">
@@ -1300,7 +1298,7 @@ function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
             <p className="py-5 text-sm text-[#86868B]">등록된 렌트프리 기간이 없습니다.</p>
           )}
         </div>
-        {invalid ? <p role="alert" className="mt-2 text-xs text-[#F2CF75]">각 기간의 시작일과 종료일을 올바르게 입력해 주세요.</p> : null}
+        {invalid ? <p role="alert" className="mt-2 text-xs text-[#F2CF75]">각 기간에 시작일·종료일을 모두 입력하거나 양수 개월을 입력해 주세요.</p> : null}
         <div className="mt-4 flex flex-wrap justify-between gap-2">
           <button
             type="button"
@@ -1319,13 +1317,7 @@ function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
           </button>
           <button
             type="button"
-            onClick={() => onSave(periods.map(({ start_date, end_date, reason, notes }) => ({
-              start_date,
-              end_date,
-              months: calculatePeriodMonths(start_date, end_date),
-              reason,
-              notes,
-            })))}
+            onClick={() => onSave(periods.map((period) => normalizeRentFreePeriod(period)))}
             disabled={disabled || invalid}
             className="rounded-[8px] bg-[#0A6CFF] px-4 py-2 text-sm font-semibold text-white disabled:opacity-35"
           >
@@ -1540,125 +1532,23 @@ function parsePaste(text) {
     });
 }
 
-function rebaseRentRollDraftRow(latestRow, draftRow, dirtyFields = []) {
-  if (!latestRow || draftRow?.operation === "create" || draftRow?._draft_id) {
-    return deriveRentRollRow(draftRow || {});
-  }
-  const serverOwnedFields = new Set([
-    "row_key",
-    "space_key",
-    "contract_key",
-    "contract_space_key",
-    "rent_term_key",
-    "tenant_key",
-    "space_revision",
-    "contract_revision",
-    "allocation_revision",
-    "rent_term_revision",
-    "revision",
-  ]);
-  const patch = Object.fromEntries(
-    [...new Set(dirtyFields)]
-      .filter((field) => !serverOwnedFields.has(field))
-      .filter((field) => Object.prototype.hasOwnProperty.call(draftRow || {}, field))
-      .map((field) => [field, draftRow[field]]),
-  );
-  return deriveRentRollRow({
-    ...latestRow,
-    ...patch,
-    operation: draftRow?.operation === "delete" ? "delete" : "update",
-  });
-}
-
-function rentRollRevisionConflictFields(baseRow, draftRow, latestRow, dirtyFields = []) {
-  const fields = [...new Set(dirtyFields)].filter(Boolean);
-  if (!latestRow) return fields.length ? fields : ["operation"];
-  if (!baseRow) {
-    const revisionFields = [
-      "space_revision",
-      "contract_revision",
-      "allocation_revision",
-      "rent_term_revision",
-      "revision",
-    ];
-    const revisionChanged = revisionFields.some((field) => (
-      Number(draftRow?.[field] ?? 0) !== Number(latestRow?.[field] ?? 0)
-    ));
-    return revisionChanged ? (fields.length ? fields : ["operation"]) : [];
-  }
-  if (draftRow?.operation === "delete") {
-    const revisionFields = [
-      "space_revision",
-      "contract_revision",
-      "allocation_revision",
-      "rent_term_revision",
-      "revision",
-    ];
-    return revisionFields.some((field) => (
-      Number(baseRow?.[field] ?? 0) !== Number(latestRow?.[field] ?? 0)
-    )) ? ["operation"] : [];
-  }
-  const basePayload = buildRentRollSaveRow({ ...baseRow, operation: "update" }, fields);
-  const draftPayload = buildRentRollSaveRow({ ...draftRow, operation: "update" }, fields);
-  const serverChanged = new Set(
-    rentRollReadbackMismatches([basePayload], [latestRow]).map((issue) => issue.field),
-  );
-  const draftDiffersFromLatest = new Set(
-    rentRollReadbackMismatches([draftPayload], [latestRow]).map((issue) => issue.field),
-  );
-  return [...serverChanged].filter((field) => draftDiffersFromLatest.has(field));
-}
-
-function planRentRollRevisionRecovery(
-  targetRows,
-  latestRows,
-  baseRowsById,
-  dirtyFieldsByRow,
-) {
-  const latestById = new Map(latestRows.map((row) => [rowId(row), row]));
-  const retryRows = [];
-  const conflicts = [];
-  for (const draftRow of targetRows) {
-    const id = rowId(draftRow);
-    if (draftRow.operation === "create" || draftRow._draft_id) {
-      retryRows.push(draftRow);
-      continue;
-    }
-    const latestRow = latestById.get(id);
-    const baseRow = baseRowsById.get(id);
-    const dirtyFields = [...(dirtyFieldsByRow.get(id) || [])];
-    const conflictFields = rentRollRevisionConflictFields(
-      baseRow,
-      draftRow,
-      latestRow,
-      dirtyFields,
-    );
-    conflicts.push(...conflictFields.map((field) => ({
-      rowId: id,
-      field,
-      draftValue: draftRow?.[field],
-      latestValue: latestRow?.[field],
-    })));
-    retryRows.push(rebaseRentRollDraftRow(latestRow, draftRow, dirtyFields));
-  }
-  return { retryRows, conflicts, latestById };
-}
-
 function rentRollRowsFromReadback(readbackRows = []) {
   return readbackRows.map((row, index) => ({
     ...deriveRentRollRow(row),
+    _draft_id: row._draft_id || `row-${index}`,
     operation: "update",
     display_order: row.display_order ?? index + 1,
   }));
 }
 
-function RentRollPanel({ assetKey }) {
+function RentRollPanel({ assetCode }) {
   const resource = usePrimaryResource(
     DATA_PLATFORM_ACTIONS.rentRollRead,
-    { asset_key: assetKey, limit: 500 },
-    { enabled: Boolean(assetKey) },
+    { asset_code: assetCode, limit: 500 },
+    { enabled: Boolean(assetCode) },
   );
   const [rows, setRows] = useState([]);
+  const [rentRevision, setRentRevision] = useState(null);
   const [sort, setSort] = useState(DEFAULT_SORT);
   const [paste, setPaste] = useState("");
   const [saveState, setSaveState] = useState("idle");
@@ -1671,30 +1561,20 @@ function RentRollPanel({ assetKey }) {
   const [dragOverTarget, setDragOverTarget] = useState(null);
   const [rentFreeRowId, setRentFreeRowId] = useState(null);
   const draftHydratedRef = useRef(false);
-  const saveReadbackPendingRef = useRef(false);
   const saveInFlightRef = useRef(false);
-  const baseRowsByIdRef = useRef(new Map());
-  const conflictFieldsByRowRef = useRef(new Map());
   const rowRefs = useRef(new Map());
-  const draftStorageKey = `gate6-rent-roll-draft-${assetKey}`;
+  const draftStorageKey = `gate6-rent-roll-draft-${assetCode}`;
   const writeEnabled = resource.data?.write_enabled === true;
   const rentRollEditingDisabled = !writeEnabled || saveState === "saving";
   useEffect(() => {
     if (!resource.data) return;
     const source = Array.isArray(resource.data?.rows) ? resource.data.rows : [];
-    const primaryRows = sortRows(
-      source.map((row, index) => ({
-        ...deriveRentRollRow(row),
-        operation: "update",
-        display_order: row.display_order ?? index + 1,
-      })),
-      DEFAULT_SORT,
-    );
+    const primaryRows = sortRows(rentRollRowsFromReadback(source), DEFAULT_SORT);
+    let restoredDocumentRevision = resource.revision;
     let restoredRows = primaryRows;
     let restoredSort = DEFAULT_SORT;
     let restoredDirtyRowIds = new Set();
     let restoredDirtyFieldsByRow = new Map();
-    let restoredRevisionConflicts = [];
     try {
       const storedDraft = JSON.parse(
         globalThis.sessionStorage?.getItem(draftStorageKey) || "null",
@@ -1706,17 +1586,10 @@ function RentRollPanel({ assetKey }) {
             ? storedDraft.dirtyFieldsByRow
             : [],
         );
-        const storedDirtyById = new Map(
-          storedDraft.dirtyRows.map((row) => [rowId(row), row]),
-        );
         const dirtyById = new Map(
           storedDraft.dirtyRows.map((row) => {
             const id = rowId(row);
-            const primary = primaryById.get(id);
-            const dirtyFields = Array.isArray(storedFields.get(id))
-              ? storedFields.get(id)
-              : RENT_ROLL_EDITABLE_FIELDS;
-            return [id, rebaseRentRollDraftRow(primary, row, dirtyFields)];
+            return [id, deriveRentRollRow(row)];
           }),
         );
         const orderedIds = Array.isArray(storedDraft.rowOrder)
@@ -1747,65 +1620,25 @@ function RentRollPanel({ assetKey }) {
         restoredSort = storedDraft.sort === null || storedDraft.sort?.key
           ? storedDraft.sort
           : DEFAULT_SORT;
-        const storedBaseRows = new Map(
-          (Array.isArray(storedDraft.baseRows) ? storedDraft.baseRows : [])
-            .map((row) => [rowId(row), row])
-            .filter(([id]) => Boolean(id)),
-        );
-        baseRowsByIdRef.current = new Map(
-          [...restoredDirtyRowIds]
-            .filter((id) => storedBaseRows.has(id))
-            .map((id) => [id, storedBaseRows.get(id)]),
-        );
-        restoredRevisionConflicts = [...restoredDirtyRowIds].flatMap((id) => {
-          const baseRow = storedBaseRows.get(id);
-          const draftRow = storedDirtyById.get(id);
-          const latestRow = primaryById.get(id);
-          const dirtyFields = [...(restoredDirtyFieldsByRow.get(id) || [])];
-          const conflictFields = rentRollRevisionConflictFields(
-            baseRow,
-            draftRow,
-            latestRow,
-            dirtyFields,
-          );
-          if (!baseRow && latestRow && conflictFields.length) {
-            baseRowsByIdRef.current.set(id, deriveRentRollRow(latestRow));
-          }
-          return conflictFields.map((field) => ({ rowId: id, field }));
-        });
+        const storedRevision = storedDraft.documentRevision;
+        if (restoredDirtyRowIds.size) {
+          restoredDocumentRevision = storedRevision ?? "__draft_without_xmin__";
+        }
       }
     } catch {
       // A malformed or unavailable session draft must not block primary data.
     }
-    if (!restoredDirtyRowIds.size) baseRowsByIdRef.current = new Map();
-    conflictFieldsByRowRef.current = restoredRevisionConflicts.reduce((map, issue) => {
-      const fields = map.get(issue.rowId) || new Set();
-      fields.add(issue.field);
-      map.set(issue.rowId, fields);
-      return map;
-    }, new Map());
+    setRentRevision(restoredDocumentRevision);
     setRows(restoredRows);
     setSort(restoredSort);
     setDirtyRowIds(restoredDirtyRowIds);
     setDirtyFieldsByRow(restoredDirtyFieldsByRow);
-    setValidationMessages(restoredRevisionConflicts.map(({ rowId: id, field }, index) => {
-      const fieldLabel = RENT_ROLL_COLUMNS.find((column) => column.key === field)?.label || field;
-      return {
-        id: `${id}-restored-revision-${index}`,
-        rowId: id,
-        kind: "revision-conflict",
-        message: `${fieldLabel}: 임시저장 이후 서버에서도 같은 항목이 변경되었습니다. 최신값을 확인한 뒤 이 칸을 다시 입력해 주세요.`,
-      };
-    }));
+    setValidationMessages([]);
     setError(null);
-    const readbackConfirmed = saveReadbackPendingRef.current;
-    saveReadbackPendingRef.current = false;
-    setSaveState(
-      restoredDirtyRowIds.size ? "dirty" : readbackConfirmed ? "saved" : "idle",
-    );
+    setSaveState(restoredDirtyRowIds.size ? "dirty" : "idle");
     draftHydratedRef.current = true;
     setDraftReady(true);
-  }, [draftStorageKey, resource.data]);
+  }, [draftStorageKey, resource.data, resource.revision]);
   const displayedRows = useMemo(() => sortRows(rows, sort), [rows, sort]);
   useEffect(() => {
     if (!draftReady || !draftHydratedRef.current) return;
@@ -1818,16 +1651,14 @@ function RentRollPanel({ assetKey }) {
         dirtyRowIds: [...dirtyRowIds],
         dirtyRows: rows.filter((row) => dirtyRowIds.has(rowId(row))),
         dirtyFieldsByRow: [...dirtyFieldsByRow].map(([id, fields]) => [id, [...fields]]),
-        baseRows: [...baseRowsByIdRef.current]
-          .filter(([id]) => dirtyRowIds.has(id))
-          .map(([, row]) => row),
         rowOrder: rows.map(rowId),
+        documentRevision: rentRevision,
         sort,
       }));
     } catch {
       // The in-memory draft remains editable when browser storage is unavailable.
     }
-  }, [draftReady, draftStorageKey, dirtyFieldsByRow, dirtyRowIds, rows, sort]);
+  }, [draftReady, draftStorageKey, dirtyFieldsByRow, dirtyRowIds, rentRevision, rows, sort]);
   useEffect(() => {
     if (!dirtyRowIds.size) return undefined;
     const confirmUnsavedDraft = (event) => {
@@ -1837,12 +1668,6 @@ function RentRollPanel({ assetKey }) {
     globalThis.addEventListener?.("beforeunload", confirmUnsavedDraft);
     return () => globalThis.removeEventListener?.("beforeunload", confirmUnsavedDraft);
   }, [dirtyRowIds]);
-  useEffect(() => {
-    if (!saveReadbackPendingRef.current || !resource.error) return;
-    saveReadbackPendingRef.current = false;
-    setError(resource.error);
-    setSaveState("error");
-  }, [resource.error]);
   const invalidRowIds = useMemo(
     () => new Set(validationMessages.map((issue) => issue.rowId)),
     [validationMessages],
@@ -1854,25 +1679,6 @@ function RentRollPanel({ assetKey }) {
     );
     field?.focus();
     rowNode?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-  };
-  const captureBaseRow = (id, sourceRows = rows) => {
-    if (!id || baseRowsByIdRef.current.has(id)) return;
-    const sourceRow = sourceRows.find((row) => rowId(row) === id);
-    if (!sourceRow || sourceRow.operation === "create" || sourceRow._draft_id) return;
-    baseRowsByIdRef.current.set(id, deriveRentRollRow(sourceRow));
-  };
-  const hasUnresolvedRevisionConflicts = () => (
-    [...conflictFieldsByRowRef.current.values()].some((fields) => fields.size > 0)
-  );
-  const resolveConflictFields = (id, fields = []) => {
-    const unresolved = conflictFieldsByRowRef.current.get(id);
-    if (!unresolved) return;
-    fields.filter(Boolean).forEach((field) => unresolved.delete(field));
-    if (!unresolved.size) conflictFieldsByRowRef.current.delete(id);
-    if (!hasUnresolvedRevisionConflicts()) {
-      setValidationMessages([]);
-      setError(null);
-    }
   };
   const markDirty = (id, fields = []) => {
     setDirtyRowIds((current) => {
@@ -1887,15 +1693,11 @@ function RentRollPanel({ assetKey }) {
       if (id) next.set(id, rowFields);
       return next;
     });
-    if (!hasUnresolvedRevisionConflicts()) {
-      setValidationMessages([]);
-      setError(null);
-    }
+    setValidationMessages([]);
+    setError(null);
     setSaveState("dirty");
   };
   const update = (id, field, value) => {
-    captureBaseRow(id);
-    resolveConflictFields(id, [field]);
     setRows((current) =>
       current.map((row) =>
         rowId(row) === id ? deriveRentRollRow({ ...row, [field]: value }) : row,
@@ -1904,47 +1706,13 @@ function RentRollPanel({ assetKey }) {
     markDirty(id, [field]);
   };
   const updateFields = (id, patch) => {
-    captureBaseRow(id);
-    resolveConflictFields(id, Object.keys(patch));
     setRows((current) => current.map((row) => (
       rowId(row) === id ? deriveRentRollRow({ ...row, ...patch }) : row
     )));
     markDirty(id, Object.keys(patch));
   };
-  const applyRevisionConflictPlan = (plan) => {
-    const retryById = new Map(plan.retryRows.map((row) => [rowId(row), row]));
-    setRows((current) => current.map((row) => retryById.get(rowId(row)) || row));
-    plan.latestById.forEach((latestRow, id) => {
-      if (dirtyRowIds.has(id)) {
-        baseRowsByIdRef.current.set(id, deriveRentRollRow(latestRow));
-      }
-    });
-    const unresolved = new Map();
-    plan.conflicts.forEach(({ rowId: id, field }) => {
-      const fields = unresolved.get(id) || new Set();
-      fields.add(field);
-      unresolved.set(id, fields);
-    });
-    conflictFieldsByRowRef.current = unresolved;
-    setValidationMessages(plan.conflicts.map(({ rowId: id, field }, index) => {
-      const fieldLabel = RENT_ROLL_COLUMNS.find((column) => column.key === field)?.label || field;
-      return {
-        id: `${id}-revision-${index}`,
-        rowId: id,
-        kind: "revision-conflict",
-        message: `${fieldLabel}: 다른 사용자가 같은 항목을 변경했습니다. 최신값을 확인한 뒤 이 칸을 다시 입력해 주세요.`,
-      };
-    }));
-    setError(null);
-    setSaveState("dirty");
-  };
-  const saveRows = async (targetRows) => {
-    if (hasUnresolvedRevisionConflicts()) {
-      setError(null);
-      setSaveState("dirty");
-      return false;
-    }
-    const validationTargets = targetRows.filter((row) => row.operation !== "delete");
+  const saveRows = async () => {
+    const validationTargets = rows.filter((row) => row.operation !== "delete");
     const issues = validationTargets.flatMap((row) => {
       const id = rowId(row);
       const visibleIndex = displayedRows.findIndex((item) => rowId(item) === id);
@@ -1964,79 +1732,48 @@ function RentRollPanel({ assetKey }) {
     }
     setSaveState("saving");
     setError(null);
+    const intendedDocument = buildRentRollDocumentPayload(rows, { asOfDate: todayKst() });
     try {
-      let attemptRows = targetRows;
-      let payloadRows = [];
-      let saveResponse = null;
-      let revisionRetryCount = 0;
-      while (true) {
-        payloadRows = attemptRows.map((row) => buildRentRollSaveRow(
-          row,
-          [...(dirtyFieldsByRow.get(rowId(row)) || [])],
-        ));
-        try {
-          saveResponse = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollBatchSave, {
-            asset_key: assetKey,
-            client_request_id: createClientRequestId("rent-roll"),
-            expected_revisions: buildRentRollExpectedRevisions(attemptRows),
-            rows: payloadRows,
-          });
-          break;
-        } catch (cause) {
-          if (!isDataPlatformRevisionConflict(cause) || !(revisionRetryCount < 1)) throw cause;
-          revisionRetryCount += 1;
-          const latestResponse = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollRead, {
-            asset_key: assetKey,
-            limit: 500,
-          });
-          const latestRows = rentRollRowsFromReadback(
-            Array.isArray(latestResponse.data?.rows) ? latestResponse.data.rows : [],
-          );
-          const plan = planRentRollRevisionRecovery(
-            attemptRows,
-            latestRows,
-            baseRowsByIdRef.current,
-            dirtyFieldsByRow,
-          );
-          if (plan.conflicts.length) {
-            applyRevisionConflictPlan(plan);
-            return false;
-          }
-          attemptRows = plan.retryRows;
-        }
+      let readbackResponse = null;
+      try {
+        await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollBatchSave, {
+          asset_code: assetCode,
+          client_request_id: createClientRequestId("rent-roll"),
+          expected_xmin: rentRevision,
+          ...intendedDocument,
+        });
+      } catch (cause) {
+        if (!isDataPlatformRevisionConflict(cause)) throw cause;
+        const conflictReadback = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollRead, {
+          asset_code: assetCode,
+          limit: 500,
+        });
+        const serverDocument = buildRentRollDocumentPayload(
+          Array.isArray(conflictReadback.data?.rows) ? conflictReadback.data.rows : [],
+          { asOfDate: todayKst() },
+        );
+        if (!documentsEqual(intendedDocument, serverDocument)) throw cause;
+        readbackResponse = conflictReadback;
       }
-      const readbackResponse = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollRead, {
-        asset_key: assetKey,
+      readbackResponse ||= await invokeDataPlatform(DATA_PLATFORM_ACTIONS.rentRollRead, {
+        asset_code: assetCode,
         limit: 500,
       });
       const readbackRows = Array.isArray(readbackResponse.data?.rows)
         ? readbackResponse.data.rows
         : [];
-      const readbackMismatches = rentRollReadbackMismatches(
-        payloadRows,
+      const readbackDocument = buildRentRollDocumentPayload(
         readbackRows,
-        saveResponse.data?.key_mappings,
+        { asOfDate: todayKst() },
       );
-      if (readbackMismatches.length) {
-        const readbackError = new Error("RENT_ROLL_COMMIT_READBACK_MISMATCH");
-        readbackError.details = readbackMismatches.slice(0, 20);
-        throw readbackError;
+      if (!documentsEqual(intendedDocument, readbackDocument)) {
+        throw new Error("RENT_ROLL_DOCUMENT_READBACK_MISMATCH");
       }
       setRows(rentRollRowsFromReadback(readbackRows));
-      setDirtyRowIds((current) => {
-        const next = new Set(current);
-        targetRows.forEach((row) => next.delete(rowId(row)));
-        return next;
-      });
-      setDirtyFieldsByRow((current) => {
-        const next = new Map(current);
-        targetRows.forEach((row) => next.delete(rowId(row)));
-        return next;
-      });
+      setRentRevision(readbackResponse.revision);
+      setDirtyRowIds(new Set());
+      setDirtyFieldsByRow(new Map());
       setValidationMessages([]);
-      baseRowsByIdRef.current = new Map();
-      conflictFieldsByRowRef.current = new Map();
-      saveReadbackPendingRef.current = false;
       setSaveState("saved");
       try {
         globalThis.sessionStorage?.removeItem(draftStorageKey);
@@ -2046,16 +1783,15 @@ function RentRollPanel({ assetKey }) {
       return true;
     } catch (cause) {
       setError(cause);
-      setSaveState("error");
+      setSaveState(isDataPlatformRevisionConflict(cause) ? "dirty" : "error");
       return false;
     }
   };
   const saveDirtyRows = async () => {
-    const targetRows = rows.filter((row) => dirtyRowIds.has(rowId(row)));
-    if (!targetRows.length || saveState === "saving" || saveInFlightRef.current) return;
+    if (!dirtyRowIds.size || saveState === "saving" || saveInFlightRef.current) return;
     saveInFlightRef.current = true;
     try {
-      await saveRows(targetRows);
+      await saveRows();
     } finally {
       saveInFlightRef.current = false;
     }
@@ -2080,7 +1816,6 @@ function RentRollPanel({ assetKey }) {
     const rangeStart = Math.min(sourceIndex, insertionIndex);
     const rangeEnd = Math.max(sourceIndex, insertionIndex);
     const changedRange = changed.slice(rangeStart, rangeEnd + 1);
-    changedRange.forEach((row) => captureBaseRow(rowId(row), displayedRows));
     setRows(changed);
     setSort(null);
     changedRange.forEach((row) => markDirty(rowId(row), ["display_order"]));
@@ -2088,9 +1823,7 @@ function RentRollPanel({ assetKey }) {
   const archive = (id) => {
     if (rentRollEditingDisabled) return;
     const row = rows.find((item) => rowId(item) === id);
-    if (!row) return;
-    captureBaseRow(id);
-    resolveConflictFields(id, ["operation"]);
+    if (!row || isExpiredRentRollRow(row, todayKst())) return;
     const deleted = { ...row, operation: "delete" };
     setRows((current) =>
       current.map((item) => (rowId(item) === id ? deleted : item)),
@@ -2099,7 +1832,6 @@ function RentRollPanel({ assetKey }) {
   };
   const undoArchive = (id) => {
     if (rentRollEditingDisabled) return;
-    resolveConflictFields(id, ["operation"]);
     setRows((current) => current.map((row) => {
       if (rowId(row) !== id) return row;
       const operation = (row.space_revision ?? row.revision) ? "update" : "create";
@@ -2123,7 +1855,7 @@ function RentRollPanel({ assetKey }) {
   const rentFreeRow = rentFreeRowId
     ? rows.find((row) => rowId(row) === rentFreeRowId)
     : null;
-  if (!assetKey) return <EmptyText>먼저 자산을 선택해 주세요.</EmptyText>;
+  if (!assetCode) return <EmptyText>먼저 자산을 선택해 주세요.</EmptyText>;
   return (
     <div className="space-y-4">
       <LoadingLine visible={resource.loading} />
@@ -2318,6 +2050,7 @@ function RentRollPanel({ assetKey }) {
               {displayedRows.map((sourceRow, index) => {
                 const row = deriveRentRollRow(sourceRow);
                 const id = rowId(row);
+                const expiredContract = isExpiredRentRollRow(row, todayKst());
                 const rowInvalid = invalidRowIds.has(id);
                 const rowLabel = `${index + 1}행 ${row.tenant_name || row.floor_label || "미입력"}`;
                 const rowEditingDisabled = rentRollEditingDisabled || row.operation === "delete";
@@ -2419,7 +2152,7 @@ function RentRollPanel({ assetKey }) {
                       if (column.key === "rent_free_months") {
                         const periods = rentFreePeriodsFromRow(row);
                         const totalMonths = periods.length
-                          ? periods.reduce((sum, period) => sum + calculatePeriodMonths(period.start_date, period.end_date), 0)
+                          ? periods.reduce((sum, period) => sum + Number(period.months || 0), 0)
                           : Number(row.rent_free_months || 0);
                         return (
                           <td key={column.key} style={cellStyle} className={cellClass}>
@@ -2549,7 +2282,11 @@ function RentRollPanel({ assetKey }) {
                               describedBy="rent-roll-validation-summary"
                               value={row[column.key]}
                               onChange={(value) => update(id, column.key, value)}
-                              disabled={rowEditingDisabled}
+                              disabled={
+                                rowEditingDisabled
+                                || (column.key === "fit_out_months"
+                                  && Boolean(row.fit_out_start_date || row.fit_out_end_date))
+                              }
                             />
                           ) : (
                             <input
@@ -2574,10 +2311,20 @@ function RentRollPanel({ assetKey }) {
                                   const nextEnd = column.key === "fit_out_end_date"
                                     ? value
                                     : row.fit_out_end_date;
-                                  updateFields(id, {
+                                  const calculatedMonths = calculateRentFreePeriodMonths(nextStart, nextEnd);
+                                  const nextFields = {
                                     [column.key]: value,
-                                    fit_out_months: calculatePeriodMonths(nextStart, nextEnd),
-                                  });
+                                  };
+                                  if (calculatedMonths !== null) {
+                                    nextFields.fit_out_months = calculatedMonths;
+                                  } else if (!nextStart && !nextEnd) {
+                                    nextFields.fit_out_months = normalizeFitOutMonths(
+                                      nextStart,
+                                      nextEnd,
+                                      row.fit_out_months,
+                                    ) ?? "";
+                                  }
+                                  updateFields(id, nextFields);
                                   return;
                                 }
                                 update(id, column.key, value);
@@ -2594,10 +2341,11 @@ function RentRollPanel({ assetKey }) {
                         data-testid={row.operation === "delete" ? "rent-roll-archive-undo" : "rent-roll-archive"}
                         type="button"
                         onClick={() => (row.operation === "delete" ? undoArchive(id) : archive(id))}
-                        disabled={rentRollEditingDisabled}
+                        disabled={rentRollEditingDisabled || expiredContract}
+                        title={expiredContract ? "만료 계약은 이력 보존을 위해 삭제할 수 없습니다." : undefined}
                         className="text-xs text-[#86868B] hover:text-[#FF9B9B] disabled:cursor-not-allowed disabled:opacity-30"
                       >
-                        {row.operation === "delete" ? "삭제 취소" : "삭제"}
+                        {expiredContract ? "만료 보존" : row.operation === "delete" ? "삭제 취소" : "삭제"}
                       </button>
                       <button
                         data-testid="rent-roll-detail-toggle"
@@ -2621,20 +2369,14 @@ function RentRollPanel({ assetKey }) {
           disabled={rentRollEditingDisabled || rentFreeRow.operation === "delete"}
           onClose={() => setRentFreeRowId(null)}
           onSave={(periods) => {
-            const sortedPeriods = [...periods].sort((left, right) => (
-              String(left.start_date).localeCompare(String(right.start_date))
-            ));
-            const canonicalPeriods = sortedPeriods.map(({ start_date, end_date, reason, notes }) => ({
-              start_date,
-              end_date,
-              months: calculatePeriodMonths(start_date, end_date),
-              reason,
-              notes,
-            }));
+            const canonicalPeriods = periods.map((period) => normalizeRentFreePeriod(period));
+            const datedPeriods = canonicalPeriods
+              .filter((period) => period.start_date && period.end_date)
+              .sort((left, right) => left.start_date.localeCompare(right.start_date));
             updateFields(rentFreeRowId, {
               rent_free_periods: canonicalPeriods,
-              rent_free_start_date: canonicalPeriods[0]?.start_date || "",
-              rent_free_end_date: canonicalPeriods.at(-1)?.end_date || "",
+              rent_free_start_date: datedPeriods[0]?.start_date || "",
+              rent_free_end_date: datedPeriods.at(-1)?.end_date || "",
               rent_free_months: canonicalPeriods.reduce(
                 (sum, period) => sum + Number(period.months || 0),
                 0,
@@ -2777,15 +2519,15 @@ function FinanceTrend({ series }) {
   );
 }
 
-function FinanceComparisonLoader({ assetKey, payload, setResources }) {
+function FinanceComparisonLoader({ assetCode, payload, setResources }) {
   const resource = usePrimaryResource(
     DATA_PLATFORM_ACTIONS.financeRead,
-    { ...payload, asset_key: assetKey },
-    { enabled: Boolean(assetKey) },
+    { ...payload, asset_code: assetCode },
+    { enabled: Boolean(assetCode) },
   );
   useEffect(() => {
     setResources((current) => {
-      const previous = current[assetKey];
+      const previous = current[assetCode];
       if (
         previous?.data === resource.data &&
         previous?.error === resource.error &&
@@ -2793,18 +2535,18 @@ function FinanceComparisonLoader({ assetKey, payload, setResources }) {
       ) return current;
       return {
         ...current,
-        [assetKey]: {
+        [assetCode]: {
           data: resource.data,
           error: resource.error,
           loading: resource.loading,
         },
       };
     });
-  }, [assetKey, resource.data, resource.error, resource.loading, setResources]);
+  }, [assetCode, resource.data, resource.error, resource.loading, setResources]);
   return null;
 }
 
-function FinancePanel({ assetKey, assets }) {
+function FinancePanel({ assetCode, assets }) {
   const current = currentMonthKst();
   const [start, setStart] = useState(addMonths(current, -11));
   const [end, setEnd] = useState(current);
@@ -2814,7 +2556,9 @@ function FinancePanel({ assetKey, assets }) {
   const aggregation = "month";
   const [comparisonKeys, setComparisonKeys] = useState([]);
   const [comparisonResources, setComparisonResources] = useState({});
+  const [accounts, setAccounts] = useState([]);
   const [entries, setEntries] = useState([]);
+  const [financeRevision, setFinanceRevision] = useState(null);
   const [saveState, setSaveState] = useState("idle");
   const [error, setError] = useState(null);
   const [accountSelectionAnnouncement, setAccountSelectionAnnouncement] = useState("");
@@ -2826,7 +2570,7 @@ function FinancePanel({ assetKey, assets }) {
     () => new Set(DEFAULT_FINANCE_ACCOUNT_CODES),
   );
   const payload = {
-    asset_key: assetKey,
+    asset_code: assetCode,
     start_month: start,
     end_month: end,
     scenario,
@@ -2835,19 +2579,24 @@ function FinancePanel({ assetKey, assets }) {
   const resource = usePrimaryResource(
     DATA_PLATFORM_ACTIONS.financeRead,
     payload,
-    { enabled: Boolean(assetKey) },
+    { enabled: Boolean(assetCode) },
   );
   useEffect(() => {
-    setEntries(
-      Array.isArray(resource.data?.entries)
-        ? resource.data.entries.map((row) => ({ ...row, operation: "update" }))
-        : [],
-    );
-  }, [resource.data]);
-  useEffect(() => {
-    const readbackAccounts = Array.isArray(resource.data?.accounts)
-      ? resource.data.accounts
-      : [];
+    if (!resource.data) return;
+    const projection = resource.data?.statement
+      ? projectIncomeExpenseStatement(resource.data.statement, KOREAN_LOGISTICS_NOI_ACCOUNTS)
+      : {
+          periods: [],
+          accounts: Array.isArray(resource.data?.accounts) ? resource.data.accounts : [],
+          entries: Array.isArray(resource.data?.entries)
+            ? resource.data.entries.map((row) => ({ ...row, operation: "update" }))
+            : [],
+          selectedAccountCodes: [],
+        };
+    setAccounts(projection.accounts);
+    setEntries(projection.entries);
+    setFinanceRevision(resource.revision);
+    const readbackAccounts = projection.accounts;
     if (!readbackAccounts.length) return;
     const hasServerSelection = readbackAccounts.some((account) => (
       Object.prototype.hasOwnProperty.call(account, "selected")
@@ -2857,7 +2606,7 @@ function FinancePanel({ assetKey, assets }) {
         ? readbackAccounts.filter((account) => account.selected === true).map((account) => account.account_code)
         : DEFAULT_FINANCE_ACCOUNT_CODES,
     ));
-  }, [resource.data?.accounts]);
+  }, [resource.data, resource.revision]);
   useEffect(() => {
     const accountCode = pendingAccountFocusRef.current;
     if (!accountCode) return;
@@ -2865,28 +2614,26 @@ function FinancePanel({ assetKey, assets }) {
     if (!accountToggle) return;
     accountToggle.focus({ preventScroll: true });
     pendingAccountFocusRef.current = null;
-  }, [resource.data?.accounts, selectedAccountCodes]);
-  const serverAccounts = Array.isArray(resource.data?.accounts)
-    ? resource.data.accounts
-    : [];
-  const accounts = serverAccounts
+  }, [accounts, selectedAccountCodes]);
+  const visibleAccounts = accounts
     .filter((account) => (
       account.account_kind !== "derived"
       && FINANCE_SECTION_ORDER.includes(account.statement_section)
     ))
     .sort((a, b) => Number(a.display_order) - Number(b.display_order));
-  const financeHierarchy = buildFinanceAccountHierarchy(accounts, selectedAccountCodes);
-  const calculationAccounts = filterFinanceCalculationAccounts(accounts, selectedAccountCodes);
+  const financeHierarchy = buildFinanceAccountHierarchy(visibleAccounts, selectedAccountCodes);
+  const calculationAccounts = filterFinanceCalculationAccounts(visibleAccounts, selectedAccountCodes);
   const months = monthsBetween(start, end);
   const series = buildFinanceSeries(entries, calculationAccounts, months, aggregation);
   const comparisonResults = comparisonKeys.map((comparisonAssetKey) => {
     const comparisonData = comparisonResources[comparisonAssetKey]?.data;
-    const comparisonEntries = Array.isArray(comparisonData?.entries)
-      ? comparisonData.entries
-      : [];
-    const comparisonAccountRows = Array.isArray(comparisonData?.accounts)
-      ? comparisonData.accounts
-      : accounts;
+    const comparisonProjection = comparisonData?.statement
+      ? projectIncomeExpenseStatement(comparisonData.statement, KOREAN_LOGISTICS_NOI_ACCOUNTS)
+      : null;
+    const comparisonEntries = comparisonProjection?.entries
+      || (Array.isArray(comparisonData?.entries) ? comparisonData.entries : []);
+    const comparisonAccountRows = comparisonProjection?.accounts
+      || (Array.isArray(comparisonData?.accounts) ? comparisonData.accounts : visibleAccounts);
     const comparisonSelectedCodes = comparisonAccountRows.some((account) => (
       Object.prototype.hasOwnProperty.call(account, "selected")
     ))
@@ -2898,7 +2645,7 @@ function FinancePanel({ assetKey, assets }) {
     );
     return {
       assetKey: comparisonAssetKey,
-      assetName: assets.find((asset) => asset.asset_key === comparisonAssetKey)?.name || "비교 자산",
+      assetName: assets.find((asset) => asset.asset_code === comparisonAssetKey)?.name || "비교 자산",
       series: buildFinanceSeries(
         comparisonEntries,
         comparisonAccounts,
@@ -2909,15 +2656,62 @@ function FinancePanel({ assetKey, assets }) {
   });
   const periods = series.map((row) => row.period);
   const writeEnabled = resource.data?.write_enabled === true;
+  const saveFinanceDocument = async ({
+    nextAccounts = accounts,
+    nextEntries = entries,
+    nextSelectedAccountCodes = selectedAccountCodes,
+  } = {}) => {
+    const statement = buildIncomeExpenseStatement({
+      periods: financePeriodsFromEntries(nextEntries),
+      accounts: nextAccounts,
+      entries: nextEntries,
+      selectedAccountCodes: nextSelectedAccountCodes,
+    });
+    const documentPayload = buildIncomeExpenseDocumentPayload(statement);
+    let readback = null;
+    try {
+      await invokeDataPlatform(DATA_PLATFORM_ACTIONS.financeBatchSave, {
+        asset_code: assetCode,
+        client_request_id: createClientRequestId("finance"),
+        expected_xmin: financeRevision,
+        ...documentPayload,
+      });
+    } catch (cause) {
+      if (!isDataPlatformRevisionConflict(cause)) throw cause;
+      const conflictReadback = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.financeRead, {
+        asset_code: assetCode,
+      });
+      const conflictPayload = buildIncomeExpenseDocumentPayload(
+        conflictReadback.data?.statement || {},
+      );
+      if (!documentsEqual(documentPayload, conflictPayload)) throw cause;
+      readback = conflictReadback;
+    }
+    readback ||= await invokeDataPlatform(DATA_PLATFORM_ACTIONS.financeRead, {
+      asset_code: assetCode,
+    });
+    const readbackPayload = buildIncomeExpenseDocumentPayload(readback.data?.statement || {});
+    if (!documentsEqual(documentPayload, readbackPayload)) {
+      throw new Error("FINANCE_DOCUMENT_READBACK_MISMATCH");
+    }
+    const projection = projectIncomeExpenseStatement(
+      readback.data.statement,
+      KOREAN_LOGISTICS_NOI_ACCOUNTS,
+    );
+    setAccounts(projection.accounts);
+    setEntries(projection.entries);
+    setSelectedAccountCodes(new Set(projection.selectedAccountCodes));
+    setFinanceRevision(readback.revision);
+    setSaveState("saved");
+    return projection;
+  };
   const toggleFinanceAccount = async (row) => {
     const nextActive = !row.active;
+    const nextSelectedAccountCodes = new Set(selectedAccountCodes);
+    if (nextActive) nextSelectedAccountCodes.add(row.key);
+    else nextSelectedAccountCodes.delete(row.key);
     pendingAccountFocusRef.current = row.key;
-    setSelectedAccountCodes((current) => {
-      const next = new Set(current);
-      if (nextActive) next.add(row.key);
-      else next.delete(row.key);
-      return next;
-    });
+    setSelectedAccountCodes(nextSelectedAccountCodes);
     setAccountSelectionAnnouncement(
       `${row.label} 계정을 ${nextActive ? "활성화" : "비활성화"}했습니다. ${nextActive ? "NOI 계산에 포함됩니다." : "저장된 금액은 유지되고 NOI 계산에서는 제외됩니다."}`,
     );
@@ -2925,39 +2719,10 @@ function FinancePanel({ assetKey, assets }) {
     setSaveState("saving");
     setError(null);
     try {
-      const response = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.financeBatchSave, {
-        asset_key: assetKey,
-        client_request_id: createClientRequestId("finance-account-selection"),
-        expected_revisions: {},
-        entries: [],
-        account_operations: [],
-        selection_operations: [
-          {
-            operation: "upsert",
-            account_code: row.key,
-            selected: nextActive,
-            ...(row.account?.selection_revision == null
-              ? {}
-              : { expected_revision: row.account.selection_revision }),
-          },
-        ],
-      });
-      const accountsReadback = Array.isArray(response.data?.accounts_readback)
-        ? response.data.accounts_readback
-        : [];
-      const matched = accountsReadback.find((account) => account.account_code === row.key);
-      if (!matched || matched.selected !== nextActive) throw new Error("FINANCE_SELECTION_READBACK_MISMATCH");
-      setSaveState("saved");
-      resource.reload();
+      await saveFinanceDocument({ nextSelectedAccountCodes });
     } catch (cause) {
-      setSelectedAccountCodes((current) => {
-        const reverted = new Set(current);
-        if (nextActive) reverted.delete(row.key);
-        else reverted.add(row.key);
-        return reverted;
-      });
       setError(cause);
-      setSaveState("error");
+      setSaveState(isDataPlatformRevisionConflict(cause) ? "dirty" : "error");
     } finally {
       setAccountMutationPending(false);
     }
@@ -2965,7 +2730,7 @@ function FinancePanel({ assetKey, assets }) {
   const addCustomFinanceAccount = async (section) => {
     const name = String(customAccountDrafts[section] || "").trim();
     if (!name || name.length > 60 || accountMutationPending) return;
-    const accountCode = `CUSTOM:${createClientRequestId("finance-account")}`;
+    const accountCode = `DOCUMENT:${section}:${accounts.length}`;
     const displayOrder = Math.max(
       0,
       ...accounts
@@ -2973,95 +2738,57 @@ function FinancePanel({ assetKey, assets }) {
         .map((account) => Number(account.display_order || 0)),
     ) + 10;
     const normalSign = section === "potential_income" ? 1 : -1;
+    const nextAccount = {
+      account_code: accountCode,
+      name,
+      name_ko: name,
+      statement_section: section,
+      normal_sign: normalSign,
+      display_order: displayOrder,
+      is_custom: true,
+      selected: true,
+    };
+    const nextAccounts = [...accounts, nextAccount];
+    const nextSelectedAccountCodes = new Set([...selectedAccountCodes, accountCode]);
+    setAccounts(nextAccounts);
+    setSelectedAccountCodes(nextSelectedAccountCodes);
     setAccountMutationPending(true);
     setSaveState("saving");
     setError(null);
     try {
-      const response = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.financeBatchSave, {
-        asset_key: assetKey,
-        client_request_id: createClientRequestId("finance-account-create"),
-        expected_revisions: {},
-        entries: [],
-        account_operations: [
-          {
-            operation: "create",
-            account_code: accountCode,
-            record: {
-              name_ko: name,
-              statement_section: section,
-              normal_sign: normalSign,
-              display_order: displayOrder,
-            },
-          },
-        ],
-        selection_operations: [
-          {
-            operation: "upsert",
-            account_code: accountCode,
-            selected: true,
-          },
-        ],
-      });
-      const accountsReadback = Array.isArray(response.data?.accounts_readback)
-        ? response.data.accounts_readback
-        : [];
-      const created = accountsReadback.find((account) => account.account_code === accountCode);
-      if (!created || (created.name ?? created.name_ko) !== name || created.statement_section !== section || created.selected !== true) {
-        throw new Error("FINANCE_ACCOUNT_READBACK_MISMATCH");
-      }
+      await saveFinanceDocument({ nextAccounts, nextSelectedAccountCodes });
       pendingAccountFocusRef.current = accountCode;
-      setSelectedAccountCodes((current) => new Set([...current, accountCode]));
       setCustomAccountDrafts((currentDrafts) => ({ ...currentDrafts, [section]: "" }));
       setAccountSelectionAnnouncement(`${name} 계정을 추가하고 활성화했습니다.`);
-      setSaveState("saved");
-      resource.reload();
     } catch (cause) {
       setError(cause);
-      setSaveState("error");
+      setSaveState(isDataPlatformRevisionConflict(cause) ? "dirty" : "error");
     } finally {
       setAccountMutationPending(false);
     }
   };
   const deleteCustomFinanceAccount = async (row) => {
     if (!row.account?.is_custom || accountMutationPending) return;
+    const nextAccounts = accounts.filter((account) => account.account_code !== row.key);
+    const nextEntries = entries.filter((entry) => entry.account_code !== row.key);
+    const nextSelectedAccountCodes = new Set(selectedAccountCodes);
+    nextSelectedAccountCodes.delete(row.key);
+    setAccounts(nextAccounts);
+    setEntries(nextEntries);
+    setSelectedAccountCodes(nextSelectedAccountCodes);
     setAccountMutationPending(true);
     setSaveState("saving");
     setError(null);
     try {
-      const response = await invokeDataPlatform(DATA_PLATFORM_ACTIONS.financeBatchSave, {
-        asset_key: assetKey,
-        client_request_id: createClientRequestId("finance-account-delete"),
-        expected_revisions: {},
-        entries: [],
-        account_operations: [
-          {
-            operation: "delete",
-            account_code: row.key,
-            expected_revision: row.account.revision,
-          },
-        ],
-        selection_operations: [],
-      });
-      const accountMutationsReadback = Array.isArray(response.data?.account_mutations_readback)
-        ? response.data.account_mutations_readback
-        : [];
-      const mutation = accountMutationsReadback.find((item) => (
-        item.account_code === row.key && item.operation === "delete"
-      ));
-      if (!mutation || mutation.active !== false || !mutation.deleted_at) {
-        throw new Error("FINANCE_ACCOUNT_DELETE_READBACK_MISMATCH");
-      }
-      setSelectedAccountCodes((current) => {
-        const next = new Set(current);
-        next.delete(row.key);
-        return next;
+      await saveFinanceDocument({
+        nextAccounts,
+        nextEntries,
+        nextSelectedAccountCodes,
       });
       setAccountSelectionAnnouncement(`${row.label} 항목을 이 자산에서 삭제했습니다.`);
-      setSaveState("saved");
-      resource.reload();
     } catch (cause) {
       setError(cause);
-      setSaveState("error");
+      setSaveState(isDataPlatformRevisionConflict(cause) ? "dirty" : "error");
     } finally {
       setAccountMutationPending(false);
     }
@@ -3078,94 +2805,31 @@ function FinancePanel({ assetKey, assets }) {
       (sum, entry) => sum + Number(entry.amount || 0),
       0,
     );
-  const findEditableEntry = (code, month, source = entries) =>
-    accountEntries(code, month, source).find(
-      (entry) => entry.source_kind === "manual_input" || entry._draft_id,
-    );
-  const setCell = (account, month, value) =>
-    setEntries((currentEntries) => {
-      const editable = findEditableEntry(
-        account.account_code,
-        month,
-        currentEntries,
-      );
-      const derivedAmount = accountEntries(
-        account.account_code,
-        month,
-        currentEntries,
-      )
-        .filter((entry) => entry !== editable)
-        .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-      const manualAmount = value === "" ? "" : Number(value) - derivedAmount;
-      if (editable)
-        return currentEntries.map((entry) =>
-          entry === editable
-            ? {
-                ...entry,
-                amount: manualAmount,
-                operation: value === "" ? "delete" : "update",
-              }
-            : entry,
-        );
-      if (value === "" || manualAmount === 0) return currentEntries;
-      return [
-        ...currentEntries,
-        {
-          _draft_id: `finance-${account.account_code}-${month}`,
-          operation: "create",
-          month,
-          account_code: account.account_code,
-          amount: manualAmount,
-          scenario,
-          accounting_basis: basis,
-        },
-      ];
-    });
-  const saveCell = async (account, month, explicitValue) => {
-    const cellEntries = accountEntries(account.account_code, month);
-    const editable = cellEntries.find((entry) => entry.source_kind === "manual_input" || entry._draft_id);
-    const derivedAmount = cellEntries
-      .filter((entry) => entry !== editable)
-      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-    const manualAmount = explicitValue === "" ? "" : Number(explicitValue) - derivedAmount;
-    if (!editable && (explicitValue === "" || manualAmount === 0)) return;
-    const entry = {
-      ...editable,
-      operation: explicitValue === "" ? "delete" : editable ? "update" : "create",
+  const setCell = (account, month, value) => {
+    setEntries((currentEntries) => replaceFinanceCellValue(
+      currentEntries,
+      account.account_code,
       month,
-      account_code: account.account_code,
-      amount: manualAmount,
-      scenario,
-      accounting_basis: basis,
-    };
+      value,
+    ));
+    setSaveState("dirty");
+  };
+  const saveCell = async (account, month, explicitValue) => {
+    if (saveState !== "dirty") return;
+    const nextEntries = replaceFinanceCellValue(
+      entries,
+      account.account_code,
+      month,
+      explicitValue,
+    );
+    setEntries(nextEntries);
     setSaveState("saving");
     setError(null);
     try {
-      await invokeDataPlatform(DATA_PLATFORM_ACTIONS.financeBatchSave, {
-        asset_key: assetKey,
-        client_request_id: createClientRequestId("finance"),
-        expected_revisions:
-          entry.entry_key && entry.revision
-            ? { [entry.entry_key]: entry.revision }
-            : {},
-        entries: [
-          {
-            operation: entry.operation,
-            entry_key: entry.entry_key,
-            month,
-            account_code: account.account_code,
-            amount: entry.amount,
-            scenario,
-            accounting_basis: basis,
-            reason: "NOI 손익표 직접 수정",
-          },
-        ],
-      });
-      setSaveState("saved");
-      resource.reload();
+      await saveFinanceDocument({ nextEntries });
     } catch (cause) {
       setError(cause);
-      setSaveState("error");
+      setSaveState(isDataPlatformRevisionConflict(cause) ? "dirty" : "error");
     }
   };
   const aggregateAccount = (code, period) =>
@@ -3177,7 +2841,7 @@ function FinancePanel({ assetKey, assets }) {
   const seriesTotal = (targetSeries, key) =>
     targetSeries.reduce((sum, row) => sum + Number(row[key] || 0), 0);
   const selectedAssetName =
-    assets.find((asset) => asset.asset_key === assetKey)?.name || "선택 자산";
+    assets.find((asset) => asset.asset_code === assetCode)?.name || "선택 자산";
   const applyPeriodPreset = (preset) => {
     setPeriodPreset(preset.key);
     if (!preset.months) return;
@@ -3251,13 +2915,13 @@ function FinancePanel({ assetKey, assets }) {
           비교 자산 {comparisonKeys.length ? `${comparisonKeys.length}개 선택` : "선택"}
         </summary>
         <div className="absolute right-0 top-full z-50 mt-1 max-h-64 w-full min-w-[280px] overflow-y-auto rounded-[10px] border border-[#3A3A3C] bg-[#202020] p-2 shadow-2xl">
-          {assets.filter((asset) => asset.asset_key !== assetKey).map((asset) => (
-            <label key={asset.asset_key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-xs text-[#D1D1D6] hover:bg-white/5">
+          {assets.filter((asset) => asset.asset_code !== assetCode).map((asset) => (
+            <label key={asset.asset_code} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-xs text-[#D1D1D6] hover:bg-white/5">
               <input
                 data-testid="finance-comparison-asset-toggle"
                 type="checkbox"
-                checked={comparisonKeys.includes(asset.asset_key)}
-                onChange={() => toggleComparisonAsset(asset.asset_key)}
+                checked={comparisonKeys.includes(asset.asset_code)}
+                onChange={() => toggleComparisonAsset(asset.asset_code)}
               />
               <span>{asset.name || asset.asset_code}</span>
             </label>
@@ -3266,7 +2930,7 @@ function FinancePanel({ assetKey, assets }) {
       </details>
     </div>
   );
-  if (!assetKey) return <EmptyText>먼저 자산을 선택해 주세요.</EmptyText>;
+  if (!assetCode) return <EmptyText>먼저 자산을 선택해 주세요.</EmptyText>;
   return (
     <div className="space-y-4">
       <LoadingLine visible={resource.loading || comparisonLoading} />
@@ -3274,7 +2938,7 @@ function FinancePanel({ assetKey, assets }) {
       {comparisonKeys.map((comparisonAssetKey) => (
         <FinanceComparisonLoader
           key={comparisonAssetKey}
-          assetKey={comparisonAssetKey}
+          assetCode={comparisonAssetKey}
           payload={payload}
           setResources={setComparisonResources}
         />
@@ -3569,7 +3233,7 @@ function FinancePanel({ assetKey, assets }) {
                                 setCell(row.account, period, event.target.value)
                               }
                               onBlur={(event) => void saveCell(row.account, period, event.currentTarget.value)}
-                              disabled={!writeEnabled || !row.active}
+                              disabled={!writeEnabled || !row.active || saveState === "saving"}
                               className="w-full rounded-[6px] border border-transparent bg-transparent px-2 py-1.5 text-right tabular-nums text-white outline-none hover:border-[#35414E] focus:border-[#5E9EFF] disabled:cursor-not-allowed disabled:text-[#5C5C61]"
                             />
                           </td>
@@ -3601,35 +3265,42 @@ function activeTabFromPath(path) {
 }
 export default function LogisticsDataPlatform({ currentPath = "" }) {
   const activeTab = activeTabFromPath(currentPath);
-  const [assetKey, setAssetKey] = useState(
-    () => sessionStorage.getItem("gate6-data-platform-asset-key") || "",
+  const [assetCode, setAssetCode] = useState(
+    () => sessionStorage.getItem("gate6-data-platform-asset-code") || "",
   );
   const [showMaturities, setShowMaturities] = useState(false);
   const [maturityTransition, setMaturityTransition] = useState(null);
-  const home = usePrimaryResource(DATA_PLATFORM_ACTIONS.homeRead, {
-    ...(assetKey ? { asset_key: assetKey } : {}),
+  const assetDirectory = usePrimaryResource(DATA_PLATFORM_ACTIONS.homeRead, {
     as_of_date: todayKst(),
   });
+  const home = usePrimaryResource(
+    DATA_PLATFORM_ACTIONS.homeRead,
+    {
+      asset_code: assetCode,
+      as_of_date: todayKst(),
+    },
+    { enabled: Boolean(assetCode) },
+  );
   const assets = useMemo(
-    () => (Array.isArray(home.data?.assets) ? home.data.assets : []),
-    [home.data?.assets],
+    () => normalizeAssetDirectory(assetDirectory.data),
+    [assetDirectory.data],
   );
   const maturities = usePrimaryResource(
     DATA_PLATFORM_ACTIONS.maturitiesRead,
     {
-      asset_key: assetKey,
+      asset_code: assetCode,
       from_date: todayKst(),
       to_date: addDays(todayKst(), 365),
     },
-    { enabled: Boolean(assetKey) },
+    { enabled: Boolean(assetCode) },
   );
   const maturityRows = normalizeMaturities(maturities.data);
-  const maturityUiLoading = Boolean(assetKey) && (
+  const maturityUiLoading = Boolean(assetCode) && (
     !maturities.requestId
     || maturities.loading
-    || maturityTransition?.assetKey === assetKey
+    || maturityTransition?.assetCode === assetCode
   );
-  const maturityButtonText = !assetKey
+  const maturityButtonText = !assetCode
     ? "만기 알림 자산 선택"
     : maturityUiLoading
       ? "만기 알림 불러오는 중"
@@ -3637,15 +3308,17 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
         ? "만기 알림 확인 필요"
         : `만기 알림 ${maturityRows.length}`;
   useEffect(() => {
-    if (!assetKey && assets.length) setAssetKey(assets[0].asset_key);
-  }, [assetKey, assets]);
+    if (!assets.length) return;
+    const nextAssetCode = reconcileAssetCode(assets, assetCode);
+    if (nextAssetCode !== assetCode) setAssetCode(nextAssetCode);
+  }, [assetCode, assets]);
   useEffect(() => {
-    if (assetKey)
-      sessionStorage.setItem("gate6-data-platform-asset-key", assetKey);
-  }, [assetKey]);
+    if (assetCode)
+      sessionStorage.setItem("gate6-data-platform-asset-code", assetCode);
+  }, [assetCode]);
   useEffect(() => {
     if (!maturityTransition) return;
-    if (!assetKey || maturityTransition.assetKey !== assetKey) {
+    if (!assetCode || maturityTransition.assetCode !== assetCode) {
       setMaturityTransition(null);
       return;
     }
@@ -3656,15 +3329,15 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
     ) {
       setMaturityTransition(null);
     }
-  }, [assetKey, maturities.error, maturities.loading, maturities.requestId, maturityTransition]);
-  const changeAsset = (nextAssetKey) => {
-    if (nextAssetKey === assetKey) return;
+  }, [assetCode, maturities.error, maturities.loading, maturities.requestId, maturityTransition]);
+  const changeAsset = (nextAssetCode) => {
+    if (nextAssetCode === assetCode) return;
     setShowMaturities(false);
     setMaturityTransition({
-      assetKey: nextAssetKey,
+      assetCode: nextAssetCode,
       requestId: maturities.requestId,
     });
-    setAssetKey(nextAssetKey);
+    setAssetCode(nextAssetCode);
   };
   return (
     <main
@@ -3682,13 +3355,13 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
                 담당 자산
                 <select
                   data-testid="data-platform-asset-select"
-                  value={assetKey}
+                  value={assetCode}
                   onChange={(event) => changeAsset(event.target.value)}
                   className="rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 py-2 text-sm text-white"
                 >
                   <option value="">자산 선택</option>
                   {assets.map((asset) => (
-                    <option key={asset.asset_key} value={asset.asset_key}>
+                    <option key={asset.asset_code} value={asset.asset_code}>
                       {asset.name || asset.asset_code}
                     </option>
                   ))}
@@ -3698,7 +3371,7 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
                 data-testid="data-platform-maturity-button"
                 type="button"
                 onClick={() => setShowMaturities((value) => !value)}
-                disabled={!assetKey || maturityUiLoading || Boolean(maturities.error)}
+                disabled={!assetCode || maturityUiLoading || Boolean(maturities.error)}
                 className="rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 py-2 text-sm text-[#D1D1D6] disabled:cursor-wait disabled:opacity-60"
               >
                 {maturityButtonText}
@@ -3715,19 +3388,19 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
       <div className="mx-auto max-w-[1680px] px-8 py-6">
         {activeTab === "home" ? (
           <HomePanel
-            key={`home-${assetKey}`}
-            assetKey={assetKey}
+            key={`home-${assetCode}`}
+            assetCode={assetCode}
             resource={home}
             maturities={maturities}
           />
         ) : null}
         {activeTab === "rent-roll" ? (
-          <RentRollPanel key={`rent-${assetKey}`} assetKey={assetKey} />
+          <RentRollPanel key={`rent-${assetCode}`} assetCode={assetCode} />
         ) : null}
         {activeTab === "income-expense" ? (
           <FinancePanel
-            key={`finance-${assetKey}`}
-            assetKey={assetKey}
+            key={`finance-${assetCode}`}
+            assetCode={assetCode}
             assets={assets}
           />
         ) : null}

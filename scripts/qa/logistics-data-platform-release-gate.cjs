@@ -23,6 +23,38 @@ const requiredPredeployParts = Object.freeze([
 ]);
 
 const releaseSteps = Object.freeze([
+  { id: 'simple-schema-contract', kind: 'node', target: 'tests/logistics-core-simple-schema-contract.test.cjs' },
+  { id: 'simple-router-contract', kind: 'node', target: 'tests/logistics-simple-document-router-contract.test.cjs' },
+  {
+    id: 'document-contract',
+    kind: 'node',
+    target: 'src/features/logistics-data-platform/documentContract.test.cjs',
+  },
+  {
+    id: 'document-integrity-contract',
+    kind: 'node',
+    target: 'tests/logistics-data-platform-document-integrity.test.cjs',
+  },
+  {
+    id: 'home-numeric-input-contract',
+    kind: 'node',
+    target: 'tests/logistics-home-numeric-input-normalization-contract.test.cjs',
+  },
+  {
+    id: 'home-422-diagnostic-contract',
+    kind: 'node',
+    target: 'tests/logistics-home-422-readonly-diagnostic.test.cjs',
+  },
+  {
+    id: 'occupancy-expired-rent-contract',
+    kind: 'node',
+    target: 'tests/logistics-occupancy-expired-rent-guard-contract.test.cjs',
+  },
+  {
+    id: 'maturity-revision-contract',
+    kind: 'node',
+    target: 'tests/logistics-maturity-revision-fix-contract.test.cjs',
+  },
   { id: 'db-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-db-contract.cjs' },
   { id: 'cutover-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-cutover-contract.cjs' },
   { id: 'api-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-api-contract.cjs' },

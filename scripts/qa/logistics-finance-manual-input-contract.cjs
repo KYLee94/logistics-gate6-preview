@@ -1,81 +1,81 @@
+#!/usr/bin/env node
+'use strict';
+
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 async function main() {
-  const modulePath = path.resolve(
-    __dirname,
-    '..',
-    '..',
-    'src',
-    'features',
-    'logistics-data-platform',
-    'financeSchema.js',
-  );
-  const finance = await import(`${pathToFileURL(modulePath).href}?contract=${Date.now()}`);
-  const accounts = [
-    { account_code: 'POTENTIAL_BASE_RENT', manual_entry_allowed: true },
-    { account_code: 'PROPERTY_TAX_PUBLIC_DUES', manual_entry_allowed: true },
-    { account_code: 'NET_OPERATING_INCOME', manual_entry_allowed: false },
+  const root = path.resolve(__dirname, '..', '..');
+  const documentPath = path.join(root, 'src', 'features', 'logistics-data-platform', 'documentContract.js');
+  const documents = await import(`${pathToFileURL(documentPath).href}?contract=${Date.now()}`);
+
+  const entries = [
+    { account_code: 'BASE_RENT', month: '2026-08', amount: 70, source_kind: 'projection' },
+    { account_code: 'BASE_RENT', month: '2026-08-15', amount: 30, entry_key: 'legacy-entry' },
+    { account_code: 'BASE_RENT', month: '2026-09', amount: 20 },
   ];
+  const replaced = documents.replaceFinanceCellValue(entries, 'BASE_RENT', '2026-08', 125);
+  assert.deepEqual(replaced, [
+    { account_code: 'BASE_RENT', month: '2026-09', amount: 20 },
+    { account_code: 'BASE_RENT', month: '2026-08', amount: 125, operation: 'update' },
+  ], 'one visible cell replaces every same-account same-month source row');
 
-  const row = finance.emptyManualFinanceEntry({ draftId: 'manual-1', month: '2026-08' });
-  let errors = finance.validateManualFinanceEntries([row], accounts);
-  assert.equal(errors.length, 2, 'account and amount are required; a default audit reason is supplied');
+  const cleared = documents.replaceFinanceCellValue(entries, 'BASE_RENT', '2026-08', '');
+  assert.deepEqual(cleared, [{ account_code: 'BASE_RENT', month: '2026-09', amount: 20 }]);
 
-  Object.assign(row, {
-    account_code: 'POTENTIAL_BASE_RENT',
-    amount: 0,
-    scenario: 'actual',
-    accounting_basis: 'cash',
+  const statement = documents.buildIncomeExpenseStatement({
+    periods: ['2026-09', '2026-08', 'invalid'],
+    accounts: [{ account_code: 'BASE_RENT', name: '임대료', statement_section: 'potential_income' }],
+    entries: replaced,
+    selectedAccountCodes: ['BASE_RENT'],
   });
-  assert.deepEqual(finance.validateManualFinanceEntries([row], accounts), [], 'explicit zero must be accepted');
+  assert.deepEqual(statement.periods, ['2026-08', '2026-09']);
+  assert.deepEqual(statement.potential_income, [{
+    name: '임대료',
+    selected: true,
+    amounts: { '2026-08': 125, '2026-09': 20 },
+  }]);
 
-  row.amount = '';
-  assert.equal(finance.validateManualFinanceEntries([row], accounts).length, 1, 'blank and zero must remain distinct');
-
-  Object.assign(row, { amount: -100, account_code: 'NET_OPERATING_INCOME' });
-  assert.equal(
-    finance.validateManualFinanceEntries([row], accounts).length,
-    1,
-    'derived statement lines must not be manually overwritten',
-  );
-
-  for (const scenario of ['actual', 'budget', 'forecast']) {
-    Object.assign(row, { account_code: 'PROPERTY_TAX_PUBLIC_DUES', scenario });
-    assert.deepEqual(finance.validateManualFinanceEntries([row], accounts), [], `${scenario} must be writable`);
+  const payload = documents.buildIncomeExpenseDocumentPayload({
+    ...statement,
+    source_kind: 'client-forbidden',
+    potential_income: [{
+      ...statement.potential_income[0],
+      entry_key: 'legacy-entry',
+      account_code: 'BASE_RENT',
+      revision: 4,
+      amounts: {
+        ...statement.potential_income[0].amounts,
+        entry_key: 1,
+        '2026-10': Number.POSITIVE_INFINITY,
+      },
+    }],
+  });
+  assert.deepEqual(payload.statement.potential_income, [{
+    name: '임대료',
+    selected: true,
+    amounts: { '2026-08': 125, '2026-09': 20 },
+  }]);
+  for (const forbidden of ['entry_key', 'account_code', 'source_kind', 'revision', 'operation']) {
+    assert.equal(JSON.stringify(payload).includes(forbidden), false, `${forbidden} leaked into finance document`);
   }
 
-  const serialized = finance.financeEntryForSave({
-    ...row,
-    source_kind: 'projection',
-    source_ref: 'server-owned',
-    data_status: 'provided',
-  });
-  assert.equal(serialized.scenario, 'forecast');
-  assert.equal(serialized.source_kind, undefined);
-  assert.equal(serialized.source_ref, undefined);
-  assert.equal(serialized.data_status, undefined);
-
   const migration = fs.readFileSync(
-    path.resolve(
-      __dirname,
-      '..',
-      '..',
-      'supabase',
-      'migrations',
-      '20260806024935_editable_noi_rent_roll_home.sql',
-    ),
+    path.join(root, 'supabase', 'migrations', '20260807180000_simplify_logistics_core_to_four_ui_tables.sql'),
     'utf8',
   );
-  assert.match(migration, /FINANCE_DERIVED_ACCOUNT_FORBIDDEN/u);
-  assert.match(migration, /'actual',\s*'budget',\s*'forecast'/u);
-  assert.match(migration, /source_kind[\s\S]{0,180}'manual_input'/u);
-  assert.match(migration, /'manual_input',\s*'v2\/finance\/batch-save:'[\s\S]{0,160}entry_key,\s*'provided'/u);
-  assert.match(migration, /sync_rent_roll_finance/iu);
+  assert.match(migration, /assert_statement_valid\(p_payload->'statement'\)/iu);
+  assert.match(migration, /EXPECTED_XMIN_REQUIRED/iu);
+  assert.match(migration, /FINANCE_AMOUNT_INVALID/iu);
+  assert.match(migration, /FINANCE_READBACK_MISMATCH/iu);
+  assert.doesNotMatch(
+    migration.match(/create\s+table\s+logistics_core\.income_expense[\s\S]*?\n\);/iu)?.[0] || '',
+    /entry_key|account_code|source_kind|scenario|accounting_basis/iu,
+  );
 
-  console.log('PASS logistics finance editable NOI contract');
+  console.log('PASS logistics finance full-document cell edit contract');
 }
 
 main().catch((error) => {

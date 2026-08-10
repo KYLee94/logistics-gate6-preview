@@ -91,14 +91,18 @@ test('각 NOI hierarchy는 계정 추가와 Supabase 선택 저장·readback 계
 
   assert.match(financeSource, /data-testid=["']finance-custom-account-add["']/u);
   assert.match(financeSource, /data-testid=["']finance-custom-account-name["']/u);
-  assert.match(financeSource, /account_operations:/u);
-  assert.match(financeSource, /selection_operations:/u);
-  assert.match(financeSource, /selection_revision\s*==\s*null\s*\?\s*\{\}\s*:\s*\{\s*expected_revision:/u);
+  assert.match(financeSource, /buildIncomeExpenseStatement\(\{/u);
+  assert.match(financeSource, /expected_xmin:\s*financeRevision/u);
+  assert.match(financeSource, /documentsEqual\(documentPayload,\s*readbackPayload\)/u);
   assert.match(financeSource, /statement_section:/u);
-  assert.match(financeSource, /const\s+accountCode\s*=\s*`CUSTOM:\$\{/u);
+  assert.match(financeSource, /const\s+accountCode\s*=\s*`DOCUMENT:\$\{section\}:\$\{accounts\.length\}`/u);
   assert.match(financeSource, /account_code:\s*accountCode/u);
-  assert.match(financeSource, /accounts_readback/u);
-  assert.match(financeSource, /resource\.reload\(\)/u);
+  assert.match(financeSource, /saveFinanceDocument\(\{ nextAccounts, nextSelectedAccountCodes \}\)/u);
+  assert.match(financeSource, /replaceFinanceCellValue\([\s\S]*?saveFinanceDocument\(\{ nextEntries \}\)/u);
+  assert.doesNotMatch(
+    financeSource,
+    /asset_key:|entry_key|expected_revisions:|account_operations:|selection_operations:|source_kind/u,
+  );
   assert.doesNotMatch(financeSource, /localStorage/u, '계정 선택 상태는 브라우저가 아니라 Supabase가 진리 원천이어야 합니다.');
 });
 
@@ -110,7 +114,7 @@ test('비선택 행은 회색·입력 불가이고 시계열·비교가 손익 �
   assert.ok(trendIndex > 0 && trendIndex < statementIndex);
   assert.ok(summaryIndex > trendIndex && summaryIndex < statementIndex);
   assert.match(source, /data-finance-account-active=/u);
-  assert.match(source, /disabled=\{!writeEnabled \|\| !row\.active\}/u);
+  assert.match(source, /disabled=\{!writeEnabled \|\| !row\.active \|\| saveState === ["']saving["']\}/u);
   assert.match(source, /row\.active \? "bg-\[#252524\][^"]*" : "bg-\[#202020\] text-\[#68686D\]"/u);
   assert.match(source, /firstInactiveIndex/u);
   assert.match(source, /미사용 계정 · NOI 제외/u);

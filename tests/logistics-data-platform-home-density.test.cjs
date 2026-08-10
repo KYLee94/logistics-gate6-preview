@@ -42,7 +42,7 @@ test('홈 상단은 자산 개요·임대 운영·층별 배치의 세 개 세�
 });
 
 test('임대 운영은 임대율과 월 임대료·관리비 총액 및 평단가를 정렬해 표시한다', () => {
-  assert.match(source, /row\.occupancy_status === ["']occupied["']/u);
+  assert.match(source, /isCurrentOccupiedRentRollRow\(row,\s*homeAsOfDate\)/u);
   assert.match(source, /row\.occupancy_status === ["']planned["']/u);
   assert.match(source, /row\.monthly_rent_total_krw/u);
   assert.match(source, /row\.monthly_cam_total_krw/u);
@@ -97,11 +97,11 @@ test('층별 배치의 임차 구획은 호버와 키보드 포커스로 운영 
 });
 
 test('임대율은 서버 점유 요약을 우선하고 임대가능면적이 없으면 연면적을 분모로 사용한다', () => {
-  assert.match(source, /sourceData\.tenant_summary/u);
+  assert.match(source, /sourceData\.occupancy_summary/u);
   assert.match(source, /occupied_area_sqm/u);
   assert.match(source, /active_tenant_count/u);
-  assert.match(source, /asset\?\.leasable_area_sqm[\s\S]{0,120}asset\?\.gross_area_sqm/u);
-  assert.match(source, /occupancyRate\s*=\s*[^;]+>\s*0\s*\?[^;]+\/[^;]+\*\s*100\s*:\s*null/u);
+  assert.doesNotMatch(source, /sourceData\.tenant_summary|occupancyDenominator/u);
+  assert.match(source, /homeFiniteNumber\(occupancySummary\.occupancy_rate\)/u);
 });
 
 test('층별 배치 툴팁은 자산 브리프 바깥에서도 잘리지 않는다', () => {

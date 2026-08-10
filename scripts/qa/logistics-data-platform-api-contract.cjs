@@ -1,3 +1,6 @@
+#!/usr/bin/env node
+'use strict';
+
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -6,7 +9,12 @@ const { pathToFileURL } = require('node:url');
 const ROOT = path.resolve(__dirname, '..', '..');
 const V2_DIR = path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 'v2');
 const EDGE_INDEX = path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 'index.ts');
-const MIGRATIONS_DIR = path.join(ROOT, 'supabase', 'migrations');
+const MIGRATION = path.join(
+  ROOT,
+  'supabase',
+  'migrations',
+  '20260807180000_simplify_logistics_core_to_four_ui_tables.sql',
+);
 const EXPECTED_ACTIONS = Object.freeze([
   'v2/home/read',
   'v2/home/batch-save',
@@ -18,511 +26,216 @@ const EXPECTED_ACTIONS = Object.freeze([
   'v2/calculations/explain',
 ]);
 const EXPECTED_RPCS = Object.freeze([
-  'home_read',
-  'home_batch_save',
-  'rent_roll_read',
-  'rent_roll_batch_save',
-  'finance_read',
-  'finance_batch_save',
-  'maturities_read',
-  'calculations_explain',
+  'home_read', 'home_batch_save', 'rent_roll_read', 'rent_roll_batch_save',
+  'finance_read', 'finance_batch_save', 'maturities_read', 'calculations_explain',
 ]);
-const READ_RPCS = Object.freeze([
-  'home_read',
-  'rent_roll_read',
-  'finance_read',
-  'maturities_read',
-  'calculations_explain',
-]);
-const MUTATION_RPCS = Object.freeze([
-  'home_batch_save',
-  'rent_roll_batch_save',
-  'finance_batch_save',
-]);
+const UUIDS = Object.freeze({
+  home: '11111111-1111-4111-8111-111111111111',
+  rent: '22222222-2222-4222-8222-222222222222',
+  finance: '33333333-3333-4333-8333-333333333333',
+});
 
-function sourceFiles(directory) {
-  if (!fs.existsSync(directory)) return [];
-  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const entryPath = path.join(directory, entry.name);
-    return entry.isDirectory() ? sourceFiles(entryPath) : [entryPath];
-  }).filter((file) => /\.(?:ts|js|mjs)$/u.test(file));
+const checks = [];
+async function check(id, assertion, evidence) {
+  try {
+    const value = await assertion();
+    checks.push({ id, ok: true, evidence: value ?? evidence });
+  } catch (error) {
+    checks.push({ id, ok: false, error: error.message });
+  }
 }
 
-function migrationSource() {
-  const files = fs.readdirSync(MIGRATIONS_DIR)
-    .filter((name) => /^2026080[46]\d{6}_(?:logistics_data_platform|editable_noi_rent_roll).*\.sql$/u.test(name))
-    .sort();
-  assert.ok(files.length > 0, 'data-platform migration is missing');
-  return files.map((name) => fs.readFileSync(path.join(MIGRATIONS_DIR, name), 'utf8')).join('\n');
-}
-
-function apiMigrationSource() {
-  return fs.readFileSync(
-    path.join(MIGRATIONS_DIR, '20260804091000_logistics_data_platform_api.sql'),
-    'utf8',
-  );
-}
-
-function requirePattern(source, pattern, description) {
-  assert.match(source, pattern, description);
-  return description;
-}
-
-async function importModule(name) {
-  const filePath = path.join(V2_DIR, name);
-  assert.ok(fs.existsSync(filePath), `missing v2 module: ${name}`);
-  return import(`${pathToFileURL(filePath).href}?contract=${Date.now()}`);
+async function importFresh(name) {
+  const target = path.join(V2_DIR, name);
+  assert.ok(fs.existsSync(target), `missing module ${name}`);
+  return import(`${pathToFileURL(target).href}?contract=${Date.now()}-${Math.random()}`);
 }
 
 async function main() {
-  const checks = [];
-  const check = async (id, fn) => {
-    try {
-      checks.push({ id, ok: true, evidence: await fn() });
-    } catch (error) {
-      checks.push({ id, ok: false, error: error.message });
-    }
-  };
+  const contracts = await importFresh('contracts.ts');
+  const router = await importFresh('router.ts');
+  const migration = fs.readFileSync(MIGRATION, 'utf8');
+  const edgeIndex = fs.readFileSync(EDGE_INDEX, 'utf8');
 
-  let contracts;
-  let router;
-  await check('v2-contract-modules-load', async () => {
-    contracts = await importModule('contracts.ts');
-    router = await importModule('router.ts');
-    return ['contracts.ts', 'router.ts'];
+  await check('v2-contract-modules-load', () => {
+    assert.equal(typeof contracts.primaryResponse, 'function');
+    assert.equal(typeof router.buildRpcArguments, 'function');
+  }, ['contracts.ts', 'router.ts']);
+
+  await check('exactly-eight-public-actions', () => {
+    assert.deepEqual([...contracts.V2_PUBLIC_ACTIONS], EXPECTED_ACTIONS);
+    assert.deepEqual(EXPECTED_ACTIONS.map(router.rpcNameForAction), EXPECTED_RPCS);
+    assert.throws(() => router.rpcNameForAction('v2/legacy/write'), /UNSUPPORTED_ACTION/u);
+    return EXPECTED_ACTIONS;
   });
 
-  if (contracts && router) {
-    await check('exactly-eight-public-actions', () => {
-      assert.deepEqual([...contracts.V2_PUBLIC_ACTIONS], EXPECTED_ACTIONS);
-      const actionStrings = [...new Set(sourceFiles(V2_DIR).flatMap((file) => {
-        const source = fs.readFileSync(file, 'utf8');
-        return [...source.matchAll(/['"](v2\/[a-z0-9/-]+)['"]/gu)].map((match) => match[1]);
-      }))].sort();
-      assert.deepEqual(actionStrings, [...EXPECTED_ACTIONS].sort());
-      return EXPECTED_ACTIONS;
+  await check('primary-response-has-exact-top-level-keys', () => {
+    const response = contracts.primaryResponse({
+      requestId: UUIDS.home,
+      revision: 17,
+      data: { asset_code: 'A120085001' },
     });
+    assert.deepEqual(Object.keys(response), ['ok', 'status', 'request_id', 'revision', 'data']);
+    assert.equal(response.status, 'primary');
+    assert.equal(JSON.stringify(response).includes('fallback'), false);
+    assert.equal(JSON.stringify(response).includes('stale'), false);
+    return Object.keys(response);
+  });
 
-    await check('primary-response-has-exact-top-level-keys', () => {
-      const response = contracts.primaryResponse({
-        requestId: '00000000-0000-4000-8000-000000000001',
-        revision: 7,
-        data: { asset: 'A001' },
-      });
-      assert.deepEqual(Object.keys(response), ['ok', 'status', 'request_id', 'revision', 'data']);
-      assert.deepEqual(response, {
-        ok: true,
-        status: 'primary',
-        request_id: '00000000-0000-4000-8000-000000000001',
-        revision: 7,
-        data: { asset: 'A001' },
-      });
-      assert.equal(JSON.stringify(response).includes('fallback'), false);
-      assert.equal(JSON.stringify(response).includes('stale'), false);
-      return Object.keys(response);
+  await check('write-actions-require-client-request-id', () => {
+    const canonical = { statement: { periods: [], potential_income: [], income_loss: [], operating_expense: [], below_noi: [], debt_service: [] }, expected_xmin: '7' };
+    assert.throws(
+      () => router.buildRpcArguments('v2/finance/batch-save', { asset_code: 'A1', payload: canonical }),
+      /CLIENT_REQUEST_ID_REQUIRED/u,
+    );
+    assert.throws(
+      () => router.buildRpcArguments('v2/finance/batch-save', { client_request_id: 'not-a-uuid', asset_code: 'A1', payload: canonical }),
+      /CLIENT_REQUEST_ID_REQUIRED/u,
+    );
+  }, 'all writes require a UUID request id');
+
+  await check('home-full-document-and-xmin-map', () => {
+    const payload = {
+      asset: { asset_code: 'A120085001', fund_code: '120085', name: '경산' },
+      funds: [{ fund_code: '120085', name: '펀드', investments: [], loans: [] }],
+    };
+    const expectedRevisions = { asset: '41', fund: '42' };
+    const args = router.buildRpcArguments('v2/home/batch-save', {
+      client_request_id: UUIDS.home,
+      asset_code: 'A120085001',
+      payload,
+      expected_revisions: expectedRevisions,
     });
+    assert.deepEqual(args.p_payload, payload);
+    assert.deepEqual(args.p_expected_revisions, expectedRevisions);
+    assert.equal(Object.hasOwn(args.p_payload, 'operations'), false);
+  }, 'asset plus fund documents and their xmin values pass unchanged');
 
-    await check('router-is-closed-to-unknown-actions', () => {
-      assert.equal(router.isV2PublicAction('v2/home/read'), true);
-      assert.equal(router.isV2PublicAction('v2/news/read'), false);
-      assert.throws(() => router.rpcNameForAction('v2/news/read'), /UNSUPPORTED_ACTION/u);
-      return 'unknown actions are rejected';
+  await check('rent-full-document-and-expected-xmin', () => {
+    const args = router.buildRpcArguments('v2/rent-roll/batch-save', {
+      client_request_id: UUIDS.rent,
+      asset_code: 'A120085001',
+      payload: {
+        expected_xmin: '51',
+        rows: [{
+          tenant_name: '쿠팡',
+          leased_area_sqm: 100,
+          rent_escalation_rate: 0.03,
+          row_key: 'legacy-row',
+          source_kind: 'legacy-source',
+          effective_rent: 999,
+        }],
+      },
     });
+    assert.equal(args.p_payload.expected_xmin, '51');
+    assert.equal(args.p_payload.rows[0].rent_escalation_rate, '3%');
+    for (const forbidden of ['row_key', 'source_kind', 'effective_rent', 'operation']) {
+      assert.equal(Object.hasOwn(args.p_payload.rows[0], forbidden), false);
+    }
+  }, 'complete rent rows are normalized to editable visible fields only');
 
-    await check('revision-and-idempotency-errors-map-to-409', () => {
-      assert.deepEqual(router.mapV2RpcError({ code: 'PT409', message: 'REVISION_CONFLICT' }), {
-        httpStatus: 409,
-        code: 'REVISION_CONFLICT',
-        retryable: false,
-      });
-      assert.deepEqual(router.mapV2RpcError({ code: '23505', message: 'IDEMPOTENCY_CONFLICT' }), {
-        httpStatus: 409,
-        code: 'IDEMPOTENCY_CONFLICT',
-        retryable: false,
-      });
-      return '409 mappings';
+  await check('finance-full-document-and-expected-xmin', () => {
+    const statement = {
+      periods: ['2026-08'],
+      potential_income: [{ name: '임대료', selected: true, amounts: { '2026-08': 1 } }],
+      income_loss: [], operating_expense: [], below_noi: [], debt_service: [],
+    };
+    const args = router.buildRpcArguments('v2/finance/batch-save', {
+      client_request_id: UUIDS.finance,
+      asset_code: 'A120085001',
+      payload: { statement, expected_xmin: '61' },
     });
+    assert.deepEqual(args.p_payload, { statement, expected_xmin: '61' });
+    for (const forbidden of ['entries', 'operations', 'entry_key', 'account_code', 'source_kind']) {
+      assert.equal(JSON.stringify(args.p_payload).includes(forbidden), false);
+    }
+  }, 'visible finance statement passes without ledger identifiers or provenance');
 
-    await check('writer-transition-maps-to-maintenance-mode', () => {
-      assert.deepEqual(router.mapV2RpcError({ code: 'PT503', message: 'MAINTENANCE_MODE' }), {
-        httpStatus: 503,
-        code: 'MAINTENANCE_MODE',
-        retryable: false,
-      });
-      return '503 MAINTENANCE_MODE without automatic retry';
+  await check('all-legacy-mutations-fail-closed', () => {
+    const cases = [
+      ['v2/home/batch-save', { operations: [] }, /HOME_DOCUMENT_REQUIRED/u],
+      ['v2/rent-roll/batch-save', { rows: [{ operation: 'update', row_key: 'old' }] }, /RENT_ROLL_DOCUMENT_REQUIRED/u],
+      ['v2/finance/batch-save', { entries: [] }, /FINANCE_DOCUMENT_REQUIRED/u],
+      ['v2/finance/batch-save', { operations: [] }, /FINANCE_DOCUMENT_REQUIRED/u],
+      ['v2/finance/batch-save', { entries: [{ operation: 'create', entry_key: 'old', account_code: 'x', month: '2026-08', amount: 1 }] }, /FINANCE_DOCUMENT_REQUIRED/u],
+    ];
+    for (const [action, payload, error] of cases) {
+      assert.throws(() => router.buildRpcArguments(action, {
+        client_request_id: UUIDS.finance,
+        asset_code: 'A120085001',
+        payload,
+      }), error);
+    }
+  }, 'home deltas, rent row operations, and every finance ledger shape are rejected');
+
+  await check('trace-compatible-asset-routing', () => {
+    const canonical = router.buildRpcArguments('v2/home/read', { asset_code: 'A120085001' });
+    const legacyTrace = router.buildRpcArguments('v2/home/read', { asset_key: 'asset_a120085001' });
+    assert.equal(canonical.p_asset_key, 'A120085001');
+    assert.equal(legacyTrace.p_asset_key, 'asset_a120085001');
+    assert.equal(typeof canonical.p_request_id, 'string');
+  }, 'asset_code is canonical while the existing read trace asset_key remains routable');
+
+  await check('rpc-error-mapping', () => {
+    assert.deepEqual(router.mapV2RpcError({ code: 'PT409', message: 'REVISION_CONFLICT' }), {
+      httpStatus: 409, code: 'REVISION_CONFLICT', retryable: false,
     });
-
-    await check('write-actions-require-client-request-id', () => {
-      assert.throws(
-        () => router.buildRpcArguments('v2/rent-roll/batch-save', { payload: {} }),
-        /CLIENT_REQUEST_ID_REQUIRED/u,
-      );
-      const args = router.buildRpcArguments('v2/finance/batch-save', {
-        client_request_id: '00000000-0000-4000-8000-000000000002',
-        payload: { operations: [] },
-      });
-      assert.equal(args.p_request_id, '00000000-0000-4000-8000-000000000002');
-      return 'write request id enforced';
+    assert.deepEqual(router.mapV2RpcError({ code: 'PT422', message: 'EXPECTED_XMIN_REQUIRED' }), {
+      httpStatus: 422, code: 'BUSINESS_RULE_VIOLATION', retryable: false,
     });
+    assert.deepEqual(router.mapV2RpcError({ code: 'PT503', message: 'MAINTENANCE_MODE' }), {
+      httpStatus: 503, code: 'MAINTENANCE_MODE', retryable: false,
+    });
+  }, 'xmin, validation, and maintenance failures map deterministically');
 
-    await check('finance-flat-entries-normalize-to-deterministic-operations', () => {
-      const requestId = '00000000-0000-4000-8000-000000000002';
-      const entries = [
-        {
-          operation: 'create',
-          month: '2026-08',
-          account_code: 'MANUAL_REVENUE',
-          amount: '1000',
-          scenario: 'actual',
-          accounting_basis: 'accrual',
-          reason: 'new revenue evidence',
-        },
-        {
-          operation: 'update',
-          entry_key: 'manual:existing-entry',
-          month: '2026-08',
-          account_code: 'MANUAL_COST',
-          amount: '-300',
-          scenario: 'actual',
-          accounting_basis: 'accrual',
-          reason: 'correct source amount',
-        },
-        {
-          operation: 'delete',
-          entry_key: 'manual:archive-entry',
-          reason: 'archive duplicate',
-        },
-      ];
-      const request = {
-        client_request_id: requestId,
-        asset_key: 'asset_a112127001',
-        payload: { entries },
-      };
-      const first = router.buildRpcArguments('v2/finance/batch-save', request);
-      const second = router.buildRpcArguments('v2/finance/batch-save', request);
-
-      assert.deepEqual(first.p_payload, second.p_payload, 'normalization must be retry-stable');
-      assert.equal(Object.hasOwn(first.p_payload, 'entries'), false);
-      assert.deepEqual(first.p_payload.operations, [
-        {
-          operation: 'create',
-          entry_key: `manual:${requestId}:0`,
-          reason: 'new revenue evidence',
-          record: {
-            month: '2026-08',
-            account_code: 'MANUAL_REVENUE',
-            amount: '1000',
-            scenario: 'actual',
-            accounting_basis: 'accrual',
+  await check('rpc-dispatch-requires-user-jwt', async () => {
+    await assert.rejects(
+      router.dispatchV2Action({ authMode: 'service-role', accessToken: 'token', client: {} }, 'v2/home/read', {}),
+      /USER_JWT_RPC_CONTEXT_REQUIRED/u,
+    );
+    const calls = [];
+    const client = {
+      schema(schema) {
+        return {
+          async rpc(name, args) {
+            calls.push({ schema, name, args });
+            return { data: { ok: true, status: 'primary', request_id: UUIDS.home, revision: 9, data: {} }, error: null };
           },
-        },
-        {
-          operation: 'update',
-          entry_key: 'manual:existing-entry',
-          reason: 'correct source amount',
-          record: {
-            month: '2026-08',
-            account_code: 'MANUAL_COST',
-            amount: '-300',
-            scenario: 'actual',
-            accounting_basis: 'accrual',
-          },
-        },
-        {
-          operation: 'delete',
-          entry_key: 'manual:archive-entry',
-          reason: 'archive duplicate',
-          record: {},
-        },
-      ]);
-      assert.deepEqual(request.payload.entries, entries, 'normalization must not mutate the caller payload');
-      assert.throws(
-        () => router.buildRpcArguments('v2/finance/batch-save', {
-          client_request_id: requestId,
-          payload: { entries: [{ operation: 'update', reason: 'missing key' }] },
-        }),
-        /FINANCE_ENTRY_KEY_REQUIRED/u,
-      );
-      return 'flat entries become deterministic nested operations';
-    });
+        };
+      },
+    };
+    await router.dispatchV2Action({ authMode: 'anon-key-user-jwt', accessToken: 'token', client }, 'v2/home/read', { asset_code: 'A1' });
+    assert.equal(calls[0].schema, 'logistics_api');
+    assert.equal(calls[0].name, 'home_read');
+  }, 'only anon-key plus user JWT context can dispatch logistics_api RPCs');
 
-    await check('public-envelope-uses-asset-key-without-uuid', () => {
-      const args = router.buildRpcArguments('v2/home/read', {
-        asset_key: 'asset_a112127001',
-        payload: {},
-      });
-      assert.equal(args.p_asset_key, 'asset_a112127001');
-      assert.equal(Object.hasOwn(args, 'p_asset_id'), false);
-      const routerSource = fs.readFileSync(path.join(V2_DIR, 'router.ts'), 'utf8');
-      const contractsSource = fs.readFileSync(path.join(V2_DIR, 'contracts.ts'), 'utf8');
-      assert.doesNotMatch(`${routerSource}\n${contractsSource}`, /\basset_id\b/u);
-      return 'asset_key only';
-    });
-
-    await check('rpc-dispatch-requires-anon-key-user-jwt-context', async () => {
-      const calls = [];
-      const client = {
-        schema(schema) {
-          return {
-            async rpc(name, args) {
-              calls.push({ schema, name, args });
-              return {
-                data: {
-                  ok: true,
-                  status: 'primary',
-                  request_id: args.p_request_id,
-                  revision: 1,
-                  data: {},
-                },
-                error: null,
-              };
-            },
-          };
-        },
-      };
-      await assert.rejects(
-        router.dispatchV2Action({ authMode: 'service-role', accessToken: 'token', client }, 'v2/home/read', { asset_key: 'ASSET-001' }),
-        /USER_JWT_RPC_CONTEXT_REQUIRED/u,
-      );
-      await router.dispatchV2Action(
-        { authMode: 'anon-key-user-jwt', accessToken: 'raw-user-jwt', client },
-        'v2/home/read',
-        { asset_key: 'asset_a112127001' },
-      );
-      assert.equal(calls.length, 1);
-      assert.equal(calls[0].schema, 'logistics_api');
-      return 'user JWT context only';
-    });
-  }
-
-  await check('rpc-only-sql-surface', () => {
-    const source = migrationSource();
-    const rpcNames = [...source.matchAll(/create or replace function logistics_api\.([a-z0-9_]+)\s*\(/giu)]
+  await check('database-exposes-eight-document-rpcs', () => {
+    const wrappers = [...migration.matchAll(/create\s+or\s+replace\s+function\s+logistics_api\.([a-z0-9_]+)\s*\(/giu)]
       .map((match) => match[1]);
-    assert.deepEqual([...new Set(rpcNames)].sort(), [...EXPECTED_RPCS].sort());
-    assert.doesNotMatch(source, /create\s+(?:table|view|materialized\s+view)\s+(?:if not exists\s+)?logistics_api\./iu);
-    for (const rpc of READ_RPCS) {
-      assert.match(source, new RegExp(`grant execute on function logistics_api\\.${rpc}\\(`, 'iu'));
-    }
-    for (const rpc of MUTATION_RPCS) {
-      assert.match(
-        source,
-        new RegExp(`grant execute on function logistics_api\\.${rpc}\\([\\s\\S]{0,180}to authenticated`, 'iu'),
-        `${rpc} must be granted to authenticated writers after pilot unlock`,
-      );
-    }
-    assert.doesNotMatch(
-      source,
-      /grant\s+execute\s+on\s+function\s+logistics_core\.[\s\S]{0,160}\s+to\s+authenticated/iu,
-    );
-    assert.match(source, /revoke all on schema logistics_api from public, anon/iu);
-    assert.match(source, /grant usage on schema logistics_api to authenticated/iu);
-    const apiFunctionBlocks = source.match(/create or replace function logistics_api\.[\s\S]*?\$function\$;/giu) || [];
-    assert.equal(apiFunctionBlocks.length, EXPECTED_RPCS.length);
-    apiFunctionBlocks.forEach((block) => {
-      assert.match(block, /security definer/iu);
-      assert.match(block, /set search_path = ''/iu);
-    });
-    return EXPECTED_RPCS;
-  });
+    assert.deepEqual([...new Set(wrappers)].sort(), [...EXPECTED_RPCS].sort());
+    assert.match(migration, /p_payload->>'expected_xmin'/iu);
+    assert.match(migration, /EXPECTED_XMIN_REQUIRED/iu);
+    assert.match(migration, /REVISION_CONFLICT/iu);
+  }, EXPECTED_RPCS);
 
-  await check('canonical-loan-and-rent-roll-projections', () => {
-    const source = migrationSource();
-    const apiSource = apiMigrationSource();
-    assert.match(source, /public\.ll_fund_capital_tranches/iu);
-    assert.match(source, /tranche_type[\s\S]{0,80}'loan'/iu);
-    assert.match(apiSource, /tranche\.is_active\s*=\s*true[\s\S]{0,100}tranche\.deleted_at\s+is\s+null/iu);
-    assert.match(source, /repayment_schedule_status[\s\S]{0,80}'not_provided'/iu);
-    for (const field of [
-      'lender_name', 'committed_amount_krw', 'drawdown_date', 'maturity_date',
-      'loan_period', 'loan_type', 'interest_type', 'base_rate', 'spread_rate',
-      'loan_rate', 'interest_rate', 'fee_rate', 'all_in_rate',
-    ]) {
-      assert.match(apiSource, new RegExp(`'${field}'`, 'iu'), `missing canonical loan field ${field}`);
-    }
-    assert.match(apiSource, /'repayment_schedule'[\s\S]{0,180}'status',\s*'not_provided'[\s\S]{0,100}'rows',\s*'\[\]'::jsonb/iu);
-    assert.doesNotMatch(apiSource, /(?:insert\s+into|update|delete\s+from)\s+(?:public\.ll_fund_capital_tranches|logistics_core\.loans)\b/iu);
-    assert.match(source, /jsonb_build_object\([\s\S]{0,120}'rows'/iu, 'rent-roll read must return data.rows');
-    for (const field of [
-      'occupancy_status', 'use_category', 'floor_label', 'zone_label',
-      'exclusive_area_sqm', 'common_area_sqm', 'leased_area_sqm', 'efficiency_ratio',
-      'commencement_date', 'expiry_date', 'deposit_total_krw', 'deposit_per_py_krw',
-      'monthly_rent_total_krw', 'rent_per_py_krw', 'monthly_cam_total_krw', 'cam_per_py_krw',
-      'rent_free_schedule', 'deposit_escalation_rule', 'rent_escalation_rule', 'cam_escalation_rule',
-      'fit_out_months', 'fit_out_amount', 'effective_rent', 'tenant_cost_terms',
-      'landlord_cost_terms', 'renewal_terms', 'termination_terms', 'restoration_terms',
-      'bond_terms', 'operation_start_date', 'pallet_rack_fee', 'notes',
-    ]) {
-      assert.match(source, new RegExp(`'${field}'`, 'iu'), `missing rent-roll row field ${field}`);
-    }
-    assert.match(source, /p_payload\s*->\s*'rows'/iu, 'batch-save must accept payload.rows');
-    assert.doesNotMatch(source, /create table(?: if not exists)? logistics_core\.loan_repayment/iu);
-    return 'legacy loan projection and row-first rent-roll contract';
-  });
+  await check('edge-index-preserves-user-jwt-dispatch', () => {
+    assert.match(edgeIndex, /authMode:\s*'anon-key-user-jwt'/u);
+    assert.match(edgeIndex, /dispatchV2Action/iu);
+    assert.doesNotMatch(edgeIndex, /authMode:\s*'service-role'/u);
+  }, 'Edge forwards the authenticated user context to the document router');
 
-  await check('home-bootstrap-and-month-editor-contract', () => {
-    const source = migrationSource();
-    const apiSource = apiMigrationSource();
-    const homeRead = apiSource.match(
-      /create or replace function logistics_core\.home_read_entry[\s\S]*?\$body\$;/iu,
-    )?.[0] || '';
-    assert.ok(homeRead, 'home read function is missing');
-    assert.match(source, /nullif\(btrim\(p_asset_key\),\s*''\)\s+is\s+null[\s\S]{0,700}'assets'/iu);
-    assert.match(source, /'selected_asset',\s*null/iu);
-    assert.match(source, /'asset_key',\s*asset\.asset_key/iu);
-    assert.doesNotMatch(homeRead, /jsonb_build_object\([\s\S]{0,100}'asset_id'/iu, 'home must not expose internal UUID');
-    assert.match(source, /create or replace function logistics_core\.normalize_month/iu);
-    assert.match(source, /\^\[0-9\]\{4\}-\(0\[1-9\]\|1\[0-2\]\)\$/u);
-    assert.match(source, /return \(p_value \|\| '-01'\)::date/iu);
-    assert.match(source, /to_char\(entry\.month,\s*'YYYY-MM'\)/iu);
-    return 'blank asset bootstrap and YYYY-MM editor normalization';
-  });
-
-  await check('finance-manual-input-and-in-app-alerts-only', () => {
-    const source = migrationSource();
-    const apiSource = apiMigrationSource();
-    assert.match(source, /source_kind[\s\S]{0,240}'manual_input'/iu);
-    assert.match(source, /public\.ll_notifications/iu);
-    for (const field of [
-      'accounts', 'loans', 'finance_write_enabled', 'data_status',
-      'formula_status', 'formula_version', 'waterfall', 'write_enabled', 'write_reason',
-    ]) {
-      assert.match(apiSource, new RegExp(`'${field}'`, 'iu'), `missing finance response field ${field}`);
-    }
-    assert.match(apiSource, /p_payload->>'from_month',\s*p_payload->>'start_month'/iu);
-    assert.match(apiSource, /p_payload->>'to_month',\s*p_payload->>'end_month'/iu);
-    assert.match(apiSource, /entry_count\s*=\s*0\s+then\s+'not_entered'/iu);
-    assert.doesNotMatch(source, /delivery_outbox|delivery_attempts|\bresend\b|ll-maturity-email/iu);
-    assert.doesNotMatch(source, /insert\s+into\s+logistics_core\.monthly_ledger_entries[\s\S]{0,600}(?:loan_schedule|repayment)/iu);
-    return 'manual finance CRUD and login-visible in-app maturity alerts';
-  });
-
-  await check('finance-mutation-enforces-server-side-manual-ledger-policy', () => {
-    const apiSource = apiMigrationSource();
-    const financeMutation = apiSource.match(
-      /create or replace function logistics_core\.finance_batch_save_entry[\s\S]*?\$body\$;/iu,
-    )?.[0] || '';
-    assert.ok(financeMutation, 'finance mutation function is missing');
-    assert.match(financeMutation, /v_scenario\s+is\s+distinct\s+from\s+'actual'/iu);
-    for (const accountCode of ['MANUAL_REVENUE', 'MANUAL_COST', 'MANUAL_RECEIPT']) {
-      assert.match(financeMutation, new RegExp(`'${accountCode}'`, 'iu'));
-    }
-    assert.match(financeMutation, /v_account_code\s*=\s*'MANUAL_RECEIPT'[\s\S]{0,160}v_accounting_basis\s+is\s+distinct\s+from\s+'cash'/iu);
-    assert.match(financeMutation, /v_amount_text\s*!~/iu);
-    assert.match(financeMutation, /\[0-9\]\+/u);
-    assert.match(financeMutation, /v_reason\s+is\s+null/iu);
-    assert.match(financeMutation, /errcode\s*=\s*'PT422'/iu);
-    assert.doesNotMatch(financeMutation, /'budget'|'forecast'|'debt_service'/iu);
-    assert.match(financeMutation, /account\.account_code\s*=\s*v_account_code/iu);
-    assert.match(financeMutation, /entry\.entry_key\s*=\s*v_entry_key/iu);
-    assert.doesNotMatch(financeMutation, /account\.account_code\s*=\s*account_code\b/iu);
-    assert.doesNotMatch(financeMutation, /entry\.entry_key\s*=\s*entry_key\b/iu);
-    requirePattern(
-      financeMutation,
-      /record'\s*\?\s*'source_ref'[\s\S]{0,220}CLIENT_SOURCE_METADATA_FORBIDDEN/iu,
-      'client source_ref is rejected',
-    );
-    requirePattern(
-      financeMutation,
-      /record'\s*\?\s*'source_kind'[\s\S]{0,220}CLIENT_SOURCE_METADATA_FORBIDDEN/iu,
-      'client source_kind is rejected',
-    );
-    requirePattern(
-      financeMutation,
-      /record'\s*\?\s*'data_status'[\s\S]{0,220}CLIENT_SOURCE_METADATA_FORBIDDEN/iu,
-      'client data_status is rejected',
-    );
-    assert.match(financeMutation, /'manual_input'/iu, 'server creates source_kind');
-    assert.match(financeMutation, /'provided'/iu, 'server creates data_status');
-    assert.match(financeMutation, /'v2\/finance\/batch-save:'\s*\|\|\s*p_request_id::text/iu, 'server creates source_ref');
-    assert.match(financeMutation, /rollback_export_state/iu, 'finance write records rollback export');
-    assert.match(financeMutation, /retained_in_core/iu, 'finance rollback remains retained in core');
-    assert.match(financeMutation, /READBACK_MISMATCH/iu, 'finance rollback export readback is verified');
-    return 'actual-only manual account policy with finite amount and mandatory reason';
-  });
-
-  await check('actor-specific-write-state-is-returned-by-read-rpcs', () => {
-    const source = migrationSource();
-    const apiSource = apiMigrationSource();
-    requirePattern(source, /create or replace function logistics_core\.actor_write_status/iu, 'central actor write status');
-    requirePattern(source, /platform_pilot_users/iu, 'pilot-aware actor write status');
-    requirePattern(source, /'write_enabled'/iu, 'generic write enabled field');
-    requirePattern(source, /'write_reason'/iu, 'generic write reason field');
-    const rentRead = apiSource.match(/create or replace function logistics_core\.rent_roll_read_entry[\s\S]*?\$body\$;/iu)?.[0] || '';
-    const financeRead = apiSource.match(/create or replace function logistics_core\.finance_read_entry[\s\S]*?\$body\$;/iu)?.[0] || '';
-    assert.match(rentRead, /actor_write_status\(actor_id,\s*resolved_asset_id\)/iu);
-    assert.match(rentRead, /'rent_roll_write_enabled'/iu);
-    assert.match(rentRead, /'write_reason'/iu);
-    assert.match(financeRead, /actor_write_status\(actor_id,\s*resolved_asset_id\)/iu);
-    assert.match(financeRead, /'finance_write_enabled'/iu);
-    assert.match(financeRead, /'write_reason'/iu);
-    return 'rent-roll and finance reads return actor-specific server write state';
-  });
-
-  await check('rent-roll-legacy-projection-is-atomic-and-read-back', () => {
-    const apiSource = apiMigrationSource();
-    const projection = apiSource.match(
-      /create or replace function logistics_core\.project_rent_roll_to_legacy[\s\S]*?\$body\$;/iu,
-    )?.[0] || '';
-    assert.ok(projection, 'rent-roll legacy projection function is missing');
-    for (const table of ['ll_leases', 'll_lease_spaces', 'll_rent_history']) {
-      assert.match(projection, new RegExp(`insert into public\\.${table}`, 'iu'));
-      assert.match(projection, new RegExp(`public\\.${table}[\\s\\S]{0,1800}on conflict`, 'iu'));
-    }
-    assert.match(projection, /legacy_projection_state/iu);
-    assert.match(projection, /readback_status/iu);
-    assert.match(projection, /READBACK_MISMATCH/iu);
-    const mutation = apiSource.match(
-      /create or replace function logistics_core\.rent_roll_batch_save_entry[\s\S]*?\$body\$;/iu,
-    )?.[0] || '';
-    assert.match(mutation, /project_rent_roll_to_legacy\(resolved_asset_id,\s*actor_id,\s*p_request_id\)/iu);
-    assert.match(mutation, /legacy_projection_count/iu);
-    return 'canonical and public legacy rent-roll rows commit in the same database transaction';
-  });
-
-  await check('edge-index-dispatches-v2-with-user-jwt-client', () => {
-    const source = fs.readFileSync(EDGE_INDEX, 'utf8');
-    assert.match(source, /import\s*\{\s*dispatchV2Action,\s*isV2PublicAction\s*\}\s*from\s*['"]\.\/v2\/router\.ts['"]/iu);
-    assert.match(source, /if\s*\(isV2PublicAction\(action\)\)[\s\S]{0,500}dispatchV2Action/iu);
-    assert.match(source, /authMode:\s*'anon-key-user-jwt'/iu);
-    assert.match(source, /client:\s*ctx\.userRpcClient/iu);
-    assert.doesNotMatch(
-      source,
-      /if\s*\(isV2PublicAction\(action\)\)[\s\S]{0,700}client:\s*ctx\.serviceClient/iu,
-      'v2 RPCs must never use the service-role client',
-    );
-    return 'Edge v2 dispatch uses the original user JWT client';
-  });
-
-  await check('database-dispatch-enforces-auth-permission-and-primary-readback', () => {
-    const source = migrationSource();
-    assert.match(source, /auth\.uid\(\)\s+is\s+null/iu);
-    assert.match(source, /assert_asset_permission/iu);
-    assert.match(source, /IDEMPOTENCY_CONFLICT/iu);
-    assert.match(source, /REVISION_CONFLICT/iu);
-    assert.match(source, /READBACK_MISMATCH/iu);
-    assert.match(source, /p_asset_key/iu);
-    assert.match(source, /assert_v2_writer_route/iu);
-    assert.match(source, /v2_write_enabled/iu);
-    assert.match(source, /platform_feature_flags/iu);
-    assert.match(source, /MAINTENANCE_MODE/iu);
-    assert.doesNotMatch(source, /WRITER_ROUTE_LOCKED|WRITER_LOCKED/iu);
-    assert.match(source, /jsonb_build_object\(\s*'ok',\s*true,\s*'status',\s*'primary',\s*'request_id',[\s\S]{0,200}'revision',[\s\S]{0,200}'data'/iu);
-    return 'auth.uid permission idempotency revision readback';
-  });
-
-  const report = {
-    ok: checks.every((row) => row.ok),
-    mode: 'static-and-module-api-contract',
+  const failed = checks.filter((item) => !item.ok);
+  process.stdout.write(`${JSON.stringify({
+    ok: failed.length === 0,
+    mode: 'four-document-api-contract',
     network_used: false,
     database_write_used: false,
     checks,
-  };
-  console.log(JSON.stringify(report, null, 2));
-  if (!report.ok) process.exitCode = 1;
+  }, null, 2)}\n`);
+  process.exit(failed.length === 0 ? 0 : 1);
 }
 
 main().catch((error) => {
-  console.error(JSON.stringify({ ok: false, fatal: error.message }, null, 2));
+  process.stderr.write(`${error.stack || error.message}\n`);
   process.exitCode = 1;
 });

@@ -13,6 +13,16 @@ async function main() {
     'rentRollSchema.js',
   );
   const schema = await import(`${pathToFileURL(modulePath).href}?contract=${Date.now()}`);
+  const documentPath = path.resolve(
+    __dirname,
+    '..',
+    '..',
+    'src',
+    'features',
+    'logistics-data-platform',
+    'documentContract.js',
+  );
+  const documents = await import(`${pathToFileURL(documentPath).href}?contract=${Date.now()}`);
 
   assert.equal(Array.isArray(schema.RENT_ROLL_COLUMNS), true);
   assert.equal(schema.RENT_ROLL_COLUMNS.length >= 50, true, 'the approved workbook-derived flat schema must be complete');
@@ -87,13 +97,51 @@ async function main() {
   assert.deepEqual(schema.validateUniversalRentRoll([occupied]), []);
   assert.equal(schema.calculateRentRollENoc(occupied), 36_363.64, 'E.NOC must follow the legacy Supabase formula');
 
+  const payload = documents.buildRentRollDocumentPayload([
+    {
+      ...occupied,
+      row_key: 'legacy-row',
+      tenant_key: 'legacy-tenant',
+      source_kind: 'projection',
+      revision: 7,
+      meta: { imported: true },
+      current_total_cost_per_py_krw: 36_363.64,
+      rent_free_months: 1,
+      rent_free_start_date: '2026-02-01',
+      rent_free_end_date: '2026-02-28',
+      rent_free_periods: [{
+        start_date: '2026-02-01',
+        end_date: '2026-02-28',
+        reason: '계약',
+        notes: '확정',
+        period_key: 'legacy-period',
+        source_id: 'legacy-source',
+      }],
+    },
+  ]);
+  assert.equal(payload.rows.length, 1, 'the complete ordered grid must become one rows document');
+  assert.deepEqual(payload.rows[0].rent_free_periods, [{
+    start_date: '2026-02-01',
+    end_date: '2026-02-28',
+    months: 0.89,
+    reason: '계약',
+    notes: '확정',
+  }]);
+  for (const forbidden of [
+    'row_key', 'tenant_key', 'source_kind', 'source_id', 'revision', 'meta',
+    'current_total_cost_per_py_krw', 'rent_free_months', 'rent_free_start_date',
+    'rent_free_end_date', 'period_key',
+  ]) {
+    assert.equal(JSON.stringify(payload).includes(forbidden), false, `${forbidden} leaked into rows document`);
+  }
+
   occupied.expiry_date = '2025-12-31';
   assert.equal(schema.validateUniversalRentRoll([occupied]).length, 1, 'expiry must follow commencement');
   occupied.expiry_date = '2027-01-01';
   occupied.monthly_rent_total_krw = '-1';
   assert.equal(schema.validateUniversalRentRoll([occupied]).length, 1, 'negative inputs must be rejected');
 
-  console.log('PASS logistics flat rent-roll workbook contract');
+  console.log('PASS logistics flat rent-roll UI and full-document contract');
 }
 
 main().catch((error) => {

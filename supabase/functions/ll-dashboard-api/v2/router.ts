@@ -26,20 +26,73 @@ const WRITE_ACTIONS: ReadonlySet<V2PublicAction> = new Set([
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 const UNSIGNED_DECIMAL_PATTERN = /^(?:\d+(?:\.\d*)?|\.\d+)$/u;
-const CUSTOM_ACCOUNT_CODE_PATTERN = /^CUSTOM:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-const FINANCE_STATEMENT_SECTIONS = new Set([
-  'potential_income',
-  'income_loss',
-  'operating_expense',
-  'below_noi',
-  'debt_service',
+const RENT_ROLL_DOCUMENT_FIELDS = new Set([
+  'occupancy_status',
+  'tenant_name',
+  'business_registration_number',
+  'temperature_type',
+  'goods_type',
+  'floor_label',
+  'zone_label',
+  'subtenant_name',
+  'free_area_type',
+  'exclusive_area_sqm',
+  'common_area_sqm',
+  'leased_area_sqm',
+  'signed_date',
+  'commencement_date',
+  'expiry_date',
+  'operation_start_date',
+  'deposit_total_krw',
+  'security_type',
+  'security_ratio',
+  'monthly_rent_total_krw',
+  'monthly_cam_total_krw',
+  'pallet_rack_fee',
+  'rent_free_periods',
+  'fit_out_start_date',
+  'fit_out_end_date',
+  'fit_out_months',
+  'fit_out_amount',
+  'tenant_improvement_amount',
+  'deposit_escalation_first_date',
+  'deposit_escalation_interval_months',
+  'deposit_escalation_rate',
+  'rent_escalation_first_date',
+  'rent_escalation_interval_months',
+  'rent_escalation_rate',
+  'cam_escalation_first_date',
+  'cam_escalation_interval_months',
+  'cam_escalation_rate',
+  'tenant_cost_terms',
+  'landlord_cost_terms',
+  'renewal_terms',
+  'termination_terms',
+  'restoration_terms',
+  'notes',
+]);
+const RENT_ROLL_NUMBER_FIELDS = Object.freeze([
+  'exclusive_area_sqm', 'common_area_sqm', 'leased_area_sqm',
+  'deposit_total_krw', 'monthly_rent_total_krw', 'monthly_cam_total_krw',
+  'pallet_rack_fee', 'fit_out_months', 'fit_out_amount', 'tenant_improvement_amount',
+  'deposit_escalation_interval_months', 'rent_escalation_interval_months',
+  'cam_escalation_interval_months',
+]);
+const RENT_ROLL_DATE_FIELDS = Object.freeze([
+  'signed_date', 'commencement_date', 'expiry_date', 'operation_start_date',
+  'fit_out_start_date', 'fit_out_end_date', 'deposit_escalation_first_date',
+  'rent_escalation_first_date', 'cam_escalation_first_date',
+]);
+const RENT_ROLL_RATE_FIELDS = Object.freeze([
+  'security_ratio', 'deposit_escalation_rate', 'rent_escalation_rate', 'cam_escalation_rate',
 ]);
 
 export type V2ActionRequest = {
   client_request_id?: string;
+  asset_code?: string;
   asset_key?: string;
   payload?: Record<string, unknown>;
-  expected_revisions?: Record<string, number>;
+  expected_revisions?: Record<string, number | string>;
 };
 
 export type V2RpcError = {
@@ -70,157 +123,6 @@ export function isV2PublicAction(action: string): action is V2PublicAction {
 export function rpcNameForAction(action: string): string {
   if (!isV2PublicAction(action)) throw new Error('UNSUPPORTED_ACTION');
   return ACTION_TO_RPC[action];
-}
-
-function normalizeFinancePayload(
-  payload: Record<string, unknown>,
-  clientRequestId: string,
-): Record<string, unknown> {
-  const entries = payload.entries;
-  const existingOperations = payload.operations;
-  const accountOperations = payload.account_operations;
-  const selectionOperations = payload.selection_operations;
-  if (entries !== undefined && !Array.isArray(entries)) throw new Error('FINANCE_ENTRIES_ARRAY_REQUIRED');
-  if (existingOperations !== undefined && !Array.isArray(existingOperations)) {
-    throw new Error('FINANCE_OPERATIONS_ARRAY_REQUIRED');
-  }
-  if (accountOperations !== undefined && !Array.isArray(accountOperations)) {
-    throw new Error('FINANCE_ACCOUNT_OPERATIONS_ARRAY_REQUIRED');
-  }
-  if (selectionOperations !== undefined && !Array.isArray(selectionOperations)) {
-    throw new Error('FINANCE_SELECTION_OPERATIONS_ARRAY_REQUIRED');
-  }
-  if (
-    entries === undefined
-    && existingOperations === undefined
-    && accountOperations === undefined
-    && selectionOperations === undefined
-  ) throw new Error('FINANCE_MUTATION_ARRAY_REQUIRED');
-
-  const totalOperationCount = (Array.isArray(entries) ? entries.length : 0)
-    + (Array.isArray(existingOperations) ? existingOperations.length : 0)
-    + (Array.isArray(accountOperations) ? accountOperations.length : 0)
-    + (Array.isArray(selectionOperations) ? selectionOperations.length : 0);
-  if (totalOperationCount > 1000) throw new Error('BATCH_LIMIT_EXCEEDED');
-
-  const operations = entries === undefined
-    ? [...(Array.isArray(existingOperations) ? existingOperations : [])]
-    : entries.map((value, index) => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      throw new Error('INVALID_FINANCE_ENTRY');
-    }
-    const entry = value as Record<string, unknown>;
-    const operation = String(entry.operation || '');
-    if (!['create', 'update', 'delete'].includes(operation)) throw new Error('INVALID_FINANCE_OPERATION');
-    const existingEntryKey = typeof entry.entry_key === 'string' ? entry.entry_key.trim() : '';
-    if (operation !== 'create' && !existingEntryKey) throw new Error('FINANCE_ENTRY_KEY_REQUIRED');
-    const entryKey = operation === 'create'
-      ? `manual:${clientRequestId}:${index}`
-      : existingEntryKey;
-    const {
-      operation: _operation,
-      entry_key: _entryKey,
-      reason,
-      ...record
-    } = entry;
-    void _operation;
-    void _entryKey;
-    return {
-      operation,
-      entry_key: entryKey,
-      reason,
-      record,
-    };
-  });
-
-  const normalizedAccountOperations = (Array.isArray(accountOperations) ? accountOperations : [])
-    .map((value) => {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        throw new Error('INVALID_FINANCE_ACCOUNT_OPERATION');
-      }
-      const operation = { ...(value as Record<string, unknown>) };
-      const operationName = String(operation.operation || '');
-      if (!['create', 'update', 'delete', 'restore'].includes(operationName)) {
-        throw new Error('INVALID_FINANCE_ACCOUNT_OPERATION');
-      }
-      const clientAccountKey = typeof operation.client_account_key === 'string'
-        ? operation.client_account_key.trim()
-        : '';
-      if (clientAccountKey && !UUID_PATTERN.test(clientAccountKey)) {
-        throw new Error('FINANCE_CLIENT_ACCOUNT_KEY_INVALID');
-      }
-      const suppliedAccountCode = typeof operation.account_code === 'string'
-        ? operation.account_code.trim()
-        : '';
-      const accountCode = suppliedAccountCode || (clientAccountKey ? `CUSTOM:${clientAccountKey}` : '');
-      if (!accountCode || !CUSTOM_ACCOUNT_CODE_PATTERN.test(accountCode)) {
-        throw new Error('FINANCE_CUSTOM_ACCOUNT_CODE_INVALID');
-      }
-      const sourceRecord = operation.record && typeof operation.record === 'object' && !Array.isArray(operation.record)
-        ? operation.record as Record<string, unknown>
-        : {};
-      const record: Record<string, unknown> = {};
-      if (operationName === 'create' || operationName === 'update') {
-        const name = String(sourceRecord.name_ko ?? operation.name_ko ?? '').trim();
-        if (!name || name.length > 60) throw new Error('FINANCE_ACCOUNT_NAME_INVALID');
-        const section = String(sourceRecord.statement_section ?? operation.statement_section ?? '').trim();
-        if (!FINANCE_STATEMENT_SECTIONS.has(section)) throw new Error('FINANCE_ACCOUNT_SECTION_INVALID');
-        record.name_ko = name;
-        record.statement_section = section;
-        for (const key of ['parent_account_code', 'display_order', 'normal_sign']) {
-          if (sourceRecord[key] !== undefined) record[key] = sourceRecord[key];
-        }
-      }
-      return {
-        operation: operationName,
-        account_code: accountCode,
-        client_account_key: clientAccountKey || accountCode.slice('CUSTOM:'.length),
-        ...(operation.expected_revision === undefined ? {} : { expected_revision: operation.expected_revision }),
-        ...(operation.reason === undefined ? {} : { reason: operation.reason }),
-        record,
-      };
-    });
-
-  const normalizedSelectionOperations = (Array.isArray(selectionOperations) ? selectionOperations : [])
-    .map((value) => {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        throw new Error('INVALID_FINANCE_SELECTION_OPERATION');
-      }
-      const operation = { ...(value as Record<string, unknown>) };
-      if (operation.operation !== 'upsert') throw new Error('INVALID_FINANCE_SELECTION_OPERATION');
-      const clientAccountKey = typeof operation.client_account_key === 'string'
-        ? operation.client_account_key.trim()
-        : '';
-      if (clientAccountKey && !UUID_PATTERN.test(clientAccountKey)) {
-        throw new Error('FINANCE_CLIENT_ACCOUNT_KEY_INVALID');
-      }
-      const accountCode = String(operation.account_code || (clientAccountKey ? `CUSTOM:${clientAccountKey}` : '')).trim();
-      if (!accountCode) throw new Error('FINANCE_SELECTION_ACCOUNT_REQUIRED');
-      if (accountCode.startsWith('CUSTOM:') && !CUSTOM_ACCOUNT_CODE_PATTERN.test(accountCode)) {
-        throw new Error('FINANCE_CUSTOM_ACCOUNT_CODE_INVALID');
-      }
-      if (typeof operation.selected !== 'boolean') throw new Error('FINANCE_SELECTION_BOOLEAN_REQUIRED');
-      return {
-        operation: 'upsert',
-        account_code: accountCode,
-        client_account_key: clientAccountKey || (accountCode.startsWith('CUSTOM:')
-          ? accountCode.slice('CUSTOM:'.length)
-          : ''),
-        selected: operation.selected,
-        ...(operation.expected_revision === undefined ? {} : { expected_revision: operation.expected_revision }),
-        ...(operation.reason === undefined ? {} : { reason: operation.reason }),
-      };
-    });
-
-  const { entries: _entries, operations: _existingOperations, ...rest } = payload;
-  void _entries;
-  void _existingOperations;
-  return {
-    ...rest,
-    operations,
-    account_operations: normalizedAccountOperations,
-    selection_operations: normalizedSelectionOperations,
-  };
 }
 
 function normalizeIsoDate(value: unknown, errorCode: string): string | null {
@@ -262,6 +164,18 @@ function normalizeEscalationRate(value: unknown): string | null {
   return canonicalPercent(numeric);
 }
 
+function normalizeRentRollNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    throw new Error('RENT_ROLL_NUMBER_INVALID');
+  }
+  const raw = String(value).trim().replaceAll(',', '');
+  if (!UNSIGNED_DECIMAL_PATTERN.test(raw)) throw new Error('RENT_ROLL_NUMBER_INVALID');
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric) || numeric < 0) throw new Error('RENT_ROLL_NUMBER_INVALID');
+  return numeric;
+}
+
 function normalizeOptionTerm(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   const normalized = value.trim();
@@ -284,12 +198,13 @@ function normalizeRentFreePeriods(value: unknown): Array<Record<string, unknown>
     const source = period as Record<string, unknown>;
     const startDate = normalizeIsoDate(source.start_date, 'INVALID_RENT_FREE_PERIOD');
     const endDate = normalizeIsoDate(source.end_date, 'INVALID_RENT_FREE_PERIOD');
+    if (Boolean(startDate) !== Boolean(endDate)) throw new Error('INVALID_RENT_FREE_PERIOD');
     if (startDate && endDate && endDate < startDate) throw new Error('INVALID_RENT_FREE_PERIOD');
 
     let months: number | null = null;
     if (source.months !== null && source.months !== undefined && source.months !== '') {
       months = Number(source.months);
-      if (!Number.isFinite(months) || months < 0) throw new Error('INVALID_RENT_FREE_PERIOD');
+      if (!Number.isFinite(months) || months <= 0) throw new Error('INVALID_RENT_FREE_PERIOD');
     }
     const reason = typeof source.reason === 'string' ? source.reason.trim() : source.reason;
     const notes = typeof source.notes === 'string' ? source.notes.trim() : source.notes;
@@ -297,9 +212,7 @@ function normalizeRentFreePeriods(value: unknown): Array<Record<string, unknown>
       throw new Error('INVALID_RENT_FREE_PERIOD');
     }
     return {
-      ...source,
-      start_date: startDate,
-      end_date: endDate,
+      ...(startDate && endDate ? { start_date: startDate, end_date: endDate } : {}),
       months,
       reason: reason || null,
       notes: notes || null,
@@ -313,15 +226,18 @@ function normalizeRentRollPayload(payload: Record<string, unknown>): Record<stri
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new Error('INVALID_RENT_ROLL_ROW');
     }
-    const row = { ...(value as Record<string, unknown>) };
-    if (Object.hasOwn(row, 'deposit_escalation_rate')) {
-      row.deposit_escalation_rate = normalizeEscalationRate(row.deposit_escalation_rate);
+    const source = value as Record<string, unknown>;
+    const row = Object.fromEntries(
+      Object.entries(source).filter(([field]) => RENT_ROLL_DOCUMENT_FIELDS.has(field)),
+    );
+    for (const field of RENT_ROLL_NUMBER_FIELDS) {
+      if (Object.hasOwn(row, field)) row[field] = normalizeRentRollNumber(row[field]);
     }
-    if (Object.hasOwn(row, 'rent_escalation_rate')) {
-      row.rent_escalation_rate = normalizeEscalationRate(row.rent_escalation_rate);
+    for (const field of RENT_ROLL_DATE_FIELDS) {
+      if (Object.hasOwn(row, field)) row[field] = normalizeIsoDate(row[field], 'RENT_ROLL_DATE_INVALID');
     }
-    if (Object.hasOwn(row, 'cam_escalation_rate')) {
-      row.cam_escalation_rate = normalizeEscalationRate(row.cam_escalation_rate);
+    for (const field of RENT_ROLL_RATE_FIELDS) {
+      if (Object.hasOwn(row, field)) row[field] = normalizeEscalationRate(row[field]);
     }
     if (Object.hasOwn(row, 'renewal_terms')) row.renewal_terms = normalizeOptionTerm(row.renewal_terms);
     if (Object.hasOwn(row, 'termination_terms')) row.termination_terms = normalizeOptionTerm(row.termination_terms);
@@ -333,6 +249,15 @@ function normalizeRentRollPayload(payload: Record<string, unknown>): Record<stri
     }
     if (Object.hasOwn(row, 'fit_out_start_date')) row.fit_out_start_date = fitOutStartDate;
     if (Object.hasOwn(row, 'fit_out_end_date')) row.fit_out_end_date = fitOutEndDate;
+    if (Object.hasOwn(row, 'fit_out_months')) {
+      if (row.fit_out_months === null || row.fit_out_months === '') {
+        row.fit_out_months = null;
+      } else {
+        const fitOutMonths = Number(row.fit_out_months);
+        if (!Number.isFinite(fitOutMonths) || fitOutMonths < 0) throw new Error('FIT_OUT_MONTHS_INVALID');
+        row.fit_out_months = fitOutMonths;
+      }
+    }
     if (Object.hasOwn(row, 'rent_free_periods')) {
       row.rent_free_periods = normalizeRentFreePeriods(row.rent_free_periods);
     }
@@ -353,27 +278,51 @@ export function buildRpcArguments(
   }
   if (action === 'v2/rent-roll/batch-save') {
     const rows = request.payload?.rows;
-    const operations = request.payload?.operations;
-    if (!Array.isArray(rows) && !Array.isArray(operations)) {
-      throw new Error('ROWS_OR_OPERATIONS_ARRAY_REQUIRED');
+    const rawExpectedXmin = request.payload?.expected_xmin;
+    const expectedXmin = typeof rawExpectedXmin === 'string' && /^\d+$/u.test(rawExpectedXmin)
+      ? rawExpectedXmin
+      : typeof rawExpectedXmin === 'number'
+        && Number.isSafeInteger(rawExpectedXmin)
+        && rawExpectedXmin >= 0
+        ? String(rawExpectedXmin)
+        : null;
+    const isDocument = Array.isArray(rows)
+      && expectedXmin !== null
+      && !Array.isArray(request.payload?.operations)
+      && rows.every((row) => !(
+        row
+        && typeof row === 'object'
+        && !Array.isArray(row)
+        && Object.hasOwn(row, 'operation')
+      ));
+    if (!isDocument) throw new Error('RENT_ROLL_DOCUMENT_REQUIRED');
+    if (rows.length > 2000) {
+      throw new Error('BATCH_LIMIT_EXCEEDED');
     }
-    if ((Array.isArray(rows) && rows.length > 500) || (Array.isArray(operations) && operations.length > 500)) {
+    request.payload = { ...request.payload, expected_xmin: expectedXmin };
+  }
+  if (action === 'v2/home/batch-save') {
+    const asset = request.payload?.asset;
+    const funds = request.payload?.funds;
+    const isDocument = Boolean(asset && typeof asset === 'object' && !Array.isArray(asset) && Array.isArray(funds));
+    if (!isDocument || Array.isArray(request.payload?.operations)) throw new Error('HOME_DOCUMENT_REQUIRED');
+    if (Array.isArray(funds) && funds.length > 50) {
       throw new Error('BATCH_LIMIT_EXCEEDED');
     }
   }
-  if (action === 'v2/home/batch-save') {
-    const operations = request.payload?.operations;
-    if (!Array.isArray(operations)) throw new Error('HOME_OPERATIONS_ARRAY_REQUIRED');
-    if (operations.length > 200) throw new Error('BATCH_LIMIT_EXCEEDED');
+  const financeStatement = request.payload?.statement;
+  const isFinanceDocument = Boolean(
+    financeStatement && typeof financeStatement === 'object' && !Array.isArray(financeStatement),
+  );
+  if (action === 'v2/finance/batch-save' && !isFinanceDocument) {
+    throw new Error('FINANCE_DOCUMENT_REQUIRED');
   }
-  const rpcPayload = action === 'v2/finance/batch-save'
-    ? normalizeFinancePayload(request.payload ?? {}, request.client_request_id as string)
-    : action === 'v2/rent-roll/batch-save'
-      ? normalizeRentRollPayload(request.payload ?? {})
-      : request.payload ?? {};
+  const rpcPayload = action === 'v2/rent-roll/batch-save'
+    ? normalizeRentRollPayload(request.payload ?? {})
+    : request.payload ?? {};
   return {
     p_request_id: request.client_request_id ?? crypto.randomUUID(),
-    p_asset_key: request.asset_key ?? null,
+    p_asset_key: request.asset_code ?? request.asset_key ?? null,
     p_payload: rpcPayload,
     p_expected_revisions: request.expected_revisions ?? {},
   };

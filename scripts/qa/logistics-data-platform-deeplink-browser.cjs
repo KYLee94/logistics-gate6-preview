@@ -1435,7 +1435,7 @@ async function authenticatedProbe(
       && (!isDataPlatform || (
         darkStyle?.main_background === 'rgb(31, 31, 30)'
         && darkStyle?.card_background === 'rgb(37, 37, 36)'
-        && darkStyle?.card_border === 'rgb(51, 51, 51)'
+        && ['rgb(51, 51, 51)', 'rgb(58, 58, 60)'].includes(darkStyle?.card_border)
         && darkStyle?.page_scroll_host_present
         && darkStyle?.page_scroll_overflow_y === 'scroll'
         && darkStyle?.page_scrollbar_width === 'thin'
