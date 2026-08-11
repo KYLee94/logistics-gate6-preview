@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const { assertQaMutationOptIn } = require('./lib/qa-mutation-guard.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
@@ -137,6 +138,10 @@ function assertStatus(result, expected) {
 }
 
 async function main() {
+  assertQaMutationOptIn({
+    flag: 'allow-mutation',
+    purpose: 'Data-quality submit/approve/database readback probe',
+  });
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   const origin = argsValue('origin', DEFAULT_ORIGIN);

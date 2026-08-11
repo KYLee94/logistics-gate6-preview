@@ -78,6 +78,7 @@ import {
   normalizeAssetDirectory,
   normalizeHomeOccupancySummary,
   normalizeMaturityRows,
+  nextCustomFinanceAccountCode,
   primaryHomeDataForAsset,
   projectIncomeExpenseStatement,
   reconcileAssetCode,
@@ -128,6 +129,7 @@ const DEFAULT_FINANCE_ACCOUNT_CODES = Object.freeze(
 );
 const INPUT_CLASS =
   "w-full rounded-[6px] border border-transparent bg-transparent px-2 py-1.5 text-sm text-white outline-none hover:border-[#3A3A3C] focus:border-[#5E9EFF] focus:bg-[#202020] disabled:opacity-50";
+const HOME_FUND_AUM_INFO = "AUM 기준은 2026-07-31일 기준입니다.";
 
 function todayKst() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -182,19 +184,72 @@ function rowId(row) {
   return row._draft_id;
 }
 
+function useAccessibleModal({
+  open,
+  onClose,
+  initialFocusRef = null,
+  returnFocusRef = null,
+}) {
+  const dialogRef = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const documentRef = globalThis.document;
+    const previousFocus = returnFocusRef?.current || documentRef?.activeElement;
+    const focusTarget = initialFocusRef?.current
+      || dialogRef.current?.querySelector(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )
+      || dialogRef.current;
+    focusTarget?.focus?.({ preventScroll: true });
+    const closeOnEscape = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeRef.current?.();
+    };
+    documentRef?.addEventListener?.("keydown", closeOnEscape, true);
+    return () => {
+      documentRef?.removeEventListener?.("keydown", closeOnEscape, true);
+      if (previousFocus?.isConnected === false) return;
+      previousFocus?.focus?.({ preventScroll: true });
+    };
+  }, [initialFocusRef, open, returnFocusRef]);
+  return dialogRef;
+}
+
 function LoadingLine({ visible }) {
   return visible ? (
-    <div className="h-0.5 w-full animate-pulse rounded bg-[#5E9EFF]" />
+    <div
+      role="status"
+      aria-live="polite"
+      className="h-0.5 w-full animate-pulse rounded bg-[#5E9EFF]"
+    >
+      <span className="sr-only">데이터 불러오는 중</span>
+    </div>
   ) : null;
 }
 function DataPlatformErrorDialog({ error, onDismiss }) {
   const [dismissed, setDismissed] = useState(false);
+  const confirmButtonRef = useRef(null);
   useEffect(() => setDismissed(false), [error]);
-  if (!error || dismissed) return null;
+  const open = Boolean(error) && !dismissed;
+  const dismiss = () => {
+    setDismissed(true);
+    onDismiss?.();
+  };
+  const dialogRef = useAccessibleModal({
+    open,
+    onClose: dismiss,
+    initialFocusRef: confirmButtonRef,
+  });
+  if (!open) return null;
   const message = error.userMessage ?? friendlyDataPlatformError(error);
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4">
       <section
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="data-platform-error-title"
@@ -205,11 +260,9 @@ function DataPlatformErrorDialog({ error, onDismiss }) {
         <p className="mt-3 text-sm leading-6 text-[#D1D1D6]">{message}</p>
         <div className="mt-5 flex justify-end">
           <button
+            ref={confirmButtonRef}
             type="button"
-            onClick={() => {
-              setDismissed(true);
-              onDismiss?.();
-            }}
+            onClick={dismiss}
             className="rounded-[8px] border border-[#3A3A3C] px-4 py-2 text-sm font-semibold text-white hover:bg-[#303030]"
           >
             확인
@@ -680,15 +733,23 @@ function MaturityList({
   selected: controlledSelected,
   onSelect,
   onClose,
+  returnFocusRef = null,
   renderList = true,
   renderDialog = true,
 }) {
   const [internalSelected, setInternalSelected] = useState(null);
+  const closeButtonRef = useRef(null);
   const selected = controlledSelected === undefined ? internalSelected : controlledSelected;
   const closeMaturity = () => {
     if (controlledSelected === undefined) setInternalSelected(null);
     onClose?.();
   };
+  const dialogRef = useAccessibleModal({
+    open: Boolean(renderDialog && selected),
+    onClose: closeMaturity,
+    initialFocusRef: closeButtonRef,
+    returnFocusRef,
+  });
   const typeLabel = {
     lease: "임대차",
     fund: "펀드",
@@ -745,6 +806,8 @@ function MaturityList({
       {renderDialog && selected ? (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4">
           <section
+            ref={dialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="maturity-detail-title"
@@ -761,6 +824,7 @@ function MaturityList({
                 </h2>
               </div>
               <button
+                ref={closeButtonRef}
                 type="button"
                 onClick={closeMaturity}
                 className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-xs font-semibold text-white hover:bg-[#303030]"
@@ -1046,7 +1110,17 @@ function HomePanel({ assetCode, resource, maturities }) {
                       key={label}
                       className="border-b border-[#333333] px-2 py-2 text-left"
                     >
-                      {label}
+                      {label === "AUM(원)" ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          {label}
+                          <GoodsInfoTooltip
+                            option="AUM"
+                            description={HOME_FUND_AUM_INFO}
+                            content={HOME_FUND_AUM_INFO}
+                            ariaLabel="AUM 기준일 안내"
+                          />
+                        </span>
+                      ) : label}
                     </th>
                   ))}
                 </tr>
@@ -1348,14 +1422,11 @@ function rentFreePeriodsFromRow(row = {}) {
 function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
   const [periods, setPeriods] = useState(() => rentFreePeriodsFromRow(row));
   const firstInputRef = useRef(null);
-  useEffect(() => {
-    firstInputRef.current?.focus();
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape") onClose();
-    };
-    globalThis.addEventListener?.("keydown", closeOnEscape);
-    return () => globalThis.removeEventListener?.("keydown", closeOnEscape);
-  }, [onClose]);
+  const dialogRef = useAccessibleModal({
+    open: true,
+    onClose,
+    initialFocusRef: firstInputRef,
+  });
   const invalid = periods.some((period) => !isValidRentFreePeriod(period));
   const updatePeriod = (id, field, value) => setPeriods((current) => current.map((period) => {
     if (period.id !== id) return period;
@@ -1373,6 +1444,8 @@ function RentFreePeriodsDialog({ row, disabled, onClose, onSave }) {
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4">
       <section
+        ref={dialogRef}
+        tabIndex={-1}
         data-testid="rent-free-period-dialog"
         role="dialog"
         aria-modal="true"
@@ -1553,7 +1626,7 @@ function PresetTextCell({
   );
 }
 
-function GoodsInfoTooltip({ option, description }) {
+function GoodsInfoTooltip({ option, description, content = null, ariaLabel = "" }) {
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ left: 12, top: 12, width: 336 });
   const tooltipId = useId();
@@ -1614,7 +1687,7 @@ function GoodsInfoTooltip({ option, description }) {
     >
       <button
         type="button"
-        aria-label={`${option} 분류 설명`}
+        aria-label={ariaLabel || `${option} 분류 설명`}
         aria-describedby={tooltipId}
         onFocus={handleFocus}
         onBlur={closeTooltip}
@@ -1634,14 +1707,18 @@ function GoodsInfoTooltip({ option, description }) {
             className="pointer-events-none fixed z-[250] max-h-[calc(100vh-24px)] overflow-y-auto rounded-[10px] border border-[#4A4A4F] bg-[#161616] px-3.5 py-3 text-left text-[13px] font-normal leading-[1.55] text-[#E5E5EA] shadow-2xl"
             style={{ left: position.left, top: position.top, width: position.width }}
           >
-            <ul className="list-disc space-y-2 pl-5">
-              {infoSections.map((section) => (
-                <li key={section.label}>
-                  <strong className="font-bold text-white">{section.label}</strong>
-                  <span className="ml-1">{section.text}</span>
-                </li>
-              ))}
-            </ul>
+            {content ? (
+              <span>{content}</span>
+            ) : (
+              <ul className="list-disc space-y-2 pl-5">
+                {infoSections.map((section) => (
+                  <li key={section.label}>
+                    <strong className="font-bold text-white">{section.label}</strong>
+                    <span className="ml-1">{section.text}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </span>,
           document.body,
         )
@@ -1876,7 +1953,7 @@ function RentRollPanel({ assetCode }) {
   useEffect(() => {
     if (!resource.data) return;
     const source = Array.isArray(resource.data?.rows) ? resource.data.rows : [];
-    const primaryRows = sortRows(rentRollRowsFromReadback(source), DEFAULT_SORT);
+    const primaryRows = rentRollRowsFromReadback(source);
     let restoredDocumentRevision = resource.revision;
     let restoredRows = primaryRows;
     let restoredSort = DEFAULT_SORT;
@@ -3079,7 +3156,7 @@ function FinancePanel({ assetCode, assets }) {
   const addCustomFinanceAccount = async (section) => {
     const name = String(customAccountDrafts[section] || "").trim();
     if (!name || name.length > 60 || accountMutationPending) return;
-    const accountCode = `DOCUMENT:${section}:${accounts.length}`;
+    const accountCode = nextCustomFinanceAccountCode(accounts, section);
     const displayOrder = Math.max(
       0,
       ...accounts
@@ -3773,6 +3850,7 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
         rows={[]}
         selected={selectedHeaderMaturity}
         renderList={false}
+        returnFocusRef={maturityButtonRef}
         onClose={() => setSelectedHeaderMaturity(null)}
       />
       <div className="mx-auto max-w-[1680px] px-8 py-6">

@@ -492,6 +492,21 @@ export function projectIncomeExpenseStatement(statement = {}, definitions = []) 
   return { periods: canonical.periods, accounts, entries, selectedAccountCodes };
 }
 
+export function nextCustomFinanceAccountCode(accounts = [], section = '') {
+  const normalizedSection = String(section || '').trim();
+  const prefix = `DOCUMENT:${normalizedSection}:`;
+  const usedSuffixes = new Set(
+    (Array.isArray(accounts) ? accounts : [])
+      .map((account) => String(account?.account_code || ''))
+      .filter((code) => code.startsWith(prefix))
+      .map((code) => Number(code.slice(prefix.length)))
+      .filter((suffix) => Number.isSafeInteger(suffix) && suffix >= 0),
+  );
+  let nextSuffix = usedSuffixes.size ? Math.max(...usedSuffixes) + 1 : 0;
+  while (usedSuffixes.has(nextSuffix)) nextSuffix += 1;
+  return `${prefix}${nextSuffix}`;
+}
+
 export function buildIncomeExpenseStatement({
   accounts = [], entries = [], selectedAccountCodes = [],
 } = {}) {

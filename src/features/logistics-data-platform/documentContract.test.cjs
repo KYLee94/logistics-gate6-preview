@@ -70,6 +70,18 @@ test('수익비용 저장은 화면 전체 statement 문서를 그대로 정규�
   } });
 });
 
+test('사용자 수익비용 계정 코드는 앞 행 삭제 후에도 남은 계정과 충돌하지 않는다', async () => {
+  const { nextCustomFinanceAccountCode } = await contract();
+  const accounts = [
+    { account_code: 'RENT_REVENUE', statement_section: 'potential_income' },
+    { account_code: 'DOCUMENT:operating_expense:29', statement_section: 'operating_expense' },
+    { account_code: 'DOCUMENT:operating_expense:30', statement_section: 'operating_expense' },
+  ];
+
+  assert.equal(nextCustomFinanceAccountCode(accounts, 'operating_expense'), 'DOCUMENT:operating_expense:31');
+  assert.equal(nextCustomFinanceAccountCode(accounts, 'below_noi'), 'DOCUMENT:below_noi:0');
+});
+
 test('수익비용 amounts는 유효한 YYYY-MM 키와 유한 숫자만 저장한다', async () => {
   const { buildIncomeExpenseDocumentPayload } = await contract();
   const payload = buildIncomeExpenseDocumentPayload({

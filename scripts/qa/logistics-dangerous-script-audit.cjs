@@ -20,7 +20,7 @@ const RULES = [
   { key: 'supabase-upsert', regex: /\.from\s*\([^)]*\)[\s\S]{0,240}?\.upsert\s*\(/gu },
   {
     key: 'mutation-action',
-    regex: /(?:\binvoke\s*\([\s\S]{0,400}?|\baction\s*:\s*)['"][^'"]*(?:cleanup|delete|save|submit|approve|reject|restore|backfill|publish|refresh)[^'"]*['"]/giu,
+    regex: /(?:\b(?:invoke|invokeWithRetry)\s*\((?:(?!\)\s*;)[\s\S]){0,600}?,\s*|\baction\s*:\s*)['"][a-z0-9/_-]*(?:apply|cleanup|delete|save|submit|approve|reject|restore|backfill|publish|refresh)[a-z0-9/_-]*['"]/giu,
   },
   { key: 'recursive-delete', regex: /rmSync\s*\([^)]*recursive\s*:\s*true|Remove-Item\b[^;\n]*-Recurse/giu },
   { key: 'service-role', regex: /SERVICE_ROLE|service_role/giu, privilegeOnly: true },
@@ -49,12 +49,29 @@ function hasExplicitApplyGuard(text) {
 
 function hasGuardedQaCleanup(text) {
   return /\bfinally\s*\{/u.test(text)
-    && /(?:cleanup|dedupe_key|qa[_-](?:row|stamp|probe)|tempDir)/iu.test(text)
+    && /(?:cleanup|dedupe_key|qa[_-](?:row|stamp|probe)|tempDir|mkdtempSync)/iu.test(text)
     && /(?:delete\s+from|\.delete\s*\(|rmSync\s*\()/iu.test(text);
 }
 
 function hasQaMutationOptIn(text) {
-  return /--allow-(?:submit|write|mutation)|QA_ALLOW_[A-Z_]*(?:SUBMIT|WRITE|MUTATION)/u.test(text);
+  const sharedGuard = /require\(['"]\.\/lib\/qa-mutation-guard\.cjs['"]\)/u.test(text)
+    && /\bassertQaMutationOptIn\s*\(\s*\{/u.test(text);
+  const inlineGuard = /if\s*\([^)]*(?:hasFlag|hasArg)\(\s*['"]allow-(?:submit|write|mutation)['"]\s*\)/u.test(text)
+    || /const\s+allow(?:Submit|Write|Mutation)\s*=\s*(?:hasFlag|hasArg)\(\s*['"]allow-(?:submit|write|mutation)['"]\s*\)/u.test(text);
+  return sharedGuard || inlineGuard;
+}
+
+function sqlFindingIsExecutable(rel, text, index) {
+  if (path.extname(rel) === '.sql') return true;
+  const prefix = text.slice(Math.max(0, index - 600), index);
+  return /(?:runQuery|runLinkedDbQuery)\s*\(\s*`[^`]*$/u.test(prefix);
+}
+
+function findingIsExecutable(rel, text, rule, match) {
+  if (rule.key.startsWith('sql-') || rule.key === 'db-drop-cascade') {
+    return sqlFindingIsExecutable(rel, text, match.index);
+  }
+  return true;
 }
 
 function canExecuteMutation(text) {
@@ -78,9 +95,13 @@ function analyzeText(rel, text, guardText = text) {
   const executable = canExecuteMutation(guardText);
   for (const rule of RULES) {
     rule.regex.lastIndex = 0;
-    const match = rule.regex.exec(text);
+    let match = rule.regex.exec(text);
+    while (match && !findingIsExecutable(rel, text, rule, match)) {
+      match = rule.regex.exec(text);
+    }
     if (!match) continue;
-    const severity = rule.privilegeOnly || rule.alwaysBlocking || executable
+    const matchExecutable = findingIsExecutable(rel, text, rule, match);
+    const severity = rule.privilegeOnly || (rule.alwaysBlocking && matchExecutable) || executable
       ? severityFor(rel, guardText, rule)
       : 'review';
     findings.push({
@@ -176,6 +197,48 @@ function runSelfTest() {
       text: 'drop table if exists public.example cascade;',
       expectBlocking: true,
     },
+    {
+      name: 'qa flag mention without an enforced guard blocks',
+      rel: 'scripts/qa/flag-only.cjs',
+      text: "const help = '--allow-write'; invoke(url, token, 'v2/home/batch-save', payload);",
+      expectBlocking: true,
+    },
+    {
+      name: 'shared qa mutation guard is reviewed',
+      rel: 'scripts/qa/guarded.cjs',
+      text: "const { assertQaMutationOptIn } = require('./lib/qa-mutation-guard.cjs'); assertQaMutationOptIn({ flag: 'allow-write' }); invoke(url, token, 'v2/home/batch-save', payload);",
+      expectBlocking: false,
+    },
+    {
+      name: 'read action with nearby rejected prose is not a mutation',
+      rel: 'scripts/qa/chat.cjs',
+      text: "invoke(endpoint, key, origin, token, 'ai/search-chat', payload); const note = 'expected one request to be rejected';",
+      expectBlocking: false,
+    },
+    {
+      name: 'preview action with can-submit metadata is not a mutation',
+      rel: 'scripts/qa/preview.cjs',
+      text: "invoke(endpoint, key, token, 'data-management/preview-edit', { can_submit: true });",
+      expectBlocking: false,
+    },
+    {
+      name: 'display-only SQL wording is not executable SQL',
+      rel: 'scripts/qa/static-copy.cjs',
+      text: "invoke(endpoint, token, 'dashboard/read', {}); const label = 'chart does not truncate table rows';",
+      expectBlocking: false,
+    },
+    {
+      name: 'runQuery SQL remains blocking without opt-in',
+      rel: 'scripts/qa/query.cjs',
+      text: "runQuery(`update public.records set value = 1`);",
+      expectBlocking: true,
+    },
+    {
+      name: 'temporary recursive cleanup is reviewed',
+      rel: 'scripts/qa/temp.cjs',
+      text: "const root = fs.mkdtempSync('qa-'); try { check(root); } finally { fs.rmSync(root, { recursive: true, force: true }); }",
+      expectBlocking: false,
+    },
   ];
   const results = fixtures.map((fixture) => {
     const findings = analyzeText(fixture.rel, fixture.text);
@@ -191,10 +254,12 @@ if (process.argv.includes('--self-test')) {
   runSelfTest();
 } else {
   const findings = [];
-  const fullScan = process.argv.includes('--full');
+  const qaOnly = process.argv.includes('--qa-only');
+  const fullScan = process.argv.includes('--full') || qaOnly;
   const baseRef = auditBaseRef();
   const additions = fullScan ? null : changedAdditions(baseRef);
-  for (const file of walk(ROOT)) {
+  const scanRoot = qaOnly ? path.join(ROOT, 'scripts', 'qa') : ROOT;
+  for (const file of walk(scanRoot)) {
     const rel = path.relative(ROOT, file).replace(/\\/gu, '/');
     if (rel === SELF_PATH) continue;
     const fullText = fs.readFileSync(file, 'utf8');
@@ -205,7 +270,7 @@ if (process.argv.includes('--self-test')) {
   const report = {
     ok: findings.every((finding) => finding.severity !== 'blocking'),
     generated_at: new Date().toISOString(),
-    scope: fullScan ? 'full_repository' : 'changed_additions',
+    scope: qaOnly ? 'qa_scripts_full' : fullScan ? 'full_repository' : 'changed_additions',
     base_ref: fullScan ? null : baseRef,
     blocking_count: findings.filter((finding) => finding.severity === 'blocking').length,
     review_count: findings.filter((finding) => finding.severity === 'review').length,

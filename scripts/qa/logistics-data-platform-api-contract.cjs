@@ -120,6 +120,7 @@ async function main() {
         rows: [{
           tenant_name: '쿠팡',
           leased_area_sqm: 100,
+          deposit_escalation_enabled: false,
           rent_escalation_rate: 0.03,
           row_key: 'legacy-row',
           source_kind: 'legacy-source',

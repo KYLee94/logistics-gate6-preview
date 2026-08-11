@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
+const { assertQaMutationOptIn } = require('./lib/qa-mutation-guard.cjs');
 
 const root = path.resolve(__dirname, '..', '..');
 
@@ -289,13 +290,18 @@ async function runAllAssetsAllFields({ schema, token, assets, execute }) {
 }
 
 async function main() {
+  const execute = hasArg('execute-safe-noop');
+  assertQaMutationOptIn({
+    enabled: execute,
+    flag: 'allow-write',
+    purpose: 'Rent-roll live same-value write probe',
+  });
   assert.ok(supabaseUrl && anonKey, 'Supabase URL/anon key is missing');
   const schemaPath = path.join(root, 'src/features/logistics-data-platform/rentRollSchema.js');
   const schema = await import(`${pathToFileURL(schemaPath).href}?matrix=${Date.now()}`);
   const token = await accessToken();
   const home = await invoke('v2/home/read', token, {});
   const readableAssets = (home.data.assets || []).filter((asset) => asset?.asset_key);
-  const execute = hasArg('execute-safe-noop');
   if (hasArg('all-assets') && hasArg('all-fields')) {
     assert.equal(readableAssets.length, 19, 'Readable asset count drifted from the release baseline');
     const evidence = await runAllAssetsAllFields({

@@ -17,6 +17,20 @@ test('운영 문서 QA는 기본 read-only이고 쓰기는 명시적 브라우�
   assert.notEqual(result.status, 0);
   assert.match(
     `${result.stdout}\n${result.stderr}`,
+    /fail-closed[\s\S]*--allow-write/u,
+  );
+
+  const missingRollbackConfirmation = spawnSync(process.execPath, [
+    scriptPath,
+    '--exercise-browser-writes',
+    '--allow-write',
+  ], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  assert.notEqual(missingRollbackConfirmation.status, 0);
+  assert.match(
+    `${missingRollbackConfirmation.stdout}\n${missingRollbackConfirmation.stderr}`,
     /--exercise-browser-writes requires --confirm-production-rollback/u,
   );
 });

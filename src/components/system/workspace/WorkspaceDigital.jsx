@@ -136,27 +136,13 @@ export default function WorkspaceDigital() {
             
             if (error) throw error;
 
-            // [자동 동기화 로직] DB가 비어있고, 로컬 스토리지에 백업본이 있다면 자동으로 DB에 업로드합니다.
+            // DB가 비어 있으면 로컬 백업을 화면에만 복원합니다. 원격 저장은 사용자 저장 동작에서만 수행합니다.
             const saved = localStorage.getItem('iota_digital_tasks_fallback');
             if ((!data || data.length === 0) && saved) {
                 const localTasks = JSON.parse(saved);
-                if (localTasks.length > 0) {
-                    console.log("Syncing local tasks to newly created Supabase table...");
-                    // temp- id를 제거하고 삽입 (DB에서 uuid 자동 생성)
-                    const tasksToInsert = localTasks.map(t => {
-                        const { id, ...rest } = t;
-                        return (id && String(id).startsWith('temp-')) ? rest : t;
-                    });
-                    
-                    const { error: insertError } = await supabase.from('iota_digital_tasks').insert(tasksToInsert);
-                    if (!insertError) {
-                        localStorage.removeItem('iota_digital_tasks_fallback'); // 동기화 성공 시 백업 삭제
-                        
-                        // 다시 DB에서 최신 데이터 불러오기
-                        const { data: newData } = await supabase.from('iota_digital_tasks').select('*').order('created_at', { ascending: false });
-                        setTasks(newData || []);
-                        return;
-                    }
+                if (Array.isArray(localTasks) && localTasks.length > 0) {
+                    setTasks(localTasks);
+                    return;
                 }
             }
             

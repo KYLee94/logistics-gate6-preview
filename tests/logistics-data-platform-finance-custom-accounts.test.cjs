@@ -107,7 +107,7 @@ test('각 NOI hierarchy는 계정 추가와 Supabase 선택 저장·readback 계
   assert.match(financeSource, /expected_xmin:\s*financeRevision/u);
   assert.match(financeSource, /documentsEqual\(documentPayload,\s*readbackPayload\)/u);
   assert.match(financeSource, /statement_section:/u);
-  assert.match(financeSource, /const\s+accountCode\s*=\s*`DOCUMENT:\$\{section\}:\$\{accounts\.length\}`/u);
+  assert.match(financeSource, /const\s+accountCode\s*=\s*nextCustomFinanceAccountCode\(accounts,\s*section\)/u);
   assert.match(financeSource, /account_code:\s*accountCode/u);
   assert.match(financeSource, /saveFinanceDocument\(\{ nextAccounts, nextSelectedAccountCodes \}\)/u);
   assert.match(financeSource, /replaceFinanceCellValue\([\s\S]*?saveFinanceDocument\(\{ nextEntries \}\)/u);

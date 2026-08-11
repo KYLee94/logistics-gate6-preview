@@ -30,6 +30,41 @@ test('home document save accepts the exact asset and fund documents without lega
   assert.equal(Object.hasOwn(args.p_payload, 'operations'), false);
 });
 
+test('home document save rejects an asset/fund envelope that the four-table writer would only partially apply', async () => {
+  const router = await routerModule();
+  const baseRequest = {
+    client_request_id: '11111111-1111-4111-8111-111111111112',
+    asset_code: 'ASSET-01',
+  };
+
+  assert.throws(() => router.buildRpcArguments('v2/home/batch-save', {
+    ...baseRequest,
+    payload: {
+      asset: { asset_code: 'ASSET-02', fund_code: 'FUND-01' },
+      funds: [{ fund_code: 'FUND-01', investments: [], loans: [] }],
+    },
+  }), /HOME_ASSET_CODE_MISMATCH/);
+
+  assert.throws(() => router.buildRpcArguments('v2/home/batch-save', {
+    ...baseRequest,
+    payload: {
+      asset: { asset_code: 'ASSET-01', fund_code: 'FUND-01' },
+      funds: [
+        { fund_code: 'FUND-01', investments: [], loans: [] },
+        { fund_code: 'FUND-02', investments: [], loans: [] },
+      ],
+    },
+  }), /HOME_SINGLE_LINKED_FUND_REQUIRED/);
+
+  assert.throws(() => router.buildRpcArguments('v2/home/batch-save', {
+    ...baseRequest,
+    payload: {
+      asset: { asset_code: 'ASSET-01', fund_code: 'FUND-01' },
+      funds: [{ fund_code: 'FUND-02', investments: [], loans: [] }],
+    },
+  }), /HOME_FUND_CODE_MISMATCH/);
+});
+
 test('finance document save passes the visible statement without creating entry or account identifiers', async () => {
   const router = await routerModule();
   const statement = {
@@ -61,6 +96,7 @@ test('rent-roll document normalization stores only editable source values and ca
       rows: [{
         tenant_name: '쿠팡(주)',
         leased_area_sqm: '1234.5',
+        deposit_escalation_enabled: false,
         deposit_total_krw: '',
         signed_date: '',
         commencement_date: '2026-01-01',
@@ -99,6 +135,29 @@ test('rent-roll document normalization stores only editable source values and ca
   assert.equal(args.p_payload.rows[0].fit_out_months, 2);
 });
 
+test('rent-roll document keeps the required deposit escalation toggle through the Edge normalizer', async () => {
+  const router = await routerModule();
+  const args = router.buildRpcArguments('v2/rent-roll/batch-save', {
+    client_request_id: '33333333-3333-4333-8333-333333333336',
+    asset_code: 'A120085001',
+    payload: {
+      expected_xmin: '11',
+      rows: [{
+        tenant_name: 'Tenant',
+        leased_area_sqm: 100,
+        deposit_escalation_enabled: false,
+      }],
+    },
+  });
+
+  assert.equal(
+    Object.hasOwn(args.p_payload.rows[0], 'deposit_escalation_enabled'),
+    true,
+    'the database requires an explicit boolean on every stored rent-roll row',
+  );
+  assert.equal(args.p_payload.rows[0].deposit_escalation_enabled, false);
+});
+
 test('rent-roll document preserves a positive month-only legacy rent-free period', async () => {
   const router = await routerModule();
   const args = router.buildRpcArguments('v2/rent-roll/batch-save', {
@@ -106,7 +165,11 @@ test('rent-roll document preserves a positive month-only legacy rent-free period
     asset_code: 'A120085001',
     payload: {
       expected_xmin: '10',
-      rows: [{ tenant_name: '쿠팡(주)', rent_free_periods: [{ months: 2 }] }],
+      rows: [{
+        tenant_name: '쿠팡(주)',
+        deposit_escalation_enabled: false,
+        rent_free_periods: [{ months: 2 }],
+      }],
     },
   });
   assert.deepEqual(args.p_payload.rows[0].rent_free_periods, [{
@@ -123,7 +186,7 @@ test('rent-roll document accepts the numeric primary revision returned by the AP
     asset_code: 'A112527001',
     payload: {
       expected_xmin: 158381,
-      rows: [{ tenant_name: 'Tenant', leased_area_sqm: 100 }],
+      rows: [{ tenant_name: 'Tenant', leased_area_sqm: 100, deposit_escalation_enabled: false }],
     },
   });
   assert.equal(args.p_payload.expected_xmin, '158381');

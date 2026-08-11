@@ -2217,17 +2217,18 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                         {item.subItems.map(sub => {
                                             const isSubActive = currentPath === sub.path;
                                             return (
-                                                <div
+                                                <button
+                                                    type="button"
                                                     key={sub.id}
                                                     onClick={(e) => { 
                                                         e.stopPropagation(); 
                                                         if (sub.externalUrl) {
-                                                            window.open(sub.externalUrl, '_blank');
+                                                            window.open(sub.externalUrl, '_blank', 'noopener,noreferrer');
                                                         } else {
                                                             handleNavigation(sub.path); 
                                                         }
                                                     }}
-                                                    className={`group flex items-center justify-between py-[4px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isSubActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}
+                                                    className={`group flex w-full items-center justify-between py-[4px] rounded-xl cursor-pointer text-left transition-colors duration-200 outline-none select-none ${isSubActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}
                                                 >
                                                     <div className="flex items-center gap-[6px]">
                                                         <span className={`text-[14px] font-light transition-colors ${isSubActive ? 'text-white' : 'text-[#A1A1AA] group-hover:text-white'}`}>
@@ -2239,7 +2240,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                             </svg>
                                                         )}
                                                     </div>
-                                                </div>
+                                                </button>
                                             );
                                         })}
                                     </div>

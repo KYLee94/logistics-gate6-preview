@@ -49,17 +49,21 @@ test('스크롤바 테마는 데이터 플랫폼 밖의 기존 화면에 전역 
   assert.doesNotMatch(css, /(?:^|[},]\s*)(?:html|body|\*)\s*::?-webkit-scrollbar/u);
 });
 
-test('렌트롤·드롭다운·모달·다중선택·재무 표는 테마 루트 안에서 직접 렌더링된다', () => {
+test('렌트롤·드롭다운·모달·다중선택·재무 표는 다크 스크롤 계약을 유지한다', () => {
   assert.match(
     platformSource,
     /data-testid=["']logistics-data-platform["'][\s\S]*?className=["'][^"']*logistics-data-platform/u,
   );
-  assert.doesNotMatch(platformSource, /createPortal|ReactDOM\.createPortal/u);
+  const goodsTooltip = sourceBetween('function GoodsInfoTooltip', 'function AddableMultiSelectCell');
+  assert.match(goodsTooltip, /createPortal\(/u);
+  assert.match(goodsTooltip, /role=["']tooltip["']/u);
+  assert.match(goodsTooltip, /fixed[\s\S]*?overflow-y-auto[\s\S]*?bg-\[#161616\]/u);
+  assert.match(goodsTooltip, /document\.body/u);
 
   const rentFreeDialog = sourceBetween('function RentFreePeriodsDialog', 'function PresetTextCell');
   assert.match(rentFreeDialog, /role=["']dialog["'][\s\S]*?overflow-y-auto/u);
 
-  const multiSelect = sourceBetween('function MultiSelectCell', 'function parsePaste');
+  const multiSelect = sourceBetween('function AddableMultiSelectCell', 'function MultiSelectCell');
   assert.match(multiSelect, /<details[\s\S]*?max-h-52[^"']*overflow-y-auto/u);
 
   const rentRoll = sourceBetween('function RentRollPanel', 'function periodFor');

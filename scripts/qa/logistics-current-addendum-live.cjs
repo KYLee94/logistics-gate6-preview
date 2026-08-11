@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
+const { assertQaMutationOptIn } = require('./lib/qa-mutation-guard.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 
@@ -92,6 +93,10 @@ function findAccount(body, accountCode) {
 }
 
 async function main() {
+  assertQaMutationOptIn({
+    flag: 'allow-mutation',
+    purpose: 'Current addendum create/delete live probe',
+  });
   const token = await accessToken();
   const bootstrap = await invoke('v2/home/read', token, {});
   const assets = Array.isArray(bootstrap.data?.assets) ? bootstrap.data.assets : [];

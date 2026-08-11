@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
+const { assertQaMutationOptIn } = require('./lib/qa-mutation-guard.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const DEFAULT_ENV_ROOT = path.resolve(ROOT, '..', 'IGIS-Fund-Production-DP');
@@ -958,6 +959,11 @@ async function exerciseProductionBrowserWrites({ auth, rows, contract }) {
 
 async function main() {
   const exerciseBrowserWrites = hasFlag('exercise-browser-writes');
+  assertQaMutationOptIn({
+    enabled: exerciseBrowserWrites,
+    flag: 'allow-write',
+    purpose: 'Production browser document write-and-rollback probe',
+  });
   if (exerciseBrowserWrites && !hasFlag('confirm-production-rollback')) {
     throw new Error('--exercise-browser-writes requires --confirm-production-rollback');
   }

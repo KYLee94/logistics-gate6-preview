@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { assertQaMutationOptIn } = require('./lib/qa-mutation-guard.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
@@ -122,6 +123,10 @@ function pickMutation(config, users) {
 }
 
 async function main() {
+  assertQaMutationOptIn({
+    flag: 'allow-write',
+    purpose: 'Feature-access save/readback/restore probe',
+  });
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   const origin = DEFAULT_ORIGIN;
@@ -205,6 +210,10 @@ async function main() {
 }
 
 main().catch((error) => {
+  if (error?.code === 'QA_MUTATION_OPT_IN_REQUIRED') {
+    console.error(error.message);
+    process.exit(1);
+  }
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const report = { ok: false, generated_at: new Date().toISOString(), error: error.message, restore_error: error.restore_error || undefined };
   fs.writeFileSync(OUT_JSON, JSON.stringify(report, null, 2), 'utf8');

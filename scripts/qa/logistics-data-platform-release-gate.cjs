@@ -36,6 +36,36 @@ const releaseSteps = Object.freeze([
     target: 'tests/logistics-data-platform-document-integrity.test.cjs',
   },
   {
+    id: 'document-request-lifecycle',
+    kind: 'node',
+    target: 'tests/logistics-data-platform-request-lifecycle.test.cjs',
+  },
+  {
+    id: 'document-revision-recovery',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-revision-recovery.test.cjs',
+  },
+  {
+    id: 'document-revision-failure-matrix',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-revision-failure-matrix.test.cjs',
+  },
+  {
+    id: 'data-platform-accessible-modal-loading',
+    kind: 'node',
+    target: 'tests/logistics-data-platform-accessible-modal-loading.test.cjs',
+  },
+  {
+    id: 'data-platform-scrollbar-contract',
+    kind: 'node',
+    target: 'tests/logistics-data-platform-scrollbar-contract.test.cjs',
+  },
+  {
+    id: 'loading-lifecycle-contract',
+    kind: 'node',
+    target: 'tests/logistics-loading-lifecycle.test.cjs',
+  },
+  {
     id: 'rent-roll-taxonomy-audit-unit',
     kind: 'node',
     target: 'tests/logistics-rent-roll-taxonomy-audit.test.cjs',
@@ -96,6 +126,16 @@ const releaseSteps = Object.freeze([
     target: 'tests/logistics-occupancy-expired-rent-guard-contract.test.cjs',
   },
   {
+    id: 'rent-roll-kst-boundary-contract',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-kst-boundary-contract.test.cjs',
+  },
+  {
+    id: 'home-asset-nonnegative-contract',
+    kind: 'node',
+    target: 'tests/logistics-home-asset-nonnegative-contract.test.cjs',
+  },
+  {
     id: 'occupancy-rent-roll-basis-contract',
     kind: 'node',
     target: 'tests/logistics-occupancy-rent-roll-basis-contract.test.cjs',
@@ -134,6 +174,16 @@ const releaseSteps = Object.freeze([
     id: 'fund-aum-source-backfill-contract',
     kind: 'node',
     target: 'tests/logistics-fund-aum-source-backfill-contract.test.cjs',
+  },
+  {
+    id: 'fund-aum-july-2026-backfill-contract',
+    kind: 'node',
+    target: 'tests/logistics-fund-aum-july-2026-backfill-contract.test.cjs',
+  },
+  {
+    id: 'home-fund-aum-tooltip-contract',
+    kind: 'node',
+    target: 'tests/logistics-home-fund-aum-tooltip.test.cjs',
   },
   {
     id: 'rent-roll-cost-addable-multiselect',
@@ -200,6 +250,16 @@ const releaseSteps = Object.freeze([
     kind: 'node',
     target: 'tests/logistics-data-platform-finance-custom-accounts.test.cjs',
   },
+  {
+    id: 'finance-custom-account-delete-document',
+    kind: 'node',
+    target: 'tests/logistics-finance-custom-account-delete-ui.test.cjs',
+  },
+  {
+    id: 'finance-asset-scope-document',
+    kind: 'node',
+    target: 'tests/logistics-finance-account-asset-scope-v10.test.cjs',
+  },
   { id: 'db-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-db-contract.cjs' },
   { id: 'cutover-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-cutover-contract.cjs' },
   { id: 'api-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-api-contract.cjs' },
@@ -219,6 +279,22 @@ const releaseSteps = Object.freeze([
     kind: 'node',
     target: 'scripts/qa/logistics-data-platform-deeplink-browser.cjs',
     args: ['--self-test'],
+  },
+  {
+    id: 'qa-mutation-opt-in-contract',
+    kind: 'node',
+    target: 'tests/logistics-qa-mutation-opt-in.test.cjs',
+  },
+  {
+    id: 'qa-dangerous-script-full-scan',
+    kind: 'node',
+    target: 'scripts/qa/logistics-dangerous-script-audit.cjs',
+    args: ['--qa-only', '--no-write-artifact'],
+  },
+  {
+    id: 'production-dependency-security',
+    kind: 'node',
+    target: 'tests/logistics-production-dependency-security.test.cjs',
   },
   { id: 'release-env-preflight', kind: 'node', target: 'scripts/qa/logistics-release-env-preflight.cjs' },
   { id: 'lint', kind: 'npm', target: 'lint' },

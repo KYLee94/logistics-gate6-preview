@@ -55,6 +55,7 @@ const RENT_ROLL_DOCUMENT_FIELDS = new Set([
   'fit_out_months',
   'fit_out_amount',
   'tenant_improvement_amount',
+  'deposit_escalation_enabled',
   'deposit_escalation_first_date',
   'deposit_escalation_interval_months',
   'deposit_escalation_rate',
@@ -261,6 +262,9 @@ function normalizeRentRollPayload(payload: Record<string, unknown>): Record<stri
     if (Object.hasOwn(row, 'rent_free_periods')) {
       row.rent_free_periods = normalizeRentFreePeriods(row.rent_free_periods);
     }
+    if (typeof row.deposit_escalation_enabled !== 'boolean') {
+      throw new Error('DEPOSIT_ESCALATION_ENABLED_BOOLEAN_REQUIRED');
+    }
     return row;
   });
   return { ...payload, rows };
@@ -306,6 +310,24 @@ export function buildRpcArguments(
     const funds = request.payload?.funds;
     const isDocument = Boolean(asset && typeof asset === 'object' && !Array.isArray(asset) && Array.isArray(funds));
     if (!isDocument || Array.isArray(request.payload?.operations)) throw new Error('HOME_DOCUMENT_REQUIRED');
+    const assetDocument = asset as Record<string, unknown>;
+    const fundDocuments = funds as unknown[];
+    const requestAssetCode = String(request.asset_code ?? request.asset_key ?? '').trim();
+    const documentAssetCode = String(assetDocument.asset_code ?? '').trim();
+    if (!requestAssetCode || documentAssetCode !== requestAssetCode) {
+      throw new Error('HOME_ASSET_CODE_MISMATCH');
+    }
+    if (fundDocuments.length !== 1) {
+      throw new Error('HOME_SINGLE_LINKED_FUND_REQUIRED');
+    }
+    const fundDocument = fundDocuments[0];
+    const assetFundCode = String(assetDocument.fund_code ?? '').trim();
+    const documentFundCode = fundDocument && typeof fundDocument === 'object' && !Array.isArray(fundDocument)
+      ? String((fundDocument as Record<string, unknown>).fund_code ?? '').trim()
+      : '';
+    if (!assetFundCode || documentFundCode !== assetFundCode) {
+      throw new Error('HOME_FUND_CODE_MISMATCH');
+    }
     if (Array.isArray(funds) && funds.length > 50) {
       throw new Error('BATCH_LIMIT_EXCEEDED');
     }

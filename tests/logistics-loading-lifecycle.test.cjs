@@ -40,6 +40,13 @@ function sourceFunction(source, name) {
   return new Function(`${declaration}\nreturn ${name};`)();
 }
 
+function extractTopLevelFunctionByBoundary(source, name) {
+  const start = source.indexOf(`function ${name}`);
+  assert.notEqual(start, -1, `${name} must exist`);
+  const next = source.indexOf('\nfunction ', start + `function ${name}`.length);
+  return source.slice(start, next === -1 ? source.length : next);
+}
+
 test('dashboard inflight staleness is based on startedAt, not missing cache age', () => {
   const isStale = sourceFunction(workspaceSource, 'isDashboardReadInflightStale');
   assert.equal(isStale({ startedAt: 9_000 }, 10_000, 5_000), false);
@@ -130,7 +137,7 @@ test('hidden dashboard modules keep component state but disable data refresh sub
 });
 
 test('market data reads only the active tab and invalidates explicitly after approved updates', () => {
-  const marketDashboard = extractFunction(sectorSource, 'MarketDataDashboardContent');
+  const marketDashboard = extractTopLevelFunctionByBoundary(sectorSource, 'MarketDataDashboardContent');
   const edgeHook = extractFunction(sectorSource, 'useEdgeData');
   const edgeRefreshListeners = extractFunction(sectorSource, 'ensureEdgeDataRefreshListeners');
   const approvalDashboard = extractFunction(sectorSource, 'DataManagementApprovalDashboard');
@@ -173,5 +180,6 @@ test('market data uses a longer automatic revalidation window but refreshes imme
 
 test('protected floorplan and transaction fullscreen changes remain present', () => {
   assert.match(workspaceSource, /bg-black\/50/u);
-  assert.match(sectorSource, /title:\s*text\(row\.asset_name\)[\s\S]{0,260}fullscreen:\s*true/u);
+  assert.match(sectorSource, /const openMarketDetailModal[\s\S]{0,900}fullscreen:\s*true/u);
+  assert.match(sectorSource, /const openTransactionDetailModal[\s\S]{0,500}title:\s*warehouseName/u);
 });

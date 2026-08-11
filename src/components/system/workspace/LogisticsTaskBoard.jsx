@@ -277,10 +277,10 @@ function HeaderFilterDropdown({ filterKey, label, value, options, onChange }) {
         aria-label={`${label} 필터`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => setOpen((current) => {
-          if (!current) updateMenuRect();
-          return !current;
-        })}
+        onClick={() => {
+          if (!open) updateMenuRect();
+          setOpen(!open);
+        }}
         className={`flex w-full items-center justify-between gap-2 rounded-[8px] border border-transparent bg-white/5 px-2 py-1.5 text-left text-[12px] font-semibold outline-none transition-colors hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white ${value ? 'text-white' : 'text-[#A1A1AA]'}`}
       >
         <span className="truncate">{selectedLabel}</span>

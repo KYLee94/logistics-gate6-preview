@@ -167,7 +167,7 @@ test('data platform request lifecycle contract', async (t) => {
     assert.equal(api.isDataPlatformRequestCancellation(new TypeError('Failed to fetch')), false);
   });
 
-  await t.test('only a 409 REVISION_CONFLICT is eligible for the silent rent-roll rebase', () => {
+  await t.test('only a 409 REVISION_CONFLICT is eligible for full-document idempotent readback', () => {
     assert.equal(api.isDataPlatformRevisionConflict(new api.DataPlatformResponseError('conflict', {
       status: 409,
       code: 'REVISION_CONFLICT',

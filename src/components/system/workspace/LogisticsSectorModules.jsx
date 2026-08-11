@@ -2305,6 +2305,7 @@ function Modal({ title, onClose, children, width = 'max-w-[1180px]', fullscreen 
       style={{ zIndex: 2147483000 + Number(stackLevel || 0) }}
       role="dialog"
       aria-modal="true"
+      aria-label={title}
       data-testid="market-modal-backdrop"
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) onClose?.();
@@ -9438,6 +9439,20 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   };
+  const resizeColumnFromKeyboard = (event, column, fallback = 170) => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const key = text(column.field_key || column.field || column.label);
+    if (!key) return;
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    const step = event.shiftKey ? 50 : 10;
+    setColumnWidths((current) => {
+      const currentWidth = Number(current[key] || column.width || fallback);
+      const nextWidth = Math.max(90, Math.min(720, currentWidth + (direction * step)));
+      return currentWidth === nextWidth ? current : { ...current, [key]: nextWidth };
+    });
+  };
   const stickyColumnClass = (index, selected = false, changed = false, header = false) => (
     index === 0
       ? `sticky left-0 ${header ? 'z-40 bg-[#1F1F1E]' : selected ? 'z-20 bg-[#243044]' : changed ? 'z-20 bg-[#1E2A1B]' : 'z-20 bg-[#171717]'} shadow-[8px_0_12px_rgba(0,0,0,0.22)]`
@@ -9944,8 +9959,14 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                       <span
                         role="separator"
                         aria-label={`${dataManagementColumnHeaderLabel(column)} 컬럼 너비 조절`}
+                        aria-orientation="vertical"
+                        aria-valuemin={90}
+                        aria-valuemax={720}
+                        aria-valuenow={columnWidthFor(column, 160)}
+                        tabIndex={0}
                         className="absolute bottom-0 right-0 top-0 w-2 cursor-col-resize touch-none hover:bg-[#5A5A5A]"
                         onMouseDown={(event) => beginColumnResize(event, column, 160)}
+                        onKeyDown={(event) => resizeColumnFromKeyboard(event, column, 160)}
                       />
                     </th>
                   );
@@ -10456,8 +10477,14 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                           <span
                             role="separator"
                             aria-label={`${dataManagementColumnHeaderLabel(column)} 컬럼 너비 조절`}
+                            aria-orientation="vertical"
+                            aria-valuemin={90}
+                            aria-valuemax={720}
+                            aria-valuenow={columnWidthFor(column)}
+                            tabIndex={0}
                             className="absolute bottom-0 right-0 top-0 w-2 cursor-col-resize touch-none hover:bg-[#5A5A5A]"
                             onMouseDown={(event) => beginColumnResize(event, column)}
+                            onKeyDown={(event) => resizeColumnFromKeyboard(event, column)}
                           />
                         </th>
                       );
@@ -10676,8 +10703,14 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                             <span
                               role="separator"
                               aria-label={`${dataManagementColumnHeaderLabel(column)} 컬럼 너비 조절`}
+                              aria-orientation="vertical"
+                              aria-valuemin={90}
+                              aria-valuemax={720}
+                              aria-valuenow={columnWidthFor(column)}
+                              tabIndex={0}
                               className="absolute bottom-0 right-0 top-0 w-2 cursor-col-resize touch-none hover:bg-[#5A5A5A]"
                               onMouseDown={(event) => beginColumnResize(event, column)}
+                              onKeyDown={(event) => resizeColumnFromKeyboard(event, column)}
                             />
                           </th>
                         );

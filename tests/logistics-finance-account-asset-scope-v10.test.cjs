@@ -23,38 +23,28 @@ function migrationHash(suffix) {
   return crypto.createHash('sha256').update(migrationBySuffix(suffix)).digest('hex');
 }
 
-test('finance account router accepts restore and removes client-owned scope metadata', async () => {
+test('finance router accepts only a canonical full statement and forwards xmin inside the document payload', async () => {
   const router = await importFresh('supabase/functions/ll-dashboard-api/v2/router.ts');
-  const accountCode = 'CUSTOM:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const request = router.buildRpcArguments('v2/finance/batch-save', {
     client_request_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-    asset_key: 'asset-a',
+    asset_code: 'A112527001',
     payload: {
-      account_operations: [{
-        operation: 'restore',
-        account_code: accountCode,
-        expected_revision: 7,
-        record: {
-          asset_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-          asset_key: 'asset-b',
-          deleted_at: '2026-08-07T00:00:00Z',
-          deleted_by: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-          revision: 999,
-          created_by: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-          updated_by: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
-        },
-      }],
+      expected_xmin: '17',
+      statement: { periods: ['2026-08'], accounts: [], selected_account_codes: [] },
     },
   });
 
-  assert.deepEqual(request.p_payload.operations, []);
-  assert.deepEqual(request.p_payload.account_operations[0], {
-    operation: 'restore',
-    account_code: accountCode,
-    client_account_key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    expected_revision: 7,
-    record: {},
+  assert.equal(request.p_asset_key, 'A112527001');
+  assert.equal(request.p_payload.expected_xmin, '17');
+  assert.deepEqual(request.p_payload.statement, {
+    periods: ['2026-08'], accounts: [], selected_account_codes: [],
   });
+
+  assert.throws(() => router.buildRpcArguments('v2/finance/batch-save', {
+    client_request_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    asset_code: 'A112527001',
+    payload: { account_operations: [{ operation: 'restore' }] },
+  }), /FINANCE_DOCUMENT_REQUIRED/u);
 });
 
 test('v10 keeps custom accounts asset-scoped and provides archive and restore readback', () => {

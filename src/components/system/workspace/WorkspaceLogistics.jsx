@@ -2675,7 +2675,7 @@ function LogisticsModal({ modal, onClose }) {
       ? 'h-[88vh] max-h-[88vh]'
       : 'max-h-[94vh]';
   const overlay = (
-    <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-4" role="dialog" aria-modal="true" onWheel={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-4" role="dialog" aria-modal="true" aria-label={modal.title} onWheel={(event) => event.stopPropagation()}>
       <div className={`w-full ${sizeClass} ${containerHeightClass} ${isFloorplanModal ? 'flex flex-col' : ''} overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl`}>
         <div className={isFloorplanModal ? 'flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-[#333333] px-3 py-1' : 'flex items-center justify-between gap-4 border-b border-[#333333] px-6 py-5'}>
           {isFloorplanModal ? (
@@ -4822,7 +4822,7 @@ function MainOverlay({ title, eyebrow, onClose, children, fullScreen = false, ac
     };
   }, []);
   const overlay = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 px-6 py-8 backdrop-blur-sm" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 px-6 py-8 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
       <div className={`w-full overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl ${fullScreen ? 'h-[calc(100vh-32px)] max-w-[calc(100vw-32px)]' : 'max-h-[86vh] max-w-[960px]'}`}>
         <div className="flex items-center justify-between gap-4 border-b border-[#333333] px-6 py-5">
           <div>
@@ -5648,18 +5648,22 @@ function WorkspaceLogisticsExisting({ currentPath = '' }) {
     [quickTabCacheIdentity],
   );
   const [quickTabKeys, setQuickTabKeys] = useState([]);
+  const quickTabKeysRef = useRef([]);
   const [quickTabDragOver, setQuickTabDragOver] = useState(false);
   useEffect(() => {
-    setQuickTabKeys(readWorkPlatformQuickTabKeys(quickTabCacheKey));
+    const storedQuickTabKeys = readWorkPlatformQuickTabKeys(quickTabCacheKey);
+    quickTabKeysRef.current = storedQuickTabKeys;
+    setQuickTabKeys(storedQuickTabKeys);
   }, [quickTabCacheKey]);
   const persistQuickTabKeys = useCallback((updater) => {
-    setQuickTabKeys((current) => {
-      const next = normalizeWorkPlatformQuickTabKeys(typeof updater === 'function' ? updater(current) : updater);
-      if (typeof window !== 'undefined' && quickTabCacheKey) {
-        window.localStorage.setItem(quickTabCacheKey, JSON.stringify(next));
-      }
-      return next;
-    });
+    const next = normalizeWorkPlatformQuickTabKeys(
+      typeof updater === 'function' ? updater(quickTabKeysRef.current) : updater,
+    );
+    quickTabKeysRef.current = next;
+    setQuickTabKeys(next);
+    if (typeof window !== 'undefined' && quickTabCacheKey) {
+      window.localStorage.setItem(quickTabCacheKey, JSON.stringify(next));
+    }
   }, [quickTabCacheKey]);
   const addQuickTab = useCallback((key) => {
     if (!WORK_PLATFORM_QUICK_TAB_MAP.has(key)) return;
@@ -12822,11 +12826,11 @@ function DataQualityDashboard() {
   const dismissFinding = (item) => {
     const id = String(item?.id || '');
     if (!id) return;
-    setDismissedFindingIds((current) => {
-      const next = [...new Set([...current, id])];
+    const next = [...new Set([...dismissedFindingIds, id])];
+    setDismissedFindingIds(next);
+    if (typeof window !== 'undefined') {
       window.localStorage.setItem(DATA_QUALITY_DISMISSED_CACHE_KEY, JSON.stringify(next));
-      return next;
-    });
+    }
     setModal(null);
   };
   const requestEditForFinding = (item) => {

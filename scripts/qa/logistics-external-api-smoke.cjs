@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { assertQaMutationOptIn } = require('./lib/qa-mutation-guard.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
@@ -193,6 +194,10 @@ function classifyOpenDart(result) {
 }
 
 async function main() {
+  assertQaMutationOptIn({
+    flag: 'allow-write',
+    purpose: 'External provider force-refresh/cache smoke',
+  });
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   const origin = argsValue('origin', DEFAULT_ORIGIN);

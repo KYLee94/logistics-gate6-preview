@@ -140,8 +140,7 @@
     "qa:map-callout:matrix": "node scripts/qa/logistics-map-callout-matrix.cjs",
     "qa:search-preview:browser": "node scripts/qa/logistics-search-preview-browser-smoke.cjs",
     "qa:browser-visible-parity": "node scripts/qa/logistics-browser-visible-parity.cjs",
-    "qa:legacy-view-denylist": "node scripts/qa/logistics-legacy-view-denylist.cjs"
-    ,
+    "qa:legacy-view-denylist": "node scripts/qa/logistics-legacy-view-denylist.cjs",
     "qa:release-env": "node scripts/qa/logistics-release-env-preflight.cjs",
     "qa:release-artifacts:freshness": "node scripts/qa/logistics-release-artifact-freshness.cjs",
     "qa:dangerous-script-audit": "node scripts/qa/logistics-dangerous-script-audit.cjs",
@@ -155,7 +154,7 @@
     "framer-motion": "^12.38.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

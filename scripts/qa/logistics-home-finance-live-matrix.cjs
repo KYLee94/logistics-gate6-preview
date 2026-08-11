@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
+const { assertQaMutationOptIn } = require('./lib/qa-mutation-guard.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 
@@ -304,6 +305,11 @@ async function readFinanceDimensions(invoke, token, assetKey) {
 
 async function main() {
   const execute = hasArg('execute-safe-noop');
+  assertQaMutationOptIn({
+    enabled: execute,
+    flag: 'allow-write',
+    purpose: 'Home/finance live same-value write probe',
+  });
   const confirmed = hasArg('confirm-live-same-value-writes');
   if (execute && !confirmed) {
     throw new Error('--execute-safe-noop requires --confirm-live-same-value-writes');

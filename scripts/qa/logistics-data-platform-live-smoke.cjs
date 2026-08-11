@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
+const { assertQaMutationOptIn } = require('./lib/qa-mutation-guard.cjs');
 
 const root = path.resolve(__dirname, '..', '..');
 
@@ -149,6 +150,11 @@ function sameBusinessValues(before, after) {
 }
 
 async function main() {
+  assertQaMutationOptIn({
+    enabled: validateSafeWrites,
+    flag: 'allow-write',
+    purpose: 'Live platform no-op write probe',
+  });
   const auth = await accessToken();
   const homeBootstrap = await invoke('v2/home/read', auth.token, {});
   const assets = Array.isArray(homeBootstrap.data.assets) ? homeBootstrap.data.assets : [];
