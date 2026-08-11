@@ -17,6 +17,7 @@ test('용도 선택지는 기존 네 값만 유지하고 취급 화물은 canoni
     RENT_ROLL_COLUMNS,
     RENT_ROLL_GOODS_OPTIONS,
     normalizeRentRollGoodsTypes,
+    rentRollGoodsDisplayOptions,
     serializeRentRollGoodsTypes,
   } = await schema();
   const byKey = new Map(RENT_ROLL_COLUMNS.map((column) => [column.key, column]));
@@ -25,17 +26,25 @@ test('용도 선택지는 기존 네 값만 유지하고 취급 화물은 canoni
     ['저온', '저온'], ['상온', '상온'], ['복합', '복합'], ['사무실', '사무실'],
   ]);
   assert.equal(byKey.get('goods_type')?.kind, 'goods_multi_select');
+  assert.equal(byKey.get('goods_type')?.label, '주요 취급 화물');
   assert.deepEqual(RENT_ROLL_GOODS_OPTIONS, [
-    '하중물', '생필품', '공산품', '의약품', '의류', '반도체(고가 화물)', '의류(중하중)',
-    '식품(온도)', '화장품', '화장품 등', '유제품', '가전제품', '전자기기(컴퓨터 등)',
-    '라이프스타일 용품', '가전제품 등', '가구', '유제품 등', '어패럴', '식음료',
-    '전체 상품 취급(풀필먼트)', '신선식품',
+    '가구·인테리어', '기타 공산품', '디지털·가전', '반도체', '식품·음료',
+    '의류', '의약품', '일상용품', '종합상품', '화장품',
   ]);
   assert.deepEqual(normalizeRentRollGoodsTypes('식품'), ['식품']);
   assert.deepEqual(normalizeRentRollGoodsTypes('식품, 의약품; 화장품\n식품'), ['식품', '의약품', '화장품']);
   assert.deepEqual(normalizeRentRollGoodsTypes(['식품', ' 의약품 ', '식품']), ['식품', '의약품']);
   assert.deepEqual(serializeRentRollGoodsTypes(['식품', '의약품', '식품']), ['식품', '의약품']);
   assert.deepEqual(serializeRentRollGoodsTypes('기존 단일값'), ['기존 단일값']);
+  const storedOrder = ['화장품', '사용자 추가값', '의류'];
+  assert.deepEqual(serializeRentRollGoodsTypes(storedOrder), storedOrder);
+  const displayed = rentRollGoodsDisplayOptions([storedOrder, '가나다 사용자값']);
+  assert.deepEqual(displayed, [...new Set([
+    ...RENT_ROLL_GOODS_OPTIONS,
+    ...storedOrder,
+    '가나다 사용자값',
+  ])].sort((left, right) => left.localeCompare(right, 'ko-KR')));
+  assert.deepEqual(storedOrder, ['화장품', '사용자 추가값', '의류']);
 });
 
 test('그룹 헤더는 실제 컬럼 순서의 연속 구간이며 좌측 고정 두 그룹의 위치와 폭을 고정한다', async () => {

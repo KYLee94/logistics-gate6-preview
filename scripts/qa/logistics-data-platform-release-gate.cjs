@@ -61,6 +61,26 @@ const releaseSteps = Object.freeze([
     target: 'tests/logistics-rent-roll-goods-escalation-ui.test.cjs',
   },
   {
+    id: 'rent-roll-goods-taxonomy-v1-contract',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-goods-taxonomy-v1-contract.test.cjs',
+  },
+  {
+    id: 'rent-roll-goods-display-order-contract',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-goods-display-order-contract.test.cjs',
+  },
+  {
+    id: 'rent-roll-goods-tooltip-contract',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-goods-tooltip-contract.test.cjs',
+  },
+  {
+    id: 'data-platform-dropdown-dismissal',
+    kind: 'node',
+    target: 'tests/logistics-data-platform-dropdown-dismissal.test.cjs',
+  },
+  {
     id: 'home-numeric-input-contract',
     kind: 'node',
     target: 'tests/logistics-home-numeric-input-normalization-contract.test.cjs',
@@ -159,6 +179,11 @@ const releaseSteps = Object.freeze([
     id: 'finance-cash-waterfall',
     kind: 'node',
     target: 'tests/logistics-finance-cash-waterfall.test.cjs',
+  },
+  {
+    id: 'finance-closing-balance-empty-state',
+    kind: 'node',
+    target: 'tests/logistics-finance-closing-balance-empty-state.test.cjs',
   },
   {
     id: 'finance-comparison-last-period-qa',

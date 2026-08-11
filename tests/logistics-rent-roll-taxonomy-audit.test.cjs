@@ -79,3 +79,99 @@ test('operating taxonomy audit is fail-closed read-only and cannot invoke batch-
   assert.match(source, /production_mutation_used:\s*false/u);
   assert.doesNotMatch(source, /batch-save|batch_save|exercise-browser-writes/u);
 });
+
+test('goods category map collapses the 21 operating atoms without retaining handling annotations', () => {
+  const {
+    GOODS_CATEGORY_MAP,
+    GOODS_CATEGORY_VALUES,
+    normalizeGoodsCategories,
+  } = require(scriptPath);
+
+  assert.equal(Object.keys(GOODS_CATEGORY_MAP).length, 21);
+  assert.deepEqual(GOODS_CATEGORY_VALUES, [
+    '가구·인테리어', '기타 공산품', '디지털·가전', '반도체', '식품·음료',
+    '의류', '의약품', '일상용품', '종합상품', '화장품',
+  ]);
+  assert.deepEqual(GOODS_CATEGORY_MAP['반도체(고가 화물)'], ['반도체']);
+  assert.deepEqual(GOODS_CATEGORY_MAP['의류(중하중)'], ['의류']);
+  assert.deepEqual(GOODS_CATEGORY_MAP['식품(온도)'], ['식품·음료']);
+  assert.deepEqual(GOODS_CATEGORY_MAP['전자기기(컴퓨터 등)'], ['디지털·가전']);
+  assert.deepEqual(GOODS_CATEGORY_MAP['전체 상품 취급(풀필먼트)'], ['종합상품']);
+  assert.deepEqual(GOODS_CATEGORY_MAP['하중물'], []);
+
+  assert.deepEqual(
+    normalizeGoodsCategories(['하중물', '의약품', '의약품']).categories,
+    ['의약품'],
+  );
+  assert.deepEqual(
+    normalizeGoodsCategories(['가전제품 등', '어패럴', '사용자 추가']).categories,
+    ['디지털·가전', '의류', '사용자 추가'],
+  );
+  assert.deepEqual(
+    normalizeGoodsCategories(['의약품', '가전제품', '의류', '가전제품 등']).categories,
+    ['의약품', '디지털·가전', '의류'],
+  );
+  assert.deepEqual(
+    normalizeGoodsCategories(['하중물']).removed_non_categories,
+    ['하중물'],
+  );
+});
+
+test('row evidence retains the exact source signature needed for workbook matching', () => {
+  const { auditAssetRows } = require(scriptPath);
+  const result = auditAssetRows({ asset_code: 'A1' }, [{
+    tenant_name: '임차인',
+    business_registration_number: '000-00-00000',
+    floor_label: 'B1',
+    zone_label: '1구역',
+    leased_area_sqm: 123.45,
+    commencement_date: '2026-01-01',
+    expiry_date: '2027-01-01',
+    temperature_type: '상온',
+    goods_type: ['가전제품 등'],
+  }], { goodsMode: 'array' });
+
+  assert.deepEqual(result.rows[0].source_signature, {
+    tenant_name: '임차인',
+    business_registration_number: '000-00-00000',
+    floor_label: 'B1',
+    zone_label: '1구역',
+    leased_area_sqm: 123.45,
+    commencement_date: '2026-01-01',
+    expiry_date: '2027-01-01',
+  });
+  assert.deepEqual(result.rows[0].goods_categories.categories, ['디지털·가전']);
+});
+
+test('operating 81-row audit atom counts collapse to the approved 10 product categories', () => {
+  const { GOODS_CATEGORY_VALUES, normalizeGoodsCategories } = require(scriptPath);
+  const operatingAtomicCounts = new Map([
+    ['가구', 1], ['가전제품', 1], ['가전제품 등', 1], ['공산품', 3],
+    ['라이프스타일 용품', 1], ['반도체(고가 화물)', 1], ['생필품', 6],
+    ['식음료', 1], ['식품(온도)', 1], ['신선식품', 1], ['어패럴', 1],
+    ['유제품', 1], ['유제품 등', 1], ['의류', 2], ['의류(중하중)', 1],
+    ['의약품', 2], ['전자기기(컴퓨터 등)', 1], ['전체 상품 취급(풀필먼트)', 1],
+    ['하중물', 29], ['화장품', 1], ['화장품 등', 1],
+  ]);
+  const categoryCounts = new Map(GOODS_CATEGORY_VALUES.map((value) => [value, 0]));
+  for (const [source, count] of operatingAtomicCounts) {
+    for (const category of normalizeGoodsCategories([source]).categories) {
+      categoryCounts.set(category, categoryCounts.get(category) + count);
+    }
+  }
+
+  assert.deepEqual(Object.fromEntries(categoryCounts), {
+    '가구·인테리어': 1,
+    '기타 공산품': 3,
+    '디지털·가전': 3,
+    '반도체': 1,
+    '식품·음료': 5,
+    '의류': 4,
+    '의약품': 2,
+    '일상용품': 7,
+    '종합상품': 1,
+    '화장품': 2,
+  });
+  assert.equal([...operatingAtomicCounts.values()].reduce((sum, count) => sum + count, 0), 58);
+  assert.equal(operatingAtomicCounts.get('하중물'), 29);
+});

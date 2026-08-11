@@ -8,30 +8,32 @@ export function rentRollFloorSortValue(value) {
   return text ? number : Number.NEGATIVE_INFINITY;
 }
 
-// 운영 19개 자산에서 확인된 기존 atomic 값만 사용합니다. 임의 샘플은 추가하지 않습니다.
+// 운영 렌트롤의 확정된 MECE 분류만 기본 선택지로 제공합니다.
 export const RENT_ROLL_GOODS_OPTIONS = Object.freeze([
-  '하중물',
-  '생필품',
-  '공산품',
-  '의약품',
+  '가구·인테리어',
+  '기타 공산품',
+  '디지털·가전',
+  '반도체',
+  '식품·음료',
   '의류',
-  '반도체(고가 화물)',
-  '의류(중하중)',
-  '식품(온도)',
+  '의약품',
+  '일상용품',
+  '종합상품',
   '화장품',
-  '화장품 등',
-  '유제품',
-  '가전제품',
-  '전자기기(컴퓨터 등)',
-  '라이프스타일 용품',
-  '가전제품 등',
-  '가구',
-  '유제품 등',
-  '어패럴',
-  '식음료',
-  '전체 상품 취급(풀필먼트)',
-  '신선식품',
 ]);
+
+export const RENT_ROLL_GOODS_INFO = Object.freeze({
+  '가구·인테리어': '포함: 거실·침실·주방가구, 침구, 커튼·블라인드, 인테리어소품, DIY 인테리어 자재·원예용품. 제외: 디지털·가전, 일상 소모품, 가정용 공구.',
+  '기타 공산품': '포함: 다른 분류에 속하지 않는 산업용 기계·부품, 금속·플라스틱·종이·포장제품, 문구·완구·스포츠용품, 신발·가방. 제외: 나머지 9개 분류에 해당하는 상품.',
+  '디지털·가전': '포함: 컴퓨터·주변기기, 통신·영상·음향기기, 생활·주방가전, 저장·네트워크·카메라. 제외: 웨이퍼·반도체 칩·IC.',
+  '반도체': '포함: 웨이퍼, 반도체 칩·IC·메모리, 반도체 모듈. 제외: 완제품 전자기기·가전.',
+  '식품·음료': '포함: 가공식품, 신선 농축수산물, 유제품, 냉동·즉석식품, 음료·주류. 제외: 의약품, 화장품.',
+  '의류': '포함: 패션의류, 스포츠웨어, 속옷, 유아동의류, 한복, 홈웨어. 제외: 신발·가방·시계 등 패션잡화.',
+  '의약품': '포함: 전문·일반의약품, 의약외품, 의료용품·기기. 제외: 건강식품, 화장품.',
+  '일상용품': '포함: 생활·세탁·위생·청소·욕실·주방용품, 영유아·반려동물용품, 가정용 공구·자동차용품, 일용잡화. 제외: 화장품, 의약품·의료용품, 식품, 가전, 가구.',
+  '종합상품': '포함: 서로 다른 여러 상품군을 함께 취급하는 풀필먼트·종합유통 화물. 제외: 주요 상품군을 특정할 수 있는 단일·소수 상품군.',
+  '화장품': '포함: 스킨케어, 색조, 헤어·바디케어, 향수. 제외: 세탁·청소용품, 의약품·의약외품.',
+});
 
 export const TENANT_COST_OPTIONS = Object.freeze([
   '수도광열비·공과금',
@@ -84,7 +86,7 @@ export const RENT_ROLL_COLUMNS = Object.freeze([
   column('tenant_name', '임차인', '임차인', 'text', 190),
   column('business_registration_number', '사업자등록번호', '임차인 정보', 'text', 142),
   column('temperature_type', '용도', '공간', 'select', 94, { options: [['저온', '저온'], ['상온', '상온'], ['복합', '복합'], ['사무실', '사무실']] }),
-  column('goods_type', '취급 화물', '공간', 'goods_multi_select', 118, { options: RENT_ROLL_GOODS_OPTIONS }),
+  column('goods_type', '주요 취급 화물', '공간', 'goods_multi_select', 118, { options: RENT_ROLL_GOODS_OPTIONS }),
   column('floor_label', '층', '공간', 'text', 72),
   column('zone_label', '구역', '공간', 'text', 96),
   column('subtenant_name', '전대 임차인', '전차 여부', 'text', 140),
@@ -272,6 +274,32 @@ export function normalizeRentRollGoodsTypes(value) {
 
 export function serializeRentRollGoodsTypes(value) {
   return normalizeRentRollGoodsTypes(value);
+}
+
+export function toggleRentRollGoodsType(value, item) {
+  const selected = normalizeRentRollGoodsTypes(value);
+  const nextItem = String(item || '').trim();
+  if (!nextItem) return selected;
+  if (selected.includes(nextItem)) {
+    return selected.filter((selectedItem) => selectedItem !== nextItem);
+  }
+  if (nextItem === '종합상품') return ['종합상품'];
+  return [...selected.filter((selectedItem) => selectedItem !== '종합상품'), nextItem];
+}
+
+export function addRentRollGoodsType(value, item) {
+  const selected = normalizeRentRollGoodsTypes(value);
+  const nextItem = String(item || '').trim();
+  if (!nextItem || selected.includes(nextItem)) return selected;
+  if (nextItem === '종합상품') return ['종합상품'];
+  return [...selected.filter((selectedItem) => selectedItem !== '종합상품'), nextItem];
+}
+
+export function rentRollGoodsDisplayOptions(values = []) {
+  const currentValues = (Array.isArray(values) ? values : [values])
+    .flatMap((value) => normalizeRentRollGoodsTypes(value));
+  return [...new Set([...RENT_ROLL_GOODS_OPTIONS, ...currentValues])]
+    .sort((left, right) => left.localeCompare(right, 'ko-KR'));
 }
 
 export function normalizeDepositEscalationEnabled(value) {

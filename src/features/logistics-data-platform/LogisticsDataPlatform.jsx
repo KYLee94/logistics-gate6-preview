@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { normalizeLogisticsPath } from "../../components/system/workspace/logisticsRoutes";
 import {
   DATA_PLATFORM_ACTIONS,
@@ -11,6 +11,7 @@ import {
 import {
   calculateRentRollENoc,
   calculateRentFreePeriodMonths,
+  addRentRollGoodsType,
   isValidRentFreePeriod,
   deriveRentRollRow,
   emptyRentRollRow,
@@ -22,13 +23,15 @@ import {
   parseRentRollMoneyInput,
   RENT_ROLL_COLUMNS,
   RENT_ROLL_EDITABLE_FIELDS,
-  RENT_ROLL_GOODS_OPTIONS,
+  RENT_ROLL_GOODS_INFO,
   RENT_ROLL_PASTE_COLUMNS,
   rentRollFloorSortValue,
+  rentRollGoodsDisplayOptions,
   rentRollGroupSegments,
   rentRollStickyLeft,
   serializeCostTerms,
   serializeRentRollGoodsTypes,
+  toggleRentRollGoodsType,
   validateRentRollDelta,
 } from "./rentRollSchema";
 import {
@@ -53,6 +56,10 @@ import {
   homeShareClassPresentation,
 } from "./homeInvestmentPresentation";
 import { formatHomeLoanRate } from "./homeLoanRates";
+import {
+  useDismissibleDetails,
+  useDismissiblePopover,
+} from "./useDismissibleDetails";
 import {
   maturityDetailRows,
   maturityDisplayName,
@@ -298,6 +305,12 @@ function AddableSingleSelectCell({
   onChange,
 }) {
   const [customItem, setCustomItem] = useState("");
+  const {
+    closeDetails,
+    detailsRef,
+    onDetailsToggle,
+    summaryRef,
+  } = useDismissibleDetails();
   const presentation = homeShareClassPresentation(value);
   const availableOptions = [...new Set([
     ...(Array.isArray(options) ? options : []),
@@ -308,6 +321,7 @@ function AddableSingleSelectCell({
     if (!next) return;
     onChange(next);
     setCustomItem("");
+    closeDetails();
   };
   if (!editing) {
     return (
@@ -319,8 +333,13 @@ function AddableSingleSelectCell({
     );
   }
   return (
-    <details className="relative min-w-[170px]">
+    <details
+      ref={detailsRef}
+      onToggle={onDetailsToggle}
+      className="relative min-w-[170px]"
+    >
       <summary
+        ref={summaryRef}
         aria-label={label}
         className="cursor-pointer list-none overflow-hidden text-ellipsis whitespace-nowrap rounded-[6px] bg-[#202020] px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#5E9EFF]"
       >
@@ -334,7 +353,10 @@ function AddableSingleSelectCell({
                 type="radio"
                 name={inputName}
                 checked={presentation.displayValue === option}
-                onChange={() => onChange(option)}
+                onChange={() => {
+                  onChange(option);
+                  closeDetails();
+                }}
               />
               <span>{option}</span>
             </label>
@@ -651,8 +673,20 @@ const HOME_ENTITY_CONFIG = Object.freeze([
   },
 ]);
 
-function MaturityList({ rows }) {
-  const [selected, setSelected] = useState(null);
+function MaturityList({
+  rows,
+  selected: controlledSelected,
+  onSelect,
+  onClose,
+  renderList = true,
+  renderDialog = true,
+}) {
+  const [internalSelected, setInternalSelected] = useState(null);
+  const selected = controlledSelected === undefined ? internalSelected : controlledSelected;
+  const closeMaturity = () => {
+    if (controlledSelected === undefined) setInternalSelected(null);
+    onClose?.();
+  };
   const typeLabel = {
     lease: "임대차",
     fund: "펀드",
@@ -670,7 +704,7 @@ function MaturityList({ rows }) {
   };
   return (
     <>
-      <div className="grid gap-4 lg:grid-cols-3">
+      {renderList ? <div className="grid gap-4 lg:grid-cols-3">
         {Object.entries(typeLabel).map(([type, label]) => {
           const items = rows
             .filter((row) => (row.type || row.kind) === type);
@@ -685,7 +719,10 @@ function MaturityList({ rows }) {
                     data-testid="maturity-row"
                     type="button"
                     key={row.maturity_key || `${type}-${row.official_date}`}
-                    onClick={() => setSelected(row)}
+                    onClick={() => {
+                      if (controlledSelected === undefined) setInternalSelected(row);
+                      onSelect?.(row);
+                    }}
                     className="flex w-full items-center justify-between gap-3 border-b border-[#333333] py-2.5 text-left text-sm outline-none hover:bg-[#2B2B2A] focus-visible:ring-1 focus-visible:ring-[#5E9EFF]"
                   >
                     <span className="truncate text-[#D1D1D6]">
@@ -702,8 +739,8 @@ function MaturityList({ rows }) {
             </div>
           );
         })}
-      </div>
-      {selected ? (
+      </div> : null}
+      {renderDialog && selected ? (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4">
           <section
             role="dialog"
@@ -723,7 +760,7 @@ function MaturityList({ rows }) {
               </div>
               <button
                 type="button"
-                onClick={() => setSelected(null)}
+                onClick={closeMaturity}
                 className="rounded-[8px] border border-[#3A3A3C] px-3 py-2 text-xs font-semibold text-white hover:bg-[#303030]"
               >
                 닫기
@@ -1514,6 +1551,55 @@ function PresetTextCell({
   );
 }
 
+function GoodsInfoTooltip({ option, description }) {
+  const [visible, setVisible] = useState(false);
+  const tooltipId = useId();
+  const openTooltip = () => setVisible(true);
+  const closeTooltip = () => setVisible(false);
+  const handleFocus = (event) => {
+    if (event.currentTarget.matches(":focus-visible")) openTooltip();
+  };
+  const handlePointerDown = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  const handleClick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeTooltip();
+    event.currentTarget.blur();
+  };
+
+  return (
+    <span
+      className="relative ml-auto shrink-0"
+      onPointerEnter={openTooltip}
+      onPointerLeave={closeTooltip}
+    >
+      <button
+        type="button"
+        aria-label={`${option} 분류 설명`}
+        aria-describedby={tooltipId}
+        onFocus={handleFocus}
+        onBlur={closeTooltip}
+        onPointerDown={handlePointerDown}
+        onClick={handleClick}
+        className="flex h-4 w-4 items-center justify-center rounded-full border border-[#636366] text-[10px] font-semibold leading-none text-[#A1A1A6] outline-none hover:border-[#8E8E93] hover:text-white focus-visible:ring-1 focus-visible:ring-[#5E9EFF]"
+      >
+        i
+      </button>
+      <span
+        id={tooltipId}
+        role="tooltip"
+        aria-hidden={!visible}
+        className={`${visible ? "block" : "hidden"} pointer-events-none absolute right-0 top-full z-[90] mt-1 w-[310px] rounded-[8px] border border-[#3A3A3C] bg-[#161616] px-3 py-2 text-left text-[11px] font-normal leading-5 text-[#D1D1D6] shadow-2xl`}
+      >
+        {description}
+      </span>
+    </span>
+  );
+}
+
 function AddableMultiSelectCell({
   fieldKey,
   label,
@@ -1525,34 +1611,52 @@ function AddableMultiSelectCell({
   rowLabel,
   normalizeValue,
   serializeItems,
+  optionInfo,
+  sortDisplayOptions = false,
+  toggleItems,
+  addItem,
   onChange,
   onCommit,
 }) {
   const [customItem, setCustomItem] = useState("");
+  const {
+    detailsRef,
+    onDetailsToggle,
+    summaryRef,
+  } = useDismissibleDetails();
   const standardOptions = Array.isArray(options) ? options : [];
   const selected = normalizeValue(value);
   const availableOptions = [...new Set([...standardOptions, ...selected])];
+  if (sortDisplayOptions) {
+    availableOptions.sort((left, right) => left.localeCompare(right, "ko-KR"));
+  }
   const apply = (items) => {
     const serialized = serializeItems(items);
     onChange(serialized);
     onCommit?.(serialized);
   };
   const toggle = (item) => {
-    apply(
-      selected.includes(item)
+    apply(toggleItems
+      ? toggleItems(selected, item)
+      : selected.includes(item)
         ? selected.filter((valueItem) => valueItem !== item)
-        : [...selected, item],
-    );
+        : [...selected, item]);
   };
   const addCustom = () => {
     const next = customItem.trim();
     if (!next) return;
-    apply([...selected, next]);
+    if (addItem) apply(addItem(selected, next));
+    else apply([...selected, next]);
     setCustomItem("");
   };
   return (
-    <details className="relative min-w-[190px]">
+    <details
+      ref={detailsRef}
+      onToggle={onDetailsToggle}
+      className="relative min-w-[190px]"
+    >
       <summary
+        ref={summaryRef}
         data-draft-field={fieldKey}
         aria-label={`${rowLabel} ${label}`}
         aria-disabled={disabled ? "true" : undefined}
@@ -1570,16 +1674,21 @@ function AddableMultiSelectCell({
       <div className="absolute left-0 top-full z-[70] mt-1 w-[300px] rounded-[10px] border border-[#3A3A3C] bg-[#202020] p-3 shadow-2xl">
         <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
           {availableOptions.map((option) => (
-            <label key={option} className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs text-[#E5E5E5] hover:bg-white/5">
-              <input
-                type="checkbox"
-                checked={selected.includes(option)}
-                onChange={() => toggle(option)}
-                disabled={disabled}
-                className="mt-0.5"
-              />
-              <span>{option}</span>
-            </label>
+            <div key={option} className="flex items-start gap-1 rounded px-1.5 py-1 text-xs text-[#E5E5E5] hover:bg-white/5">
+              <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(option)}
+                  onChange={() => toggle(option)}
+                  disabled={disabled}
+                  className="mt-0.5"
+                />
+                <span>{option}</span>
+              </label>
+              {optionInfo?.[option] ? (
+                <GoodsInfoTooltip option={option} description={optionInfo[option]} />
+              ) : null}
+            </div>
           ))}
         </div>
         <div className="mt-2 flex items-center gap-1">
@@ -1634,7 +1743,7 @@ function GoodsMultiSelectCell({
   return (
     <AddableMultiSelectCell
       fieldKey="goods_type"
-      label="취급 화물"
+      label="주요 취급 화물"
       value={value}
       options={options}
       disabled={disabled}
@@ -1643,6 +1752,10 @@ function GoodsMultiSelectCell({
       rowLabel={rowLabel}
       normalizeValue={normalizeRentRollGoodsTypes}
       serializeItems={serializeRentRollGoodsTypes}
+      optionInfo={RENT_ROLL_GOODS_INFO}
+      sortDisplayOptions
+      toggleItems={toggleRentRollGoodsType}
+      addItem={addRentRollGoodsType}
       onChange={onChange}
     />
   );
@@ -1784,10 +1897,10 @@ function RentRollPanel({ assetCode }) {
     setDraftReady(true);
   }, [draftStorageKey, resource.data, resource.revision]);
   const displayedRows = useMemo(() => sortRows(rows, sort), [rows, sort]);
-  const goodsOptions = useMemo(() => [...new Set([
-    ...RENT_ROLL_GOODS_OPTIONS,
-    ...rows.flatMap((row) => normalizeRentRollGoodsTypes(row.goods_type)),
-  ])], [rows]);
+  const goodsOptions = useMemo(
+    () => rentRollGoodsDisplayOptions(rows.map((row) => row.goods_type)),
+    [rows],
+  );
   useEffect(() => {
     if (!draftReady || !draftHydratedRef.current) return;
     try {
@@ -2745,6 +2858,11 @@ function FinancePanel({ assetCode, assets }) {
   const [customAccountDrafts, setCustomAccountDrafts] = useState({});
   const [accountMutationPending, setAccountMutationPending] = useState(false);
   const [collapsedFinanceSections, setCollapsedFinanceSections] = useState(() => new Set());
+  const {
+    detailsRef: comparisonDetailsRef,
+    onDetailsToggle: onComparisonDetailsToggle,
+    summaryRef: comparisonSummaryRef,
+  } = useDismissibleDetails();
   const accountToggleRefs = useRef(new Map());
   const pendingAccountFocusRef = useRef(null);
   const [selectedAccountCodes, setSelectedAccountCodes] = useState(
@@ -3063,8 +3181,15 @@ function FinancePanel({ assetCode, assets }) {
       data-testid="finance-comparison-controls"
       className="flex justify-end"
     >
-      <details className="relative min-w-[220px] text-[11px] text-[#86868B]">
-        <summary className="cursor-pointer list-none rounded-[7px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 py-1.5 text-right text-xs text-white">
+      <details
+        ref={comparisonDetailsRef}
+        onToggle={onComparisonDetailsToggle}
+        className="relative min-w-[220px] text-[11px] text-[#86868B]"
+      >
+        <summary
+          ref={comparisonSummaryRef}
+          className="cursor-pointer list-none rounded-[7px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 py-1.5 text-right text-xs text-white"
+        >
           비교 자산 {comparisonKeys.length ? `${comparisonKeys.length}개 선택` : "선택"}
         </summary>
         <div className="absolute right-0 top-full z-50 mt-1 max-h-64 w-full min-w-[280px] overflow-y-auto rounded-[10px] border border-[#3A3A3C] bg-[#202020] p-2 shadow-2xl">
@@ -3074,7 +3199,9 @@ function FinancePanel({ assetCode, assets }) {
                 data-testid="finance-comparison-asset-toggle"
                 type="checkbox"
                 checked={comparisonKeys.includes(asset.asset_code)}
-                onChange={() => toggleComparisonAsset(asset.asset_code)}
+                onChange={() => {
+                  toggleComparisonAsset(asset.asset_code);
+                }}
               />
               <span>{asset.name || asset.asset_code}</span>
             </label>
@@ -3452,7 +3579,15 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
     () => sessionStorage.getItem("gate6-data-platform-asset-code") || "",
   );
   const [showMaturities, setShowMaturities] = useState(false);
+  const [selectedHeaderMaturity, setSelectedHeaderMaturity] = useState(null);
   const [maturityTransition, setMaturityTransition] = useState(null);
+  const {
+    containerRef: maturityPopoverRef,
+    triggerRef: maturityButtonRef,
+  } = useDismissiblePopover({
+    open: showMaturities,
+    onClose: () => setShowMaturities(false),
+  });
   const assetDirectory = usePrimaryResource(DATA_PLATFORM_ACTIONS.homeRead, {
     as_of_date: todayKst(),
   });
@@ -3516,6 +3651,7 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
   const changeAsset = (nextAssetCode) => {
     if (nextAssetCode === assetCode) return;
     setShowMaturities(false);
+    setSelectedHeaderMaturity(null);
     setMaturityTransition({
       assetCode: nextAssetCode,
       requestId: maturities.requestId,
@@ -3533,7 +3669,7 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
             <h1 className="text-[26px] font-semibold text-white">
               {TITLES[activeTab]}
             </h1>
-            <div className="relative flex items-end gap-2">
+            <div ref={maturityPopoverRef} className="relative flex items-end gap-2">
               <label className="flex min-w-64 flex-col gap-1 text-xs text-[#A1A1AA]">
                 담당 자산
                 <select
@@ -3551,8 +3687,11 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
                 </select>
               </label>
               <button
+                ref={maturityButtonRef}
                 data-testid="data-platform-maturity-button"
                 type="button"
+                aria-expanded={showMaturities}
+                aria-controls="data-platform-maturity-popover"
                 onClick={() => setShowMaturities((value) => !value)}
                 disabled={!assetCode || maturityUiLoading || Boolean(maturities.error)}
                 className="rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 py-2 text-sm text-[#D1D1D6] disabled:cursor-wait disabled:opacity-60"
@@ -3560,14 +3699,32 @@ export default function LogisticsDataPlatform({ currentPath = "" }) {
                 {maturityButtonText}
               </button>
               {showMaturities ? (
-                <section className="absolute right-0 top-full z-50 mt-2 w-[min(54rem,calc(100vw-2.5rem))] rounded-[16px] border border-[#3A3A3C] bg-[#252524] p-4 shadow-2xl">
-                  <MaturityList rows={maturityRows} />
+                <section
+                  id="data-platform-maturity-popover"
+                  data-testid="data-platform-maturity-popover"
+                  className="absolute right-0 top-full z-50 mt-2 w-[min(54rem,calc(100vw-2.5rem))] rounded-[16px] border border-[#3A3A3C] bg-[#252524] p-4 shadow-2xl"
+                >
+                  <MaturityList
+                    rows={maturityRows}
+                    selected={null}
+                    renderDialog={false}
+                    onSelect={(row) => {
+                      setShowMaturities(false);
+                      setSelectedHeaderMaturity(row);
+                    }}
+                  />
                 </section>
               ) : null}
             </div>
           </div>
         </div>
       </header>
+      <MaturityList
+        rows={[]}
+        selected={selectedHeaderMaturity}
+        renderList={false}
+        onClose={() => setSelectedHeaderMaturity(null)}
+      />
       <div className="mx-auto max-w-[1680px] px-8 py-6">
         {activeTab === "home" ? (
           <HomePanel

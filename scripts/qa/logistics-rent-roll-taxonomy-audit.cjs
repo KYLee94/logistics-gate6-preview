@@ -10,6 +10,33 @@ const DEFAULT_ENV_ROOT = path.resolve(ROOT, '..', 'IGIS-Fund-Production-DP');
 const DEFAULT_REFERENCE_BASE = 'C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard';
 const expectedAssetCount = 19;
 const TEMPERATURE_OPTIONS = ['\uc800\uc628', '\uc0c1\uc628', '\ubcf5\ud569', '\uc0ac\ubb34\uc2e4'];
+const GOODS_CATEGORY_VALUES = Object.freeze([
+  '가구·인테리어', '기타 공산품', '디지털·가전', '반도체', '식품·음료',
+  '의류', '의약품', '일상용품', '종합상품', '화장품',
+]);
+const GOODS_CATEGORY_MAP = Object.freeze(Object.fromEntries(Object.entries({
+  '가구': ['가구·인테리어'],
+  '가전제품': ['디지털·가전'],
+  '가전제품 등': ['디지털·가전'],
+  '공산품': ['기타 공산품'],
+  '라이프스타일 용품': ['일상용품'],
+  '반도체(고가 화물)': ['반도체'],
+  '생필품': ['일상용품'],
+  '식음료': ['식품·음료'],
+  '식품(온도)': ['식품·음료'],
+  '신선식품': ['식품·음료'],
+  '어패럴': ['의류'],
+  '유제품': ['식품·음료'],
+  '유제품 등': ['식품·음료'],
+  '의류': ['의류'],
+  '의류(중하중)': ['의류'],
+  '의약품': ['의약품'],
+  '전자기기(컴퓨터 등)': ['디지털·가전'],
+  '전체 상품 취급(풀필먼트)': ['종합상품'],
+  '하중물': [],
+  '화장품': ['화장품'],
+  '화장품 등': ['화장품'],
+}).map(([source, categories]) => [source, Object.freeze(categories)])));
 const ALLOWED_ACTIONS = new Set(['v2/home/read', 'v2/rent-roll/read']);
 
 function flagValue(name, fallback = '') {
@@ -88,6 +115,36 @@ function inspectGoods(value, goodsMode) {
   };
 }
 
+function normalizeGoodsCategories(value) {
+  const sourceValues = (Array.isArray(value) ? value : [value])
+    .filter((item) => typeof item === 'string' && item.trim() !== '')
+    .map((item) => item.trim());
+  const categories = [];
+  const removedNonCategories = [];
+  const unmappedValues = [];
+  for (const sourceValue of sourceValues) {
+    if (!Object.hasOwn(GOODS_CATEGORY_MAP, sourceValue)) {
+      if (!categories.includes(sourceValue)) categories.push(sourceValue);
+      if (!unmappedValues.includes(sourceValue)) unmappedValues.push(sourceValue);
+      continue;
+    }
+    const mapped = GOODS_CATEGORY_MAP[sourceValue];
+    if (mapped.length === 0) {
+      if (!removedNonCategories.includes(sourceValue)) removedNonCategories.push(sourceValue);
+      continue;
+    }
+    for (const category of mapped) {
+      if (!categories.includes(category)) categories.push(category);
+    }
+  }
+  return {
+    source_values: sourceValues,
+    categories,
+    removed_non_categories: removedNonCategories,
+    unmapped_values: unmappedValues,
+  };
+}
+
 function auditAssetRows(asset, rows, { goodsMode = 'scalar' } = {}) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const evidence = safeRows.map((row, index) => {
@@ -99,6 +156,16 @@ function auditAssetRows(asset, rows, { goodsMode = 'scalar' } = {}) {
       row_key: row?.row_key ?? row?.space_key ?? row?._draft_id ?? null,
       temperature,
       goods,
+      goods_categories: normalizeGoodsCategories(row?.goods_type),
+      source_signature: {
+        tenant_name: row?.tenant_name ?? null,
+        business_registration_number: row?.business_registration_number ?? null,
+        floor_label: row?.floor_label ?? null,
+        zone_label: row?.zone_label ?? null,
+        leased_area_sqm: row?.leased_area_sqm ?? null,
+        commencement_date: row?.commencement_date ?? null,
+        expiry_date: row?.expiry_date ?? null,
+      },
     };
   });
   const validNonblank = (entry) => !entry.blank && !entry.invalid && entry.type === 'string';
@@ -115,6 +182,12 @@ function auditAssetRows(asset, rows, { goodsMode = 'scalar' } = {}) {
       if (goodsMode === 'array') return entry.invalid ? [] : (entry.normalized_values || []);
       return validNonblank(entry) ? [entry.value.trim()] : [];
     })),
+    goods_category_unique_values: sortedUnique(evidence.flatMap((row) => row.goods_categories.categories)),
+    goods_category_unmapped_values: sortedUnique(evidence.flatMap((row) => row.goods_categories.unmapped_values)),
+    goods_removed_non_category_count: evidence.reduce(
+      (sum, row) => sum + row.goods_categories.removed_non_categories.length,
+      0,
+    ),
     temperature_blank_count: evidence.filter((row) => row.temperature.blank).length,
     temperature_invalid_count: evidence.filter((row) => row.temperature.invalid).length,
     goods_blank_count: evidence.filter((row) => row.goods.blank).length,
@@ -362,6 +435,12 @@ async function collectOperatingAudit(config, token) {
     total_row_count: audits.reduce((sum, audit) => sum + audit.row_count, 0),
     temperature_unique_values: sortedUnique(audits.flatMap((audit) => audit.temperature_unique_values)),
     goods_unique_values: sortedUnique(audits.flatMap((audit) => audit.goods_unique_values)),
+    goods_category_unique_values: sortedUnique(audits.flatMap((audit) => audit.goods_category_unique_values)),
+    goods_category_unmapped_values: sortedUnique(audits.flatMap((audit) => audit.goods_category_unmapped_values)),
+    goods_removed_non_category_count: audits.reduce(
+      (sum, audit) => sum + audit.goods_removed_non_category_count,
+      0,
+    ),
     temperature_blank_count: audits.reduce((sum, audit) => sum + audit.temperature_blank_count, 0),
     temperature_invalid_count: audits.reduce((sum, audit) => sum + audit.temperature_invalid_count, 0),
     goods_blank_count: audits.reduce((sum, audit) => sum + audit.goods_blank_count, 0),
@@ -403,6 +482,9 @@ async function main() {
         .filter((row) => row.temperature.invalid)
         .map((row) => [row.row_index, row.temperature.value, row.temperature.type, row.temperature.reasons]),
       goods_unique_values: asset.goods_unique_values,
+      goods_category_unique_values: asset.goods_category_unique_values,
+      goods_category_unmapped_values: asset.goods_category_unmapped_values,
+      goods_removed_non_category_count: asset.goods_removed_non_category_count,
       goods_blank_rows: asset.issue_rows
         .filter((row) => row.goods.blank)
         .map((row) => row.row_index),
@@ -427,10 +509,13 @@ async function main() {
 }
 
 module.exports = {
+  GOODS_CATEGORY_MAP,
+  GOODS_CATEGORY_VALUES,
   TEMPERATURE_OPTIONS,
   auditAssetRows,
   auditReferenceWorkbooks,
   compareTaxonomySources,
+  normalizeGoodsCategories,
   resolveReferenceDirectory,
 };
 
