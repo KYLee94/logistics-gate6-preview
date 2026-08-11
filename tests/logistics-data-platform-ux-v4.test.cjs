@@ -53,9 +53,6 @@ test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 �
     'PROPERTY_INSURANCE',
     'GENERAL_PROPERTY_ADMIN',
     'OTHER_PROPERTY_OPEX',
-    'CLEANING',
-    'SECURITY',
-    'LANDSCAPING_SNOW',
     'CAPEX',
     'TENANT_IMPROVEMENT',
     'LEASING_COMMISSION',
@@ -63,13 +60,19 @@ test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 �
     'CUSTODY_FEE',
     'GENERAL_ADMIN_TRUSTEE_FEE',
     'INTEREST_PAID',
+    'PRINCIPAL_REPAYMENT',
+    'LOAN_FEE',
+    'OTHER_CASH_INFLOW',
+    'OTHER_CASH_OUTFLOW',
+    'OPENING_CASH_BALANCE',
   ];
   assert.deepEqual(
     [...core.map((account) => account.code)].sort(),
     [...expectedCore].sort(),
   );
-  assert.ok(optional.some((account) => account.code === 'DEPOSIT_OPERATING_INCOME'));
-  assert.equal(optional.some((account) => account.code === 'INTEREST_PAID'), false);
+  for (const code of ['PARKING_YARD_INCOME', 'DEPOSIT_OPERATING_INCOME', 'VACANCY_LOSS', 'CLEANING']) {
+    assert.ok(optional.some((account) => account.code === code), `선택 계정 누락: ${code}`);
+  }
 
   const hierarchy = formulas.buildFinanceAccountHierarchy(
     formulas.KOREAN_LOGISTICS_NOI_ACCOUNTS.map((account, index) => ({

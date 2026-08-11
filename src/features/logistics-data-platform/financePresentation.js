@@ -2,11 +2,26 @@ export const FINANCE_COMPARISON_PRESENTATION_KEYS = Object.freeze([
   'effective_gross_income',
   'total_operating_expense',
   'net_operating_income',
-  'asset_net_cash_flow',
   'after_debt_service_cash_flow',
+  'net_cash_flow',
+  'cumulative_net_cash_flow',
+  'closing_cash_balance',
 ]);
 
-function appendAccounts(rows, section, { subsectionLabel = null } = {}) {
+const FINANCE_COMPARISON_ENDING_KEYS = new Set([
+  'cumulative_net_cash_flow',
+  'closing_cash_balance',
+]);
+
+export function financeComparisonValue(series = [], key) {
+  const rows = Array.isArray(series) ? series : [];
+  if (FINANCE_COMPARISON_ENDING_KEYS.has(key)) {
+    return rows.length ? rows.at(-1)?.[key] ?? null : null;
+  }
+  return rows.reduce((sum, row) => sum + Number(row?.[key] || 0), 0);
+}
+
+function appendAccounts(rows, section, { subsectionLabel = null, allowCustom = true } = {}) {
   if (subsectionLabel) {
     rows.push({
       kind: 'subsection',
@@ -19,7 +34,7 @@ function appendAccounts(rows, section, { subsectionLabel = null } = {}) {
   const firstInactiveIndex = accounts.findIndex((account) => !account.active);
   accounts.forEach((account, index) => {
     if (index === firstInactiveIndex) {
-      rows.push({ kind: 'custom-add', key: `${section.key}-custom-add`, section: section.key });
+      if (allowCustom) rows.push({ kind: 'custom-add', key: `${section.key}-custom-add`, section: section.key });
       rows.push({ kind: 'inactive-divider', key: `${section.key}-inactive`, label: '미사용 계정' });
     }
     rows.push({
@@ -30,7 +45,7 @@ function appendAccounts(rows, section, { subsectionLabel = null } = {}) {
       active: account.active,
     });
   });
-  if (firstInactiveIndex === -1) {
+  if (allowCustom && firstInactiveIndex === -1) {
     rows.push({ kind: 'custom-add', key: `${section.key}-custom-add`, section: section.key });
   }
 }
@@ -61,11 +76,22 @@ export function buildFinanceStatementPresentationRows(financeHierarchy = []) {
   const belowNoi = section('below_noi', 'NOI 하단 조정');
   rows.push({ kind: 'section', key: belowNoi.key, label: belowNoi.label });
   appendAccounts(rows, belowNoi);
-  rows.push({ kind: 'metric', key: 'asset_net_cash_flow', label: '자산 순현금흐름(NCF)' });
+  rows.push({ kind: 'metric', key: 'asset_net_cash_flow', label: '부채상환 전 현금흐름' });
 
   const debtService = section('debt_service', '부채상환');
   rows.push({ kind: 'section', key: debtService.key, label: debtService.label });
   appendAccounts(rows, debtService);
   rows.push({ kind: 'metric', key: 'after_debt_service_cash_flow', label: '부채상환 후 현금흐름' });
+
+  const cashFlow = section('cash_flow', '기타 현금흐름');
+  rows.push({ kind: 'section', key: cashFlow.key, label: cashFlow.label });
+  appendAccounts(rows, cashFlow, { allowCustom: false });
+  rows.push({ kind: 'metric', key: 'net_cash_flow', label: '월 순현금흐름' });
+  rows.push({ kind: 'metric', key: 'cumulative_net_cash_flow', label: '누적 순현금흐름' });
+
+  const cashBalance = section('cash_balance', '현금잔액');
+  rows.push({ kind: 'section', key: cashBalance.key, label: cashBalance.label });
+  appendAccounts(rows, cashBalance, { allowCustom: false });
+  rows.push({ kind: 'metric', key: 'closing_cash_balance', label: '기말 현금잔액' });
   return rows;
 }

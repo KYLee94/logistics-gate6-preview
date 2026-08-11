@@ -65,6 +65,8 @@ test('수익비용 저장은 화면 전체 statement 문서를 그대로 정규�
     operating_expense: [],
     below_noi: [],
     debt_service: [],
+    cash_flow: [],
+    cash_balance: [],
   } });
 });
 
@@ -392,6 +394,8 @@ test('수익비용 statement와 기존 화면 projection은 이름·선택·기�
   const definitions = [
     { section: 'potential_income', code: 'RENT', label: '임대료', defaultVisible: true },
     { section: 'operating_expense', code: 'PM', label: 'PM 수수료', defaultVisible: true },
+    { section: 'cash_flow', code: 'OTHER_CASH_INFLOW', label: '기타 현금유입', defaultVisible: true, normalSign: 1 },
+    { section: 'cash_balance', code: 'OPENING_CASH_BALANCE', label: '기초 현금잔액', defaultVisible: true },
   ];
   const projection = projectIncomeExpenseStatement({
     periods: ['2026-07', '2026-08'],
@@ -400,10 +404,12 @@ test('수익비용 statement와 기존 화면 projection은 이름·선택·기�
     operating_expense: [{ name: 'PM 수수료', selected: false, amounts: { '2026-08': 10 } }],
     below_noi: [],
     debt_service: [],
+    cash_flow: [{ name: '기타 현금유입', selected: true, amounts: { '2026-08': 5 } }],
+    cash_balance: [{ name: '기초 현금잔액', selected: true, amounts: { '2026-07': 50 } }],
   }, definitions);
 
-  assert.deepEqual(projection.selectedAccountCodes, ['RENT']);
-  assert.equal(projection.entries.length, 3);
+  assert.deepEqual(projection.selectedAccountCodes, ['RENT', 'OTHER_CASH_INFLOW', 'OPENING_CASH_BALANCE']);
+  assert.equal(projection.entries.length, 5);
   assert.deepEqual(buildIncomeExpenseStatement(projection), {
     periods: ['2026-07', '2026-08'],
     potential_income: [{ name: '임대료', selected: true, amounts: { '2026-07': 100, '2026-08': 110 } }],
@@ -411,6 +417,8 @@ test('수익비용 statement와 기존 화면 projection은 이름·선택·기�
     operating_expense: [{ name: 'PM 수수료', selected: false, amounts: { '2026-08': 10 } }],
     below_noi: [],
     debt_service: [],
+    cash_flow: [{ name: '기타 현금유입', selected: true, amounts: { '2026-08': 5 } }],
+    cash_balance: [{ name: '기초 현금잔액', selected: true, amounts: { '2026-07': 50 } }],
   });
 });
 

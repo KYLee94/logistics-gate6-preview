@@ -10,9 +10,6 @@ const DEFAULT_VISIBLE_NOI_CODES = new Set([
   'PROPERTY_INSURANCE',
   'GENERAL_PROPERTY_ADMIN',
   'OTHER_PROPERTY_OPEX',
-  'CLEANING',
-  'SECURITY',
-  'LANDSCAPING_SNOW',
   'CAPEX',
   'LEASING_COMMISSION',
   'TENANT_IMPROVEMENT',
@@ -20,6 +17,11 @@ const DEFAULT_VISIBLE_NOI_CODES = new Set([
   'CUSTODY_FEE',
   'GENERAL_ADMIN_TRUSTEE_FEE',
   'INTEREST_PAID',
+  'PRINCIPAL_REPAYMENT',
+  'LOAN_FEE',
+  'OTHER_CASH_INFLOW',
+  'OTHER_CASH_OUTFLOW',
+  'OPENING_CASH_BALANCE',
 ]);
 
 export const KOREAN_LOGISTICS_NOI_ACCOUNTS = Object.freeze([
@@ -48,23 +50,27 @@ export const KOREAN_LOGISTICS_NOI_ACCOUNTS = Object.freeze([
   ['operating_expense', '운영비용', 'RECURRING_LEASING_EXPENSE', '경상 임대운영비'],
   ['operating_expense', '운영비용', 'GENERAL_PROPERTY_ADMIN', '일반관리비'],
   ['operating_expense', '운영비용', 'OTHER_PROPERTY_OPEX', '기타 운영경비'],
-  ['below_noi', '자산 NCF 조정', 'CAPEX', '자본적 지출'],
-  ['below_noi', '자산 NCF 조정', 'TENANT_IMPROVEMENT', '임차인 시설공사비(TI)'],
-  ['below_noi', '자산 NCF 조정', 'LEASING_COMMISSION', '임대 중개수수료(LC)'],
-  ['below_noi', '자산 NCF 조정', 'CAPITAL_RESERVE', '자본적립금'],
-  ['below_noi', '자산 NCF 조정', 'AMC_FEE', 'AMC 수수료'],
-  ['below_noi', '자산 NCF 조정', 'CUSTODY_FEE', '자산보관 수수료'],
-  ['below_noi', '자산 NCF 조정', 'GENERAL_ADMIN_TRUSTEE_FEE', '일반사무·수탁 수수료'],
-  ['below_noi', '자산 NCF 조정', 'OTHER_OWNER_COST', '기타 소유자비용'],
-  ['below_noi', '자산 NCF 조정', 'NONCASH_ADDBACK', '비현금비용 가산'],
+  ['below_noi', 'NOI 하단 조정', 'CAPEX', '자본적 지출'],
+  ['below_noi', 'NOI 하단 조정', 'TENANT_IMPROVEMENT', '임차인 시설공사비(TI)'],
+  ['below_noi', 'NOI 하단 조정', 'LEASING_COMMISSION', '임대 중개수수료(LC)'],
+  ['below_noi', 'NOI 하단 조정', 'CAPITAL_RESERVE', '자본적립금'],
+  ['below_noi', 'NOI 하단 조정', 'AMC_FEE', 'AMC 수수료'],
+  ['below_noi', 'NOI 하단 조정', 'CUSTODY_FEE', '자산보관 수수료'],
+  ['below_noi', 'NOI 하단 조정', 'GENERAL_ADMIN_TRUSTEE_FEE', '일반사무·수탁 수수료'],
+  ['below_noi', 'NOI 하단 조정', 'OTHER_OWNER_COST', '기타 소유자비용'],
+  ['below_noi', 'NOI 하단 조정', 'NONCASH_ADDBACK', '비현금비용 가산'],
   ['debt_service', '부채상환', 'INTEREST_PAID', '이자 지급액'],
   ['debt_service', '부채상환', 'PRINCIPAL_REPAYMENT', '원금 상환액'],
   ['debt_service', '부채상환', 'LOAN_FEE', '대출 관련 수수료'],
-].map(([section, sectionLabel, code, label]) => Object.freeze({
+  ['cash_flow', '기타 현금흐름', 'OTHER_CASH_INFLOW', '기타 현금유입', 1],
+  ['cash_flow', '기타 현금흐름', 'OTHER_CASH_OUTFLOW', '기타 현금유출', -1],
+  ['cash_balance', '현금잔액', 'OPENING_CASH_BALANCE', '기초 현금잔액', 1],
+].map(([section, sectionLabel, code, label, normalSign]) => Object.freeze({
   section,
   sectionLabel,
   code,
   label,
+  normalSign: normalSign ?? (section === 'potential_income' ? 1 : -1),
   defaultVisible: DEFAULT_VISIBLE_NOI_CODES.has(code),
 })));
 
@@ -74,6 +80,8 @@ export const FINANCE_SECTION_ORDER = Object.freeze([
   'operating_expense',
   'below_noi',
   'debt_service',
+  'cash_flow',
+  'cash_balance',
 ]);
 
 export const FINANCE_SECTION_LABELS = Object.freeze({
@@ -82,6 +90,8 @@ export const FINANCE_SECTION_LABELS = Object.freeze({
   operating_expense: '운영비용',
   below_noi: 'NOI 하단 조정',
   debt_service: '부채상환',
+  cash_flow: '기타 현금흐름',
+  cash_balance: '현금잔액',
 });
 
 export function buildFinanceAccountHierarchy(accounts = [], selectedAccountCodes = new Set()) {
@@ -139,9 +149,12 @@ export function calculateKoreanLogisticsNoi(input = {}) {
   const belowNoiCashCost = Math.abs(Number(input.below_noi_cash_cost) || 0);
   const noncashAddback = Number(input.noncash_addback) || 0;
   const debtService = Math.abs(Number(input.debt_service) || 0);
+  const otherCashInflow = Number(input.other_cash_inflow) || 0;
+  const otherCashOutflow = Math.abs(Number(input.other_cash_outflow) || 0);
   const effectiveGrossIncome = potentialGrossIncome - incomeLoss;
   const netOperatingIncome = effectiveGrossIncome - operatingExpense;
   const assetNetCashFlow = netOperatingIncome - belowNoiCashCost + noncashAddback;
+  const afterDebtServiceCashFlow = assetNetCashFlow - debtService;
   return {
     potential_gross_income: potentialGrossIncome,
     total_income_loss: incomeLoss,
@@ -149,15 +162,60 @@ export function calculateKoreanLogisticsNoi(input = {}) {
     total_operating_expense: operatingExpense,
     net_operating_income: netOperatingIncome,
     asset_net_cash_flow: assetNetCashFlow,
-    after_debt_service_cash_flow: assetNetCashFlow - debtService,
+    pre_debt_cash_flow: assetNetCashFlow,
+    after_debt_service_cash_flow: afterDebtServiceCashFlow,
+    other_cash_inflow: otherCashInflow,
+    other_cash_outflow: otherCashOutflow,
+    net_cash_flow: afterDebtServiceCashFlow + otherCashInflow - otherCashOutflow,
   };
 }
 
+export function applyFinanceCashBalances(series = []) {
+  let cumulativeNetCashFlow = 0;
+  let previousClosingBalance = null;
+  return (Array.isArray(series) ? series : []).map((row) => {
+    const netCashFlow = Number(row?.net_cash_flow) || 0;
+    cumulativeNetCashFlow += netCashFlow;
+    const explicitOpening = row?.opening_cash_balance === ''
+      || row?.opening_cash_balance === null
+      || row?.opening_cash_balance === undefined
+      ? null
+      : Number(row.opening_cash_balance);
+    const openingCashBalance = Number.isFinite(explicitOpening)
+      ? explicitOpening
+      : previousClosingBalance;
+    const closingCashBalance = openingCashBalance == null
+      ? null
+      : openingCashBalance + netCashFlow;
+    previousClosingBalance = closingCashBalance;
+    return {
+      ...row,
+      opening_cash_balance: openingCashBalance,
+      cumulative_net_cash_flow: cumulativeNetCashFlow,
+      closing_cash_balance: closingCashBalance,
+    };
+  });
+}
+
+export const FINANCE_FORMULA_EXPLANATIONS = Object.freeze({
+  effective_gross_income: '영업수익에서 수입 손실을 차감합니다.',
+  total_operating_expense: '선택한 영업비용 계정의 금액을 합산합니다.',
+  net_operating_income: '영업수익에서 영업비용을 차감합니다.',
+  asset_net_cash_flow: '순영업소득에서 NOI 하단 현금비용을 차감하고 비현금비용을 가산합니다.',
+  pre_debt_cash_flow: '순영업소득에서 NOI 하단 현금비용을 차감하고 비현금비용을 가산합니다.',
+  after_debt_service_cash_flow: '부채상환 전 현금흐름에서 이자·원금·대출수수료를 차감합니다.',
+  net_cash_flow: '부채상환 후 현금흐름에 기타 현금유입을 더하고 기타 현금유출을 차감합니다.',
+  cumulative_net_cash_flow: '조회 범위 첫 월부터 월 순현금흐름을 누적합니다.',
+  closing_cash_balance: '해당 월 기초 현금잔액에 월 순현금흐름을 더합니다. 기초잔액이 없으면 표시하지 않습니다.',
+});
+
 export const FINANCE_WATERFALL_LABELS = Object.freeze([
-  '잠재총수입', '수입손실', '유효총수입', '운영비용', '순영업소득(NOI)', '자산 순현금흐름(NCF)', '부채상환 후 현금흐름',
+  '영업수익', '운영비용', '순영업소득(NOI)', '부채상환 전 현금흐름',
+  '부채상환 후 현금흐름', '월 순현금흐름', '누적 순현금흐름', '기초 현금잔액', '기말 현금잔액',
 ]);
 
 export const FINANCE_WATERFALL_KEYS = Object.freeze([
-  'potential_gross_income', 'total_income_loss', 'effective_gross_income', 'total_operating_expense',
-  'net_operating_income', 'asset_net_cash_flow', 'after_debt_service_cash_flow',
+  'effective_gross_income', 'total_operating_expense', 'net_operating_income', 'pre_debt_cash_flow',
+  'after_debt_service_cash_flow', 'net_cash_flow', 'cumulative_net_cash_flow',
+  'opening_cash_balance', 'closing_cash_balance',
 ]);

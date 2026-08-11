@@ -1,4 +1,5 @@
 import {
+  canonicalCostTermItems,
   normalizeFitOutMonths,
   normalizeRentFreePeriod,
   serializeRentRollGoodsTypes,
@@ -72,6 +73,7 @@ const RENT_ROLL_DATE_FIELDS = Object.freeze([
 ]);
 const INCOME_EXPENSE_SECTIONS = Object.freeze([
   'potential_income', 'income_loss', 'operating_expense', 'below_noi', 'debt_service',
+  'cash_flow', 'cash_balance',
 ]);
 const FINANCE_MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/u;
 const DOCUMENT_DATE_KEY = /^\d{4}-\d{2}-\d{2}$/u;
@@ -244,7 +246,7 @@ function canonicalRentRow(value) {
   }
   for (const field of ['tenant_cost_terms', 'landlord_cost_terms']) {
     if (Object.prototype.hasOwnProperty.call(row, field)) {
-      row[field] = { items: canonicalTextItems(value?.[field]) };
+      row[field] = { items: canonicalCostTermItems(canonicalTextItems(value?.[field])) };
     }
   }
   for (const field of ['renewal_terms', 'termination_terms', 'restoration_terms']) {
@@ -454,7 +456,8 @@ export function projectIncomeExpenseStatement(statement = {}, definitions = []) 
         name_ko: row.name,
         statement_section: section,
         display_order: (index + 1) * 10,
-        normal_sign: section === 'potential_income' ? 1 : -1,
+        normal_sign: definition?.normalSign
+          ?? (section === 'potential_income' || section === 'cash_balance' ? 1 : -1),
         is_custom: !definition,
         selected: row.selected,
       });

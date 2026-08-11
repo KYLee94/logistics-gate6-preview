@@ -32,14 +32,17 @@ import {
   validateRentRollDelta,
 } from "./rentRollSchema";
 import {
+  applyFinanceCashBalances,
   buildFinanceAccountHierarchy,
   calculateKoreanLogisticsNoi,
   filterFinanceCalculationAccounts,
+  FINANCE_FORMULA_EXPLANATIONS,
   FINANCE_SECTION_ORDER,
   KOREAN_LOGISTICS_NOI_ACCOUNTS,
 } from "./formulas";
 import {
   buildFinanceStatementPresentationRows,
+  financeComparisonValue,
   FINANCE_COMPARISON_PRESENTATION_KEYS,
 } from "./financePresentation";
 import {
@@ -2537,16 +2540,10 @@ function periodFor(month, aggregation) {
   return month;
 }
 function buildFinanceSeries(entries, accounts, months, aggregation) {
-  const signs = new Map(
-    accounts.map((account) => [
-      account.account_code,
-      Number(account.normal_sign || 1),
-    ]),
-  );
   const periods = [
     ...new Set(months.map((month) => periodFor(month, aggregation))),
   ];
-  return periods.map((period) => {
+  const periodSeries = periods.map((period) => {
     const totals = {
       potential_income: 0,
       income_loss: 0,
@@ -2554,6 +2551,10 @@ function buildFinanceSeries(entries, accounts, months, aggregation) {
       below_noi_cash_cost: 0,
       noncash_addback: 0,
       debt_service: 0,
+      other_cash_inflow: 0,
+      other_cash_outflow: 0,
+      opening_cash_balance: null,
+      opening_cash_balance_month: null,
     };
     entries
       .filter(
@@ -2587,10 +2588,28 @@ function buildFinanceSeries(entries, accounts, months, aggregation) {
           totals.below_noi_cash_cost += raw;
         else if (account.statement_section === "debt_service")
           totals.debt_service += raw;
-        void signs;
+        else if (account.account_code === "OTHER_CASH_INFLOW")
+          totals.other_cash_inflow += raw;
+        else if (account.account_code === "OTHER_CASH_OUTFLOW")
+          totals.other_cash_outflow += raw;
+        else if (account.account_code === "OPENING_CASH_BALANCE") {
+          const entryMonth = String(entry.month).slice(0, 7);
+          if (
+            totals.opening_cash_balance_month == null
+            || entryMonth < totals.opening_cash_balance_month
+          ) {
+            totals.opening_cash_balance = raw;
+            totals.opening_cash_balance_month = entryMonth;
+          }
+        }
       });
-    return { period, ...calculateKoreanLogisticsNoi(totals) };
+    return {
+      period,
+      ...calculateKoreanLogisticsNoi(totals),
+      opening_cash_balance: totals.opening_cash_balance,
+    };
   });
+  return applyFinanceCashBalances(periodSeries);
 }
 function FinanceTrend({ series }) {
   const [activeIndex, setActiveIndex] = useState(null);
@@ -2641,6 +2660,9 @@ function FinanceTrend({ series }) {
             ["운영비용", "total_operating_expense"],
             ["순영업소득", "net_operating_income"],
             ["부채상환 후 현금흐름", "after_debt_service_cash_flow"],
+            ["월 순현금흐름", "net_cash_flow"],
+            ["누적 순현금흐름", "cumulative_net_cash_flow"],
+            ["기말 현금잔액", "closing_cash_balance"],
           ].map(([label, key]) => (
             <div key={key} className="flex justify-between gap-5 py-0.5">
               <span className="text-[#A1A1AA]">{label}</span>
@@ -2976,10 +2998,6 @@ function FinancePanel({ assetCode, assets }) {
     months
       .filter((month) => periodFor(month, aggregation) === period)
       .reduce((sum, month) => sum + accountMonthTotal(code, month), 0);
-  const total = (key) =>
-    series.reduce((sum, row) => sum + Number(row[key] || 0), 0);
-  const seriesTotal = (targetSeries, key) =>
-    targetSeries.reduce((sum, row) => sum + Number(row[key] || 0), 0);
   const selectedAssetName =
     assets.find((asset) => asset.asset_code === assetCode)?.name || "선택 자산";
   const applyPeriodPreset = (preset) => {
@@ -3007,8 +3025,10 @@ function FinancePanel({ assetCode, assets }) {
     effective_gross_income: "영업수익",
     total_operating_expense: "운영비용",
     net_operating_income: "순영업소득(NOI)",
-    asset_net_cash_flow: "자산 NCF",
     after_debt_service_cash_flow: "부채상환 후 현금흐름",
+    net_cash_flow: "월 순현금흐름",
+    cumulative_net_cash_flow: "누적 순현금흐름",
+    closing_cash_balance: "기말 현금잔액",
   });
   const rows = buildFinanceStatementPresentationRows(financeHierarchy);
   const comparisonAction = (
@@ -3140,11 +3160,11 @@ function FinancePanel({ assetCode, assets }) {
                         {summaryLabels[key]}
                       </th>
                       <td className={`border-t border-[#333333] px-2 py-2 text-right tabular-nums ${isKeyResult ? "font-semibold text-[#9AD7FF]" : "text-white"}`}>
-                        {amount(total(key))}
+                        {amount(financeComparisonValue(series, key))}
                       </td>
                       {comparisonResults.length ? comparisonResults.map((result) => (
                         <td key={result.assetKey} className="border-t border-[#333333] px-2 py-2 text-right tabular-nums text-[#A1A1AA]">
-                          {amount(seriesTotal(result.series, key))}
+                          {amount(financeComparisonValue(result.series, key))}
                         </td>
                       )) : (
                         <td className="border-t border-[#333333] px-2 py-2 text-right text-[#68686D]">비교 없음</td>
@@ -3308,7 +3328,22 @@ function FinancePanel({ assetCode, assets }) {
                               </button>
                             ) : null}
                           </div>
-                        ) : row.label}
+                        ) : (
+                          <span
+                            title={FINANCE_FORMULA_EXPLANATIONS[row.key]}
+                            className="inline-flex items-center gap-1.5"
+                          >
+                            {row.label}
+                            {FINANCE_FORMULA_EXPLANATIONS[row.key] ? (
+                              <span
+                                aria-label={`${row.label} 계산식: ${FINANCE_FORMULA_EXPLANATIONS[row.key]}`}
+                                className="text-[10px] font-normal text-[#7FAEEA]"
+                              >
+                                ⓘ
+                              </span>
+                            ) : null}
+                          </span>
+                        )}
                       </th>
                       {periods.map((period, periodIndex) => {
                         if (row.kind === "metric")
@@ -3317,7 +3352,10 @@ function FinancePanel({ assetCode, assets }) {
                               key={period}
                               className="border-b border-[#333333] bg-[#17314E] px-3 py-2 text-right font-semibold tabular-nums text-[#9AD7FF]"
                             >
-                              {amount(series[periodIndex]?.[row.key])}
+                              {row.key === "closing_cash_balance"
+                                && series[periodIndex]?.closing_cash_balance == null
+                                ? "-"
+                                : amount(series[periodIndex]?.[row.key])}
                             </td>
                           );
                         if (aggregation !== "month")

@@ -34,23 +34,22 @@ export const RENT_ROLL_GOODS_OPTIONS = Object.freeze([
 ]);
 
 export const TENANT_COST_OPTIONS = Object.freeze([
-  '전기·수도·가스 등 공과금',
-  '임차인 설치시설·영업상 수선',
-  '시설 변경·설치 비용',
-  '추가 제세공과금·보험료',
-  '화재·배상책임보험',
+  '수도광열비·공과금',
+  '임차인 시설 설치·개조비',
+  '임차인 시설 유지보수·귀책수선',
+  '전용부 운영·법정검사비',
   '전용부 미화·보안·방역',
+  '보관화물·영업배상책임보험',
+  '임차인 사유 추가 제세공과금·보험료',
   '교통유발·과밀부담금',
-  '법정검사·시설관리비',
 ]);
 export const LANDLORD_COST_OPTIONS = Object.freeze([
-  '구조체·기본설비 유지보수',
-  '재산종합·화재보험',
-  '소유 관련 제세공과금',
+  '임차인 귀책 외 구조·기본설비 수선',
+  '공용설비 유지관리·법정검사',
   '공용부 미화·보안·조경',
-  '승강기·전기·소방 유지관리',
+  '건물 화재·재산종합보험',
+  '소유 관련 제세공과금',
   '도로점용·단지관리비',
-  '임차인 귀책 외 수선비',
 ]);
 
 const RENEWAL_PRESETS = Object.freeze([
@@ -307,22 +306,42 @@ export function parseRentRollMoneyInput(value) {
   return String(value ?? '').replaceAll(',', '').replace(/[^\d.-]/gu, '');
 }
 
+const COST_TERM_EMPTY_PATTERN = /^(?:N\/?A|-|없음|해당\s*없음)$/iu;
+const COST_TERM_ALIASES = new Map([
+  ['전기·수도·가스 등 공과금', '수도광열비·공과금'],
+  ['시설 변경·설치 비용', '임차인 시설 설치·개조비'],
+  ['임차인 설치시설·영업상 수선', '임차인 시설 유지보수·귀책수선'],
+  ['법정검사·시설관리비', '전용부 운영·법정검사비'],
+  ['화재·배상책임보험', '보관화물·영업배상책임보험'],
+  ['추가 제세공과금·보험료', '임차인 사유 추가 제세공과금·보험료'],
+  ['구조체·기본설비 유지보수', '임차인 귀책 외 구조·기본설비 수선'],
+  ['임차인 귀책 외 수선비', '임차인 귀책 외 구조·기본설비 수선'],
+  ['승강기·전기·소방 유지관리', '공용설비 유지관리·법정검사'],
+  ['재산종합·화재보험', '건물 화재·재산종합보험'],
+]);
+
+export function canonicalCostTermItems(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map((value) => String(value ?? '').trim())
+    .filter((value) => value && !COST_TERM_EMPTY_PATTERN.test(value))
+    .map((value) => COST_TERM_ALIASES.get(value) || value))];
+}
+
 const COST_TERM_PATTERNS = Object.freeze([
-  ['전기·수도·가스 등 공과금', /전기[\s\S]*수도[\s\S]*가스|제반\s*공과금/iu],
-  ['임차인 설치시설·영업상 수선', /임차인\s*설치|영업상\s*필요|임차인.*귀책/iu],
-  ['시설 변경·설치 비용', /시설.*(?:변경|개조|설치)/iu],
-  ['추가 제세공과금·보험료', /추가.*(?:제세공과금|보험료)|증가.*(?:제세공과금|보험료)/iu],
-  ['화재·배상책임보험', /화재보험|배상책임보험|종합보험/iu],
+  ['수도광열비·공과금', /전기[\s\S]*수도[\s\S]*가스|수도광열비|제반\s*공과금/iu],
+  ['임차인 시설 설치·개조비', /임차인.*시설.*(?:변경|개조|설치)|시설.*(?:변경|개조|설치)/iu],
+  ['임차인 시설 유지보수·귀책수선', /임차인\s*설치.*유지|임차인.*귀책|영업상\s*필요.*수선/iu],
+  ['전용부 운영·법정검사비', /사용\s*수익.*관리비|법정검사|시설.*관리비/iu],
   ['전용부 미화·보안·방역', /미화|보안|방역|구서|구충/iu],
+  ['보관화물·영업배상책임보험', /보관.*(?:화물|상품).*화재보험|배상책임보험|영업배상책임보험|재고동산.*화재보험/iu],
+  ['임차인 사유 추가 제세공과금·보험료', /(?:추가|증가).*(?:제세공과금|보험료)|임차인의?\s*(?:필요|행위|개량).*제세공과금/iu],
   ['교통유발·과밀부담금', /교통유발부담금|과밀부담금/iu],
-  ['법정검사·시설관리비', /법정검사|시설.*관리비/iu],
-  ['구조체·기본설비 유지보수', /구조물|기본적\s*설비|배관|보일러/iu],
-  ['재산종합·화재보험', /재산종합보험|화재보험/iu],
+  ['임차인 귀책 외 구조·기본설비 수선', /귀책사유.*제외|구조물|기본적\s*설비|배관|보일러/iu],
+  ['공용설비 유지관리·법정검사', /승강기|전기\s*안전관리|소방안전관리|법정검사/iu],
+  ['건물 화재·재산종합보험', /재산종합보험|대상\s*자산.*화재보험|건물보험/iu],
   ['소유 관련 제세공과금', /소유.*제세공과금|재산세|종합부동산세|취득세/iu],
   ['공용부 미화·보안·조경', /공용부.*미화|정문.*보안|조경/iu],
-  ['승강기·전기·소방 유지관리', /승강기|전기\s*안전관리|소방안전관리/iu],
   ['도로점용·단지관리비', /도로점용료|단지관리비/iu],
-  ['임차인 귀책 외 수선비', /귀책사유.*제외|수선에\s*관한\s*비용/iu],
 ]);
 
 export function normalizeCostTerms(value, availableOptions = null) {
@@ -331,13 +350,13 @@ export function normalizeCostTerms(value, availableOptions = null) {
     const matched = COST_TERM_PATTERNS
       .filter(([label, pattern]) => (!allowed || allowed.has(label)) && pattern.test(rawText))
       .map(([label]) => label);
-    return matched.length ? uniqueTextItems(matched) : [rawText];
+    return matched.length ? canonicalCostTermItems(matched) : canonicalCostTermItems([rawText]);
   };
-  if (Array.isArray(value)) return uniqueTextItems(value);
+  if (Array.isArray(value)) return canonicalCostTermItems(value);
   if (value && typeof value === 'object') {
-    if (Object.prototype.hasOwnProperty.call(value, 'items')) return uniqueTextItems(value.items);
+    if (Object.prototype.hasOwnProperty.call(value, 'items')) return canonicalCostTermItems(value.items);
     const alternate = value.selected_items || value.selected || value.values;
-    if (Array.isArray(alternate)) return uniqueTextItems(alternate);
+    if (Array.isArray(alternate)) return canonicalCostTermItems(alternate);
     const rawText = String(value.raw_text || value.text || '').trim();
     if (!rawText) return [];
     return matchRawText(rawText);
@@ -351,7 +370,7 @@ export function serializeCostTerms(original, items) {
   const base = original && typeof original === 'object' && !Array.isArray(original)
     ? { ...original }
     : String(original || '').trim() ? { raw_text: String(original).trim() } : {};
-  return { ...base, items: uniqueTextItems(items) };
+  return { ...base, items: canonicalCostTermItems(items) };
 }
 
 const perPy = (total, leasedAreaPy) => total === null || !(leasedAreaPy > 0)

@@ -94,12 +94,12 @@ test('부담비용 다중선택은 기존 jsonb 원문과 출처 메타데이터
     source_table: 'public.ll_leases',
     source_column: 'tenant_cost_burden',
   };
-  assert.deepEqual(schema.normalizeCostTerms(legacy), ['전기·수도·가스 등 공과금']);
+  assert.deepEqual(schema.normalizeCostTerms(legacy), ['수도광열비·공과금']);
   const serialized = schema.serializeCostTerms(legacy, ['전기·수도·가스 등 공과금', '사용자 추가 항목']);
   assert.equal(serialized.raw_text, legacy.raw_text);
   assert.equal(serialized.source_table, legacy.source_table);
   assert.equal(serialized.source_column, legacy.source_column);
-  assert.deepEqual(serialized.items, ['전기·수도·가스 등 공과금', '사용자 추가 항목']);
+  assert.deepEqual(serialized.items, ['수도광열비·공과금', '사용자 추가 항목']);
   assert.deepEqual(schema.normalizeCostTerms(serialized), serialized.items);
 });
 
@@ -121,7 +121,11 @@ test('한국 물류센터 NOI는 PGI, EGI, NOI, NCF, 부채상환 후 현금흐�
     total_operating_expense: 300,
     net_operating_income: 600,
     asset_net_cash_flow: 560,
+    pre_debt_cash_flow: 560,
     after_debt_service_cash_flow: 360,
+    other_cash_inflow: 0,
+    other_cash_outflow: 0,
+    net_cash_flow: 360,
   });
   assert.equal(formulas.KOREAN_LOGISTICS_NOI_ACCOUNTS.some((row) => row.code === 'DEPRECIATION'), false);
   assert.equal(formulas.KOREAN_LOGISTICS_NOI_ACCOUNTS.some((row) => row.code === 'PROPERTY_TAX_PUBLIC_DUES'), true);

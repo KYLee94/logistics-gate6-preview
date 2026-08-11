@@ -84,9 +84,10 @@ for (const label of ['대지면적', '연면적', '임대가능면적', '임대 
 for (const code of ['POTENTIAL_BASE_RENT', 'RENT_FREE_CONCESSION_LOSS', 'FM_FEE', 'PROPERTY_TAX_PUBLIC_DUES', 'CAPEX', 'TENANT_IMPROVEMENT', 'LEASING_COMMISSION', 'INTEREST_PAID']) {
   assert.ok(formulas.includes(code), `missing NOI account: ${code}`);
 }
-for (const label of ['잠재총수입', '유효총수입', '순영업소득(NOI)', '자산 순현금흐름(NCF)', '부채상환 후 현금흐름']) {
+for (const label of ['잠재총수입', '유효총수입', '순영업소득(NOI)', '부채상환 전 현금흐름', '부채상환 후 현금흐름']) {
   assert.ok(ui.includes(label) || formulas.includes(label), `missing NOI subtotal: ${label}`);
 }
+assert.doesNotMatch(ui, /자산 순현금흐름\(NCF\)/u);
 assert.match(ui, /finance-comparison-asset/u);
 assert.doesNotMatch(ui, /data-testid=["']finance-aggregation["']/u);
 assert.match(ui, /finance-trend/u);
@@ -128,7 +129,11 @@ async function verifyModules() {
   assert.equal(JSON.stringify(financePayload).includes('entry_key'), false);
   assert.deepEqual(Object.keys(financePayload.statement), [
     'periods', 'potential_income', 'income_loss', 'operating_expense', 'below_noi', 'debt_service',
+    'cash_flow', 'cash_balance',
   ]);
+  for (const derivedKey of [
+    'net_operating_income', 'net_cash_flow', 'cumulative_net_cash_flow', 'closing_cash_balance',
+  ]) assert.equal(Object.hasOwn(financePayload.statement, derivedKey), false);
 }
 
 verifyModules().then(() => console.log('PASS logistics data platform frontend contract')).catch((error) => { console.error(error); process.exitCode = 1; });
