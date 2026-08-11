@@ -76,6 +76,16 @@ test('자산 브리프는 기존 편집·저장 계약과 ㎡·평 병기 및 �
   assert.match(source, /title=["']다가오는 만기["']/u);
 });
 
+test('자산 브리프 제목 위에는 중복 HOME 장식 라벨을 표시하지 않는다', () => {
+  const assetBrief = source.slice(
+    source.indexOf('function AssetBrief'),
+    source.indexOf('const HOME_ENTITY_CONFIG'),
+  );
+
+  assert.match(assetBrief, />\s*자산 브리프\s*</u);
+  assert.doesNotMatch(assetBrief, />\s*HOME\s*</u);
+});
+
 test('기존 화면과 신규 홈은 하나의 공용 적층도 구현을 사용하고 정적 자산 JSON에 의존하지 않는다', () => {
   assert.match(stackingSource, /export function\s+StackingPlan\s*\(/u);
   assert.match(stackingSource, /export function\s+buildStackingFloorsFromRows\s*\(/u);

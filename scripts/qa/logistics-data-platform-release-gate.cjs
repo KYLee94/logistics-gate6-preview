@@ -61,6 +61,11 @@ const releaseSteps = Object.freeze([
     target: 'tests/logistics-data-platform-scrollbar-contract.test.cjs',
   },
   {
+    id: 'data-platform-home-density',
+    kind: 'node',
+    target: 'tests/logistics-data-platform-home-density.test.cjs',
+  },
+  {
     id: 'loading-lifecycle-contract',
     kind: 'node',
     target: 'tests/logistics-loading-lifecycle.test.cjs',
@@ -159,6 +164,16 @@ const releaseSteps = Object.freeze([
     id: 'home-fund-investment-presentation',
     kind: 'node',
     target: 'tests/logistics-home-fund-investment-presentation.test.cjs',
+  },
+  {
+    id: 'home-fund-table-alignment',
+    kind: 'node',
+    target: 'tests/logistics-home-fund-table-alignment.test.cjs',
+  },
+  {
+    id: 'asset-list-exclusion',
+    kind: 'node',
+    target: 'tests/logistics-asset-list-exclusion.test.cjs',
   },
   {
     id: 'home-fund-aum-live-audit-unit',

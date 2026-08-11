@@ -57,6 +57,7 @@ import {
   homeShareClassOptionsFromInvestments,
   homeShareClassPresentation,
 } from "./homeInvestmentPresentation";
+import { homeFundTableCellAlign } from "./homeFundTableAlignment";
 import { formatHomeLoanRate } from "./homeLoanRates";
 import {
   useDismissibleDetails,
@@ -317,10 +318,17 @@ function SaveState({ state }) {
   );
 }
 
+function homeValueAlignClass(align) {
+  if (align === "right") return "text-right tabular-nums";
+  if (align === "center") return "text-center";
+  return "text-left";
+}
+
 function HomeValue({ editing, value, type = "text", onChange, align = "left", ariaLabel }) {
+  const alignClass = homeValueAlignClass(align);
   if (!editing) {
     return (
-      <span className={`block min-h-8 px-2 py-1.5 text-sm text-white ${align === "right" ? "text-right tabular-nums" : ""}`}>
+      <span className={`block min-h-8 px-2 py-1.5 text-sm text-white ${alignClass}`}>
         {type === "number" ? amount(value) : type === "percent" ? formatHomeLoanRate(value) : display(value)}
       </span>
     );
@@ -334,7 +342,7 @@ function HomeValue({ editing, value, type = "text", onChange, align = "left", ar
           step="any"
           value={value ?? ""}
           onChange={(event) => onChange(event.target.value)}
-          className={`${INPUT_CLASS} bg-[#202020] text-right tabular-nums`}
+          className={`${INPUT_CLASS} bg-[#202020] ${alignClass}`}
         />
         <span className="pr-1 text-xs text-[#86868B]">%</span>
       </div>
@@ -346,7 +354,7 @@ function HomeValue({ editing, value, type = "text", onChange, align = "left", ar
       type={type}
       value={value ?? ""}
       onChange={(event) => onChange(event.target.value)}
-      className={`${INPUT_CLASS} bg-[#202020] ${align === "right" ? "text-right tabular-nums" : ""}`}
+      className={`${INPUT_CLASS} bg-[#202020] ${alignClass}`}
     />
   );
 }
@@ -358,6 +366,7 @@ function AddableSingleSelectCell({
   inputName,
   editing,
   onChange,
+  align = "left",
 }) {
   const [customItem, setCustomItem] = useState("");
   const {
@@ -381,7 +390,7 @@ function AddableSingleSelectCell({
   if (!editing) {
     return (
       <span
-        className={`block min-h-8 px-2 py-1.5 text-sm ${presentation.requiresClassification ? "text-[#E8C66A]" : "text-white"}`}
+        className={`block min-h-8 px-2 py-1.5 text-sm ${homeValueAlignClass(align)} ${presentation.requiresClassification ? "text-[#E8C66A]" : "text-white"}`}
       >
         {presentation.displayLabel || "—"}
       </span>
@@ -396,7 +405,7 @@ function AddableSingleSelectCell({
       <summary
         ref={summaryRef}
         aria-label={label}
-        className="cursor-pointer list-none overflow-hidden text-ellipsis whitespace-nowrap rounded-[6px] bg-[#202020] px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#5E9EFF]"
+        className={`cursor-pointer list-none overflow-hidden text-ellipsis whitespace-nowrap rounded-[6px] bg-[#202020] px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#5E9EFF] ${homeValueAlignClass(align)}`}
       >
         {presentation.displayLabel || "항목 선택"}
       </summary>
@@ -541,8 +550,7 @@ function AssetBrief({
         className="flex flex-col gap-4 border-b border-[#3A3A3C] px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
       >
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6E6E73]">HOME</p>
-          <h2 id="home-asset-brief-title" className="mt-0.5 text-lg font-semibold tracking-tight text-white">
+          <h2 id="home-asset-brief-title" className="text-lg font-semibold tracking-tight text-white">
             자산 브리프
           </h2>
         </div>
@@ -1108,7 +1116,7 @@ function HomePanel({ assetCode, resource, maturities }) {
                   ].map((label) => (
                     <th
                       key={label}
-                      className="border-b border-[#333333] px-2 py-2 text-left"
+                      className="border-b border-[#333333] px-2 py-2 text-center"
                     >
                       {label === "AUM(원)" ? (
                         <span className="inline-flex items-center gap-1.5">
@@ -1145,7 +1153,7 @@ function HomePanel({ assetCode, resource, maturities }) {
                           type={type}
                           editing={isHomeEditing}
                           onChange={(value) => updateHomeDraft("fund", fundIndex, field, value)}
-                          align={type === "number" ? "right" : "left"}
+                          align={homeFundTableCellAlign(field)}
                         />
                       </td>
                     ))}
@@ -1166,7 +1174,7 @@ function HomePanel({ assetCode, resource, maturities }) {
                       (label) => (
                         <th
                           key={label}
-                          className="border-b border-[#333333] px-2 py-2 text-left"
+                          className="border-b border-[#333333] px-2 py-2 text-center"
                         >
                           {label}
                         </th>
@@ -1185,6 +1193,7 @@ function HomePanel({ assetCode, resource, maturities }) {
                           inputName={`home-investment-tranche-${investmentIndex}`}
                           editing={isHomeEditing}
                           onChange={(value) => updateHomeDraft("beneficiary", investmentIndex, "tranche", value)}
+                          align={homeFundTableCellAlign("tranche")}
                         />
                       </td>
                       {[
@@ -1201,7 +1210,7 @@ function HomePanel({ assetCode, resource, maturities }) {
                             type={type}
                             editing={isHomeEditing}
                             onChange={(value) => updateHomeDraft("beneficiary", investmentIndex, field, value)}
-                            align={type === "number" ? "right" : "left"}
+                            align={homeFundTableCellAlign(field)}
                           />
                         </td>
                       ))}
@@ -1235,7 +1244,7 @@ function HomePanel({ assetCode, resource, maturities }) {
                 ].map((label) => (
                   <th
                     key={label}
-                    className="border-b border-[#333333] px-2 py-2 text-left"
+                    className="border-b border-[#333333] px-2 py-2 text-center"
                   >
                     {label}
                   </th>
@@ -1266,7 +1275,7 @@ function HomePanel({ assetCode, resource, maturities }) {
                         type={type}
                         editing={isHomeEditing}
                         onChange={(value) => updateHomeDraft("loan", loanIndex, field, value)}
-                        align={type === "number" ? "right" : "left"}
+                        align={homeFundTableCellAlign(field)}
                       />
                     </td>
                   ))}

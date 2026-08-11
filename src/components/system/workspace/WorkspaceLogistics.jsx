@@ -2,6 +2,7 @@ import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } 
 import { createPortal } from 'react-dom';
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../../utils/supabaseClient';
 import { getDashboardCacheScope, invokeDashboardApi } from '../../../utils/supabaseSession';
+import { filterIncludedLogisticsAssets } from '../../../utils/logisticsAssetScope';
 import { useAuth } from '../../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import weeklyReportData from './logisticsWeeklyReportData.json';
@@ -46,7 +47,7 @@ const MotionDiv = motion.div;
 const RETIRED_WORK_PLATFORM_SURFACES_ENABLED = false;
 
 let xlsxModulePromise = null;
-const assetOptionsData = rawAssetOptionsData;
+const assetOptionsData = filterIncludedLogisticsAssets(rawAssetOptionsData);
 
 function loadXlsxModule() {
   if (!xlsxModulePromise) {
@@ -969,7 +970,7 @@ function areaBreakdownFromDashboardDetails(rows = []) {
 
 function assetOptionsFromDashboardReadData(readData = {}, fallbackOptions = []) {
   const spaces = filterCurrentDashboardLeaseRows(readData.lease_spaces || []);
-  return (readData.assets || []).map((rawAsset) => {
+  return filterIncludedLogisticsAssets((readData.assets || []).map((rawAsset) => {
     const asset = camelAssetFromApi(rawAsset);
     const fallback = fallbackOptions.find((row) => row.assetId === asset.assetId || normalizeAssetNameKey(row.assetName) === normalizeAssetNameKey(asset.assetName)) || {};
     const assetSpaces = spaces.filter((row) => firstDefined(row.asset_id, row.assetId) === asset.assetId);
@@ -990,7 +991,7 @@ function assetOptionsFromDashboardReadData(readData = {}, fallbackOptions = []) 
       uniqueTenantCount: new Set(assetSpaces.map((row) => firstDefined(row.tenant_id, row.tenantId)).filter(Boolean)).size,
       averageENoc: calculateWeightedENoc(assetSpaces.map((row) => camelLeaseSpaceFromApi(row, asset)), fallback.averageENoc),
     };
-  });
+  }));
 }
 
 function monthKeyFromDate(value) {

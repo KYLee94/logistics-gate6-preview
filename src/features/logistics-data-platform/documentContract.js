@@ -4,6 +4,7 @@ import {
   normalizeRentFreePeriod,
   serializeRentRollGoodsTypes,
 } from './rentRollSchema.js';
+import { filterIncludedLogisticsAssets } from '../../utils/logisticsAssetScope.js';
 
 const DOCUMENT_META_FIELDS = new Set([
   'revision',
@@ -566,7 +567,7 @@ export function normalizeMaturityRows(data) {
 }
 
 export function normalizeAssetDirectory(data) {
-  const assets = Array.isArray(data?.assets) ? data.assets : [];
+  const assets = filterIncludedLogisticsAssets(data?.assets);
   const seen = new Set();
   return assets.flatMap((asset) => {
     const assetCode = String(asset?.asset_code || '').trim();
