@@ -90,6 +90,36 @@ const releaseSteps = Object.freeze([
     kind: 'node',
     target: 'tests/logistics-maturity-revision-fix-contract.test.cjs',
   },
+  {
+    id: 'fund-aum-tranche-noi-contract',
+    kind: 'node',
+    target: 'tests/logistics-fund-aum-tranche-noi-contract.test.cjs',
+  },
+  {
+    id: 'home-fund-investment-presentation',
+    kind: 'node',
+    target: 'tests/logistics-home-fund-investment-presentation.test.cjs',
+  },
+  {
+    id: 'home-fund-aum-live-audit-unit',
+    kind: 'node',
+    target: 'tests/logistics-home-fund-aum-live-audit.test.cjs',
+  },
+  {
+    id: 'rent-roll-cost-addable-multiselect',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-cost-addable-multiselect.test.cjs',
+  },
+  {
+    id: 'finance-presentation-hierarchy',
+    kind: 'node',
+    target: 'tests/logistics-finance-presentation-hierarchy.test.cjs',
+  },
+  {
+    id: 'finance-custom-accounts',
+    kind: 'node',
+    target: 'tests/logistics-data-platform-finance-custom-accounts.test.cjs',
+  },
   { id: 'db-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-db-contract.cjs' },
   { id: 'cutover-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-cutover-contract.cjs' },
   { id: 'api-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-api-contract.cjs' },

@@ -108,6 +108,7 @@ test('각 NOI hierarchy는 계정 추가와 Supabase 선택 저장·readback 계
 
 test('비선택 행은 회색·입력 불가이고 시계열·비교가 손익 입력표보다 먼저 유지된다', () => {
   const source = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
+  const presentationSource = read('src/features/logistics-data-platform/financePresentation.js');
   const statementIndex = source.indexOf('data-testid="finance-statement-table"');
   const trendIndex = source.indexOf('<FinanceTrend');
   const summaryIndex = source.indexOf('data-testid="finance-period-summary"');
@@ -116,6 +117,6 @@ test('비선택 행은 회색·입력 불가이고 시계열·비교가 손익 �
   assert.match(source, /data-finance-account-active=/u);
   assert.match(source, /disabled=\{!writeEnabled \|\| !row\.active \|\| saveState === ["']saving["']\}/u);
   assert.match(source, /row\.active \? "bg-\[#252524\][^"]*" : "bg-\[#202020\] text-\[#68686D\]"/u);
-  assert.match(source, /firstInactiveIndex/u);
+  assert.match(presentationSource, /firstInactiveIndex/u);
   assert.match(source, /미사용 계정 · NOI 제외/u);
 });

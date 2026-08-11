@@ -43,6 +43,11 @@ import {
   FINANCE_COMPARISON_PRESENTATION_KEYS,
 } from "./financePresentation";
 import {
+  homeShareClassOptions,
+  homeShareClassOptionsFromInvestments,
+  homeShareClassPresentation,
+} from "./homeInvestmentPresentation";
+import {
   maturityDetailRows,
   maturityDisplayName,
 } from "./maturityPresentation";
@@ -260,6 +265,86 @@ function HomeValue({ editing, value, type = "text", onChange, align = "left", ar
       onChange={(event) => onChange(event.target.value)}
       className={`${INPUT_CLASS} bg-[#202020] ${align === "right" ? "text-right tabular-nums" : ""}`}
     />
+  );
+}
+
+function AddableSingleSelectCell({
+  value,
+  options,
+  label,
+  inputName,
+  editing,
+  onChange,
+}) {
+  const [customItem, setCustomItem] = useState("");
+  const presentation = homeShareClassPresentation(value);
+  const availableOptions = [...new Set([
+    ...(Array.isArray(options) ? options : []),
+    ...homeShareClassOptions(value),
+  ])];
+  const addCustom = () => {
+    const next = customItem.trim();
+    if (!next) return;
+    onChange(next);
+    setCustomItem("");
+  };
+  if (!editing) {
+    return (
+      <span
+        className={`block min-h-8 px-2 py-1.5 text-sm ${presentation.requiresClassification ? "text-[#E8C66A]" : "text-white"}`}
+      >
+        {presentation.displayLabel || "—"}
+      </span>
+    );
+  }
+  return (
+    <details className="relative min-w-[170px]">
+      <summary
+        aria-label={label}
+        className="cursor-pointer list-none overflow-hidden text-ellipsis whitespace-nowrap rounded-[6px] bg-[#202020] px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#5E9EFF]"
+      >
+        {presentation.displayLabel || "항목 선택"}
+      </summary>
+      <div className="absolute left-0 top-full z-[70] mt-1 w-[280px] rounded-[10px] border border-[#3A3A3C] bg-[#202020] p-3 shadow-2xl">
+        <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
+          {availableOptions.map((option) => (
+            <label key={option} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs text-[#E5E5E5] hover:bg-white/5">
+              <input
+                type="radio"
+                name={inputName}
+                checked={presentation.displayValue === option}
+                onChange={() => onChange(option)}
+              />
+              <span>{option}</span>
+            </label>
+          ))}
+        </div>
+        <div className="mt-2 flex items-center gap-1">
+          <input
+            type="text"
+            aria-label={`${label} 사용자 항목`}
+            value={customItem}
+            onChange={(event) => setCustomItem(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addCustom();
+              }
+            }}
+            placeholder="종 구분 항목 추가"
+            className={`${INPUT_CLASS} bg-[#181818]`}
+          />
+          <button
+            type="button"
+            onClick={addCustom}
+            disabled={!customItem.trim()}
+            className="shrink-0 rounded-[6px] border border-[#3A3A3C] px-2 py-1.5 text-xs text-white disabled:opacity-35"
+          >
+            추가
+          </button>
+        </div>
+      </div>
+    </details>
   );
 }
 
@@ -531,7 +616,7 @@ const HOME_ENTITY_CONFIG = Object.freeze([
   {
     entity: "fund",
     collection: "funds",
-    fields: ["name", "fund_type", "investment_strategy", "inception_date", "maturity_date", "ownership_ratio"],
+    fields: ["name", "fund_type", "investment_strategy", "inception_date", "maturity_date", "aum_krw"],
   },
   {
     entity: "beneficiary",
@@ -700,6 +785,7 @@ function HomePanel({ assetCode, resource, maturities }) {
   const asset = workingData.asset;
   const funds = workingData.funds;
   const investments = workingData.investments;
+  const investmentShareClassOptions = homeShareClassOptionsFromInvestments(investments);
   const loans = workingData.loans;
   const rent = usePrimaryResource(
     DATA_PLATFORM_ACTIONS.rentRollRead,
@@ -894,7 +980,7 @@ function HomePanel({ assetCode, resource, maturities }) {
                     "투자전략",
                     "설정일",
                     "만기일",
-                    "지분율",
+                    "AUM(원)",
                   ].map((label) => (
                     <th
                       key={label}
@@ -914,7 +1000,7 @@ function HomePanel({ assetCode, resource, maturities }) {
                       ["investment_strategy", "text"],
                       ["inception_date", "date"],
                       ["maturity_date", "date"],
-                      ["ownership_ratio", "number"],
+                      ["aum_krw", "number"],
                     ].map(([field, type]) => (
                       <td
                         key={field}
@@ -957,8 +1043,17 @@ function HomePanel({ assetCode, resource, maturities }) {
                 <tbody>
                   {investments.map((row, investmentIndex) => (
                     <tr key={`${row.beneficiary_name || "investment"}-${investmentIndex}`}>
+                      <td className="border-b border-[#333333] px-1 py-1">
+                        <AddableSingleSelectCell
+                          value={row.tranche}
+                          options={investmentShareClassOptions}
+                          label="종 구분"
+                          inputName={`home-investment-tranche-${investmentIndex}`}
+                          editing={isHomeEditing}
+                          onChange={(value) => updateHomeDraft("beneficiary", investmentIndex, "tranche", value)}
+                        />
+                      </td>
                       {[
-                        ["tranche", "text"],
                         ["beneficiary_name", "text"],
                         ["agreed_amount_krw", "number"],
                         ["contributed_amount_krw", "number"],
@@ -1398,31 +1493,30 @@ function PresetTextCell({
   );
 }
 
-function MultiSelectCell({
-  column,
+function AddableMultiSelectCell({
+  fieldKey,
+  label,
   value,
+  options,
   disabled,
   invalid = false,
   describedBy,
   rowLabel,
+  normalizeValue,
+  serializeItems,
   onChange,
   onCommit,
 }) {
   const [customItem, setCustomItem] = useState("");
-  const [customMode, setCustomMode] = useState(false);
-  const standardOptions = Array.isArray(column.options) ? column.options : [];
-  const selected = normalizeCostTerms(value, standardOptions);
-  const customItems = selected.filter((item) => !standardOptions.includes(item));
+  const standardOptions = Array.isArray(options) ? options : [];
+  const selected = normalizeValue(value);
+  const availableOptions = [...new Set([...standardOptions, ...selected])];
   const apply = (items) => {
-    const serialized = serializeCostTerms(value, items);
+    const serialized = serializeItems(items);
     onChange(serialized);
-    onCommit(serialized);
+    onCommit?.(serialized);
   };
   const toggle = (item) => {
-    if (standardOptions.includes(item)) {
-      setCustomMode(false);
-      setCustomItem("");
-    }
     apply(
       selected.includes(item)
         ? selected.filter((valueItem) => valueItem !== item)
@@ -1434,22 +1528,12 @@ function MultiSelectCell({
     if (!next) return;
     apply([...selected, next]);
     setCustomItem("");
-    setCustomMode(false);
   };
   return (
-    <details
-      className="relative min-w-[190px]"
-      onToggle={(event) => {
-        if (disabled && event.currentTarget.open) event.currentTarget.open = false;
-        if (!event.currentTarget.open) {
-          setCustomMode(false);
-          setCustomItem("");
-        }
-      }}
-    >
+    <details className="relative min-w-[190px]">
       <summary
-        data-draft-field={column.key}
-        aria-label={`${rowLabel} ${column.label}`}
+        data-draft-field={fieldKey}
+        aria-label={`${rowLabel} ${label}`}
         aria-disabled={disabled ? "true" : undefined}
         aria-invalid={invalid || undefined}
         aria-describedby={invalid ? describedBy : undefined}
@@ -1458,107 +1542,11 @@ function MultiSelectCell({
         }}
         className="cursor-pointer list-none rounded-[6px] px-2 py-1.5 text-xs text-[#D1D1D6] hover:bg-[#303030] focus:outline-none focus:ring-1 focus:ring-[#5E9EFF] aria-disabled:cursor-not-allowed aria-disabled:opacity-35"
       >
-        {selected.length ? `${selected.length}개 선택` : "항목 선택"}
+        <span className="block overflow-hidden text-ellipsis whitespace-nowrap" title={selected.join(", ")}>
+          {selected.length ? selected.join(", ") : "항목 선택"}
+        </span>
       </summary>
       <div className="absolute left-0 top-full z-[70] mt-1 w-[300px] rounded-[10px] border border-[#3A3A3C] bg-[#202020] p-3 shadow-2xl">
-        <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
-          {standardOptions.map((option) => (
-            <label key={option} className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs text-[#E5E5E5] hover:bg-white/5">
-              <input
-                type="checkbox"
-                checked={selected.includes(option)}
-                onChange={() => toggle(option)}
-                disabled={disabled}
-                className="mt-0.5"
-              />
-              <span>{option}</span>
-            </label>
-          ))}
-          {customItems.map((item) => (
-            <div key={item} className="flex items-start justify-between gap-2 rounded bg-white/[0.04] px-2 py-1.5 text-xs text-[#D1D1D6]">
-              <span className="break-all">{item}</span>
-              <button type="button" aria-label={`${item} 삭제`} onClick={() => toggle(item)} disabled={disabled} className="shrink-0 text-[#FF9B9B]">×</button>
-            </div>
-          ))}
-        </div>
-        <div className="mt-2 flex items-center gap-1">
-          <button
-            type="button"
-            aria-pressed={customMode}
-            onClick={() => setCustomMode((current) => !current)}
-            disabled={disabled}
-            className="shrink-0 rounded-[6px] border border-[#3A3A3C] px-2 py-1.5 text-xs text-white disabled:opacity-35"
-          >기타</button>
-          {customMode ? (
-            <div className="flex min-w-0 flex-1 items-center gap-1">
-              <input
-                type="text"
-                aria-label={`${column.label} 사용자 항목`}
-                value={customItem}
-                onChange={(event) => setCustomItem(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    addCustom();
-                  }
-                }}
-                disabled={disabled}
-                placeholder="사용자 항목 추가"
-                className={INPUT_CLASS}
-              />
-              <button type="button" onClick={addCustom} disabled={disabled || !customItem.trim()} className="shrink-0 rounded-[6px] border border-[#3A3A3C] px-2 py-1.5 text-xs text-white disabled:opacity-35">추가</button>
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </details>
-  );
-}
-
-function GoodsMultiSelectCell({
-  value,
-  options,
-  disabled,
-  invalid = false,
-  describedBy,
-  rowLabel,
-  onChange,
-}) {
-  const [customItem, setCustomItem] = useState("");
-  const selected = normalizeRentRollGoodsTypes(value);
-  const availableOptions = [...new Set([
-    ...(Array.isArray(options) ? options : []),
-    ...selected,
-  ])];
-  const apply = (items) => onChange(serializeRentRollGoodsTypes(items));
-  const toggle = (item) => apply(
-    selected.includes(item)
-      ? selected.filter((selectedItem) => selectedItem !== item)
-      : [...selected, item],
-  );
-  const addCustom = () => {
-    const next = customItem.trim();
-    if (!next) return;
-    apply([...selected, next]);
-    setCustomItem("");
-  };
-  return (
-    <details className="relative min-w-[118px]">
-      <summary
-        data-draft-field="goods_type"
-        aria-label={`${rowLabel} 취급 화물`}
-        aria-disabled={disabled ? "true" : undefined}
-        aria-invalid={invalid || undefined}
-        aria-describedby={invalid ? describedBy : undefined}
-        title={selected.join(", ")}
-        onClick={(event) => {
-          if (disabled) event.preventDefault();
-        }}
-        className="cursor-pointer list-none overflow-hidden text-ellipsis whitespace-nowrap rounded-[6px] px-2 py-1.5 text-xs text-[#D1D1D6] hover:bg-[#303030] focus:outline-none focus:ring-1 focus:ring-[#5E9EFF] aria-disabled:cursor-not-allowed aria-disabled:opacity-35"
-      >
-        {selected.length ? selected.join(", ") : "항목 선택"}
-      </summary>
-      <div className="absolute left-0 top-full z-[70] mt-1 w-[320px] rounded-[10px] border border-[#3A3A3C] bg-[#202020] p-3 shadow-2xl">
         <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
           {availableOptions.map((option) => (
             <label key={option} className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs text-[#E5E5E5] hover:bg-white/5">
@@ -1576,7 +1564,7 @@ function GoodsMultiSelectCell({
         <div className="mt-2 flex items-center gap-1">
           <input
             type="text"
-            aria-label="취급 화물 사용자 항목"
+            aria-label={`${label} 사용자 항목`}
             value={customItem}
             onChange={(event) => setCustomItem(event.target.value)}
             onKeyDown={(event) => {
@@ -1586,20 +1574,56 @@ function GoodsMultiSelectCell({
               }
             }}
             disabled={disabled}
-            placeholder="취급 화물 항목 추가"
+            placeholder={`${label} 항목 추가`}
             className={INPUT_CLASS}
           />
-          <button
-            type="button"
-            onClick={addCustom}
-            disabled={disabled || !customItem.trim()}
-            className="shrink-0 rounded-[6px] border border-[#3A3A3C] px-2 py-1.5 text-xs text-white disabled:opacity-35"
-          >
-            추가
-          </button>
+          <button type="button" onClick={addCustom} disabled={disabled || !customItem.trim()} className="shrink-0 rounded-[6px] border border-[#3A3A3C] px-2 py-1.5 text-xs text-white disabled:opacity-35">추가</button>
         </div>
       </div>
     </details>
+  );
+}
+
+function MultiSelectCell({ column, value, onChange, onCommit, ...props }) {
+  const options = Array.isArray(column.options) ? column.options : [];
+  return (
+    <AddableMultiSelectCell
+      {...props}
+      fieldKey={column.key}
+      label={column.label}
+      value={value}
+      options={options}
+      normalizeValue={(nextValue) => normalizeCostTerms(nextValue, options)}
+      serializeItems={(items) => serializeCostTerms(value, items)}
+      onChange={onChange}
+      onCommit={onCommit}
+    />
+  );
+}
+
+function GoodsMultiSelectCell({
+  value,
+  options,
+  disabled,
+  invalid = false,
+  describedBy,
+  rowLabel,
+  onChange,
+}) {
+  return (
+    <AddableMultiSelectCell
+      fieldKey="goods_type"
+      label="취급 화물"
+      value={value}
+      options={options}
+      disabled={disabled}
+      invalid={invalid}
+      describedBy={describedBy}
+      rowLabel={rowLabel}
+      normalizeValue={normalizeRentRollGoodsTypes}
+      serializeItems={serializeRentRollGoodsTypes}
+      onChange={onChange}
+    />
   );
 }
 

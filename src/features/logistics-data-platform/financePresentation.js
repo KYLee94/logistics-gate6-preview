@@ -40,10 +40,17 @@ export function buildFinanceStatementPresentationRows(financeHierarchy = []) {
     .map((section) => [section.key, section]));
   const section = (key, label) => byKey.get(key) || { key, label, accounts: [] };
   const rows = [{ kind: 'section', key: 'operating_revenue', label: '영업수익' }];
-
-  appendAccounts(rows, section('potential_income', '영업수익'));
-  appendAccounts(rows, section('income_loss', '수입 손실'), { subsectionLabel: '수익 차감' });
-  rows.push({ kind: 'metric', key: 'effective_gross_income', label: '영업수익 소계' });
+  const operatingRevenue = section('potential_income', '영업수익').accounts
+    .find((account) => account.account_code === 'OPERATING_REVENUE');
+  if (operatingRevenue) {
+    rows.push({
+      kind: 'account',
+      key: operatingRevenue.account_code,
+      label: '영업수익',
+      account: operatingRevenue,
+      active: operatingRevenue.active,
+    });
+  }
 
   const operatingExpense = section('operating_expense', '운영비용');
   rows.push({ kind: 'section', key: operatingExpense.key, label: operatingExpense.label });

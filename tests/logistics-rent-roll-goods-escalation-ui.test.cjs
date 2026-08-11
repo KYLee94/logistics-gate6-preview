@@ -83,18 +83,16 @@ test('보증금 인상 여부는 N이 기본이고 N 전환 후에도 상세 조
 test('렌트롤 UI는 취급 화물 한 줄 다중선택·사용자 추가와 보증금 상세 비활성화를 제공한다', () => {
   const source = fs.readFileSync(FRONTEND_PATH, 'utf8');
   const goodsCell = source.slice(
-    source.indexOf('function GoodsMultiSelectCell'),
-    source.indexOf('function parsePaste'),
+    source.indexOf('function AddableMultiSelectCell'),
+    source.indexOf('function MultiSelectCell'),
   );
   const header = source.slice(
     source.indexOf('data-testid="rent-roll-table"'),
     source.indexOf('<tbody>', source.indexOf('data-testid="rent-roll-table"')),
   );
 
-  assert.match(goodsCell, /normalizeRentRollGoodsTypes/u);
-  assert.match(goodsCell, /serializeRentRollGoodsTypes/u);
   assert.match(goodsCell, /type="checkbox"/u);
-  assert.match(goodsCell, /취급 화물 항목 추가/u);
+  assert.match(goodsCell, /placeholder=\{`\$\{label\} 항목 추가`\}/u);
   assert.match(goodsCell, /whitespace-nowrap/u);
   assert.match(source, /column\.kind === "goods_multi_select"[\s\S]{0,500}<GoodsMultiSelectCell/u);
   assert.match(source, /depositEscalationDetailsDisabled/u);
@@ -119,7 +117,8 @@ test('수익증권 표는 중복 펀드 열을 제거하고 tranche를 종 구�
   );
 
   assert.match(investmentTable, /\["종 구분", "투자자", "약정액", "투입액"\]/u);
-  assert.match(investmentTable, /\["tranche", "text"\]/u);
+  assert.match(investmentTable, /<AddableSingleSelectCell/u);
+  assert.match(investmentTable, /options=\{investmentShareClassOptions\}/u);
   assert.doesNotMatch(investmentTable, /\["fund_name", "text"\]/u);
   assert.doesNotMatch(investmentTable, /\["펀드",/u);
 });

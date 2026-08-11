@@ -14,10 +14,13 @@ async function presentation() {
   return import(`${pathToFileURL(PRESENTATION_PATH).href}?finance-presentation=${Date.now()}-${Math.random()}`);
 }
 
-test('finance presentation merges income and loss into one operating revenue hierarchy', async () => {
+test('finance presentation exposes one editable operating revenue account and hides legacy income/loss rows', async () => {
   const { buildFinanceStatementPresentationRows } = await presentation();
   const rows = buildFinanceStatementPresentationRows([
-    { key: 'potential_income', label: '영업수익', accounts: [{ account_code: 'RENT', label: '임대료', active: true }] },
+    { key: 'potential_income', label: '영업수익', accounts: [
+      { account_code: 'OPERATING_REVENUE', label: '영업수익', active: true },
+      { account_code: 'POTENTIAL_BASE_RENT', label: '잠재 임대료', active: true },
+    ] },
     { key: 'income_loss', label: '수입 손실', accounts: [{ account_code: 'VACANCY', label: '공실 손실', active: true }] },
     { key: 'operating_expense', label: '운영비용', accounts: [] },
     { key: 'below_noi', label: 'NOI 하단 조정', accounts: [] },
@@ -29,10 +32,7 @@ test('finance presentation merges income and loss into one operating revenue hie
       .map(({ kind, key, label }) => ({ kind, key, label })),
     [
       { kind: 'section', key: 'operating_revenue', label: '영업수익' },
-      { kind: 'account', key: 'RENT', label: '임대료' },
-      { kind: 'subsection', key: 'income_loss-subsection', label: '수익 차감' },
-      { kind: 'account', key: 'VACANCY', label: '공실 손실' },
-      { kind: 'metric', key: 'effective_gross_income', label: '영업수익 소계' },
+      { kind: 'account', key: 'OPERATING_REVENUE', label: '영업수익' },
       { kind: 'section', key: 'operating_expense', label: '운영비용' },
       { kind: 'metric', key: 'total_operating_expense', label: '영업비용 소계' },
       { kind: 'metric', key: 'net_operating_income', label: '순영업소득(NOI)' },
@@ -42,7 +42,10 @@ test('finance presentation merges income and loss into one operating revenue hie
       { kind: 'metric', key: 'after_debt_service_cash_flow', label: '부채상환 후 현금흐름' },
     ],
   );
-  assert.equal(rows.filter((row) => row.key === 'effective_gross_income').length, 1);
+  assert.equal(rows.filter((row) => row.key === 'OPERATING_REVENUE').length, 1);
+  assert.equal(rows.some((row) => row.key === 'POTENTIAL_BASE_RENT'), false);
+  assert.equal(rows.some((row) => row.key === 'VACANCY'), false);
+  assert.equal(rows.some((row) => row.key === 'effective_gross_income'), false);
   assert.equal(rows.some((row) => row.key === 'potential_gross_income'), false);
   assert.equal(rows.some((row) => row.key === 'total_income_loss'), false);
 });

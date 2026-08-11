@@ -168,7 +168,7 @@ test('home serializer converts edited numeric strings and omits empty nested num
       asset_code: 'ASSET-01', fund_code: 'FUND-01', land_area_sqm: '1,234.5',
       parking_count: '10', building_coverage_ratio: '45.25',
     },
-    funds: [{ fund_code: 'FUND-01', ownership_ratio: '100' }],
+    funds: [{ fund_code: 'FUND-01', aum_krw: '100' }],
     investments: [{
       fund_code: 'FUND-01', beneficiary_name: 'Investor',
       agreed_amount_krw: '1000000', contributed_amount_krw: '',
@@ -186,7 +186,7 @@ test('home serializer converts edited numeric strings and omits empty nested num
       building_coverage_ratio: 45.25, parking_count: 10,
     },
     funds: [{
-      fund_code: 'FUND-01', ownership_ratio: 100,
+      fund_code: 'FUND-01', aum_krw: 100,
       investments: [{ beneficiary_name: 'Investor', agreed_amount_krw: 1000000 }],
       loans: [{
         lender_name: 'Lender', committed_amount_krw: 2000000, coupon_rate: 5.25,
@@ -247,7 +247,7 @@ test('one numeric home edit changes only the intended canonical field', async ()
       asset_code: 'ASSET-01', fund_code: 'FUND-01', name: 'Asset',
       land_area_sqm: 1000, revision: '10', hidden_status: 'read-only',
     },
-    funds: [{ fund_code: 'FUND-01', name: 'Fund', ownership_ratio: 100, revision: '11' }],
+    funds: [{ fund_code: 'FUND-01', name: 'Fund', aum_krw: 100, revision: '11' }],
     investments: [{
       fund_code: 'FUND-01', beneficiary_name: 'Investor', agreed_amount_krw: 500,
     }],

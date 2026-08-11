@@ -183,7 +183,7 @@ test('v2 API는 홈 저장을 공개 write action으로 라우팅한다', async 
   }), /CLIENT_REQUEST_ID_REQUIRED/u);
 });
 
-test('렌트롤 권리·비용의 기타 직접입력은 선택 컨트롤 옆 한 행에서 필요할 때만 열린다', () => {
+test('렌트롤 권리·비용은 기타 버튼 없이 취급화물과 같은 항목 추가 다중선택을 사용한다', () => {
   const frontendSource = fs.readFileSync(
     path.join(ROOT, 'src/features/logistics-data-platform/LogisticsDataPlatform.jsx'),
     'utf8',
@@ -192,9 +192,9 @@ test('렌트롤 권리·비용의 기타 직접입력은 선택 컨트롤 옆 �
     frontendSource.indexOf('function PresetTextCell'),
     frontendSource.indexOf('function MultiSelectCell'),
   );
-  const multiSelectCell = frontendSource.slice(
+  const addableMultiSelectCell = frontendSource.slice(
+    frontendSource.indexOf('function AddableMultiSelectCell'),
     frontendSource.indexOf('function MultiSelectCell'),
-    frontendSource.indexOf('function parsePaste'),
   );
 
   assert.match(presetCell, /className=["']flex min-w-\[220px\] items-center gap-1["']/u);
@@ -203,12 +203,11 @@ test('렌트롤 권리·비용의 기타 직접입력은 선택 컨트롤 옆 �
   assert.match(presetCell, /\{showCustom \? \([\s\S]*?직접 작성[\s\S]*?\) : null\}/u);
   assert.doesNotMatch(presetCell, /className=["']grid[^"']*["']/u);
 
-  assert.match(multiSelectCell, /const \[customMode, setCustomMode\] = useState\(false\)/u);
-  assert.match(multiSelectCell, /standardOptions\.includes\(item\)[\s\S]*?setCustomMode\(false\)[\s\S]*?setCustomItem\(["']{2}\)/u);
-  assert.match(multiSelectCell, /aria-pressed=\{customMode\}/u);
-  assert.match(multiSelectCell, />기타<\/button>/u);
-  assert.match(multiSelectCell, /\{customMode \? \([\s\S]*?사용자 항목 추가[\s\S]*?\) : null\}/u);
-  assert.match(multiSelectCell, /className=["']mt-2 flex items-center gap-1["']/u);
+  assert.match(addableMultiSelectCell, /type="checkbox"/u);
+  assert.match(addableMultiSelectCell, /placeholder=\{`\$\{label\} 항목 추가`\}/u);
+  assert.match(addableMultiSelectCell, />추가<\/button>/u);
+  assert.doesNotMatch(addableMultiSelectCell, />기타<\/button>|customMode/u);
+  assert.match(addableMultiSelectCell, /className=["']mt-2 flex items-center gap-1["']/u);
 });
 
 test('신규 DB 계약은 직접입력 임차인, eNOC readback, NOI 상세계정을 포함한다', () => {

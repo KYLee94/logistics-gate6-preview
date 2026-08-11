@@ -7,19 +7,23 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const MIGRATION_FILE = '20260807180000_simplify_logistics_core_to_four_ui_tables.sql';
+const OCCUPANCY_BASIS_FILE = '20260810084310_logistics_occupancy_rent_roll_basis_v2.sql';
+const FOLLOWUP_MIGRATION_FILE = '20260811011055_logistics_fund_aum_tranche_noi_contract.sql';
 const migrationPath = path.join(ROOT, 'supabase', 'migrations', MIGRATION_FILE);
+const followupMigrationPath = path.join(ROOT, 'supabase', 'migrations', FOLLOWUP_MIGRATION_FILE);
 const source = fs.readFileSync(migrationPath, 'utf8');
-const occupancyGuardSource = fs.readFileSync(
+const followupSource = fs.readFileSync(followupMigrationPath, 'utf8');
+const occupancyBasisSource = fs.readFileSync(
   path.join(
     ROOT,
     'supabase',
     'migrations',
-    '20260810052316_logistics_occupancy_expired_rent_guard.sql',
+    OCCUPANCY_BASIS_FILE,
   ),
   'utf8',
 );
 
-const TABLE_COLUMNS = Object.freeze({
+const INITIAL_TABLE_COLUMNS = Object.freeze({
   assets: [
     'asset_code', 'fund_code', 'name', 'address', 'zoning_text', 'land_area_sqm',
     'building_area_sqm', 'gross_area_sqm', 'leasable_area_sqm', 'primary_use',
@@ -32,6 +36,14 @@ const TABLE_COLUMNS = Object.freeze({
   ],
   rent_roll: ['asset_code', 'rows'],
   income_expense: ['asset_code', 'statement'],
+});
+
+const FINAL_TABLE_COLUMNS = Object.freeze({
+  ...INITIAL_TABLE_COLUMNS,
+  funds: [
+    'fund_code', 'name', 'fund_type', 'investment_strategy', 'inception_date',
+    'maturity_date', 'investments', 'loans', 'aum_krw',
+  ],
 });
 
 const checks = [];
@@ -71,17 +83,30 @@ check('exact-four-document-tables', () => {
   const tables = [...source.matchAll(/create\s+table\s+logistics_core\.([a-z0-9_]+)/giu)]
     .map((match) => match[1])
     .sort();
-  assert.deepEqual(tables, Object.keys(TABLE_COLUMNS).sort());
-}, Object.keys(TABLE_COLUMNS));
+  assert.deepEqual(tables, Object.keys(FINAL_TABLE_COLUMNS).sort());
+  assert.doesNotMatch(followupSource, /create\s+table\s+logistics_core\./iu);
+}, Object.keys(FINAL_TABLE_COLUMNS));
 
 check('visible-columns-only', () => {
-  for (const [table, expected] of Object.entries(TABLE_COLUMNS)) {
+  for (const [table, expected] of Object.entries(INITIAL_TABLE_COLUMNS)) {
     assert.deepEqual(declaredColumns(table), expected, `${table} columns drifted`);
   }
-}, TABLE_COLUMNS);
+  assert.match(
+    followupSource,
+    /alter\s+table\s+logistics_core\.funds\s+add\s+column\s+if\s+not\s+exists\s+aum_krw\s+numeric/iu,
+  );
+  assert.match(
+    followupSource,
+    /alter\s+table\s+logistics_core\.funds\s+drop\s+column\s+if\s+exists\s+ownership_ratio/iu,
+  );
+  const finalFunds = declaredColumns('funds')
+    .filter((column) => column !== 'ownership_ratio')
+    .concat('aum_krw');
+  assert.deepEqual(finalFunds, FINAL_TABLE_COLUMNS.funds, 'final funds columns drifted');
+}, FINAL_TABLE_COLUMNS);
 
 check('no-technical-storage-columns', () => {
-  const declared = Object.keys(TABLE_COLUMNS).flatMap(declaredColumns);
+  const declared = Object.values(FINAL_TABLE_COLUMNS).flat();
   const forbidden = /(?:^|_)(?:id|uuid|key|source|revision|version|created_at|updated_at|deleted_at)(?:$|_)/iu;
   assert.deepEqual(declared.filter((column) => forbidden.test(column)), []);
   assert.doesNotMatch(source, /\brevision\s+(?:bigint|integer|numeric)\b/iu);
@@ -95,7 +120,7 @@ check('document-shapes-are-constrained', () => {
 }, 'fund arrays, rent rows, and finance statement have JSON shape constraints');
 
 check('temporary-copy-and-readback', () => {
-  for (const table of Object.keys(TABLE_COLUMNS)) {
+  for (const table of Object.keys(FINAL_TABLE_COLUMNS)) {
     assert.match(source, new RegExp(`create\\s+temporary\\s+table\\s+simple_core_${table}`, 'iu'));
     assert.match(source, new RegExp(`insert\\s+into\\s+logistics_core\\.${table}`, 'iu'));
     assert.match(source, new RegExp(`logistics_core\\.${table}[^;]+pg_temp\\.simple_core_${table}`, 'iu'));
@@ -181,22 +206,22 @@ check('primary-readback-envelope', () => {
   assert.match(source, /READBACK_MISMATCH/iu);
 }, 'writers return primary readback rather than fallback or stale data');
 
-check('occupancy-uses-current-lease-and-asset-area', () => {
-  assert.match(occupancyGuardSource, /v_leasable_area_sqm\s*>\s*0/iu);
+check('occupancy-uses-current-all-status-rent-roll-area', () => {
   assert.match(
-    occupancyGuardSource,
-    /v_leasable_area_sqm\s+is\s+null\s+and\s+v_gross_area_sqm\s*>\s*0/iu,
+    occupancyBasisSource,
+    /sum\([\s\S]*?leased_area_sqm[\s\S]*?filter\s*\(\s*where\s+row_item\.is_current[\s\S]*?leased_area_sqm\s*>\s*0[\s\S]*?\)/iu,
   );
-  assert.match(occupancyGuardSource, /v_occupied_area\s*\/\s*v_denominator\s*\*\s*100/iu);
-  assert.match(occupancyGuardSource, /v_data_mismatch[\s\S]*?then\s+null/iu);
-}, 'current occupied leased area is divided by leasable area, or gross area only when leasable is absent');
+  assert.match(occupancyBasisSource, /v_denominator\s*:=\s*nullif\(v_current_rent_area,\s*0\)/iu);
+  assert.match(occupancyBasisSource, /v_occupied_area\s*\/\s*v_denominator\s*\*\s*100/iu);
+  assert.doesNotMatch(occupancyBasisSource, /v_leasable_area_sqm|v_gross_area_sqm/iu);
+}, 'current occupied leased area is divided by all current positive rent-roll leased area');
 
 const failed = checks.filter((item) => !item.ok);
 process.stdout.write(`${JSON.stringify({
   ok: failed.length === 0,
   mode: 'four-document-database-contract',
   database_write_used: false,
-  migration: MIGRATION_FILE,
+  migrations: [MIGRATION_FILE, OCCUPANCY_BASIS_FILE, FOLLOWUP_MIGRATION_FILE],
   checks,
 }, null, 2)}\n`);
 process.exit(failed.length === 0 ? 0 : 1);

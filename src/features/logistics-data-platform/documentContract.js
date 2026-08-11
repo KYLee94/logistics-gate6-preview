@@ -26,7 +26,7 @@ const ASSET_FIELDS = Object.freeze([
 ]);
 const FUND_FIELDS = Object.freeze([
   'fund_code', 'name', 'fund_type', 'investment_strategy', 'inception_date',
-  'maturity_date', 'ownership_ratio',
+  'maturity_date', 'aum_krw',
 ]);
 const INVESTMENT_FIELDS = Object.freeze([
   'tranche', 'beneficiary_name', 'agreed_amount_krw', 'contributed_amount_krw',
@@ -40,7 +40,7 @@ const ASSET_NUMBER_FIELDS = Object.freeze([
   'land_area_sqm', 'building_area_sqm', 'gross_area_sqm', 'leasable_area_sqm',
   'building_coverage_ratio', 'floor_area_ratio', 'parking_count',
 ]);
-const FUND_NUMBER_FIELDS = Object.freeze(['ownership_ratio']);
+const FUND_NUMBER_FIELDS = Object.freeze(['aum_krw']);
 const RENT_ROLL_FIELDS = Object.freeze([
   'occupancy_status', 'tenant_name', 'business_registration_number',
   'temperature_type', 'goods_type', 'floor_label', 'zone_label', 'subtenant_name',

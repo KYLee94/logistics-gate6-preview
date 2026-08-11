@@ -1,14 +1,7 @@
 export const FINANCE_FORMULA_VERSION = 'gate6-korean-logistics-noi-v2';
 
 const DEFAULT_VISIBLE_NOI_CODES = new Set([
-  'POTENTIAL_BASE_RENT',
-  'POTENTIAL_CAM_INCOME',
-  'EXPENSE_REIMBURSEMENT_INCOME',
-  'PARKING_YARD_INCOME',
-  'ROOF_SOLAR_ANTENNA_INCOME',
-  'OTHER_PROPERTY_INCOME',
-  'VACANCY_LOSS',
-  'RENT_FREE_CONCESSION_LOSS',
+  'OPERATING_REVENUE',
   'PM_FEE',
   'FM_FEE',
   'REPAIRS_MAINTENANCE',
@@ -30,6 +23,7 @@ const DEFAULT_VISIBLE_NOI_CODES = new Set([
 ]);
 
 export const KOREAN_LOGISTICS_NOI_ACCOUNTS = Object.freeze([
+  ['potential_income', '영업수익', 'OPERATING_REVENUE', '영업수익'],
   ['potential_income', '잠재총수입', 'POTENTIAL_BASE_RENT', '잠재 임대료'],
   ['potential_income', '잠재총수입', 'POTENTIAL_CAM_INCOME', '잠재 관리비'],
   ['potential_income', '잠재총수입', 'EXPENSE_REIMBURSEMENT_INCOME', '설비·공과금 회수수익'],
