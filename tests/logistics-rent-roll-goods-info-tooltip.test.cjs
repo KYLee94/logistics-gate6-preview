@@ -63,6 +63,24 @@ test('정보 아이콘은 hover와 keyboard focus만 열고 click sticky와 chec
   assert.doesNotMatch(tooltip, /focus-within/u);
 });
 
+test('정보 설명은 스크롤 드롭다운 밖의 viewport portal에 충분한 크기로 표시된다', () => {
+  const source = fs.readFileSync(FRONTEND_PATH, 'utf8');
+  const start = source.indexOf('function GoodsInfoTooltip');
+  const end = source.indexOf('function AddableMultiSelectCell', start);
+  const tooltip = source.slice(start, end);
+
+  assert.match(source, /import \{ createPortal \} from ["']react-dom["']/u);
+  assert.match(tooltip, /createPortal\(/u);
+  assert.match(tooltip, /document\.body/u);
+  assert.match(tooltip, /getBoundingClientRect\(\)/u);
+  assert.match(tooltip, /fixed/u);
+  assert.match(tooltip, /z-\[250\]/u);
+  assert.match(tooltip, /text-\[13px\]/u);
+  assert.match(tooltip, /leading-\[1\.55\]/u);
+  assert.match(tooltip, /Math\.min\(360/u);
+  assert.doesNotMatch(tooltip, /absolute right-0 top-full/u);
+});
+
 test('기본 10종에만 설명 아이콘을 연결하고 custom 항목과 저장 serializer는 그대로 둔다', () => {
   const source = fs.readFileSync(FRONTEND_PATH, 'utf8');
   const start = source.indexOf('function AddableMultiSelectCell');

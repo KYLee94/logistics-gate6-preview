@@ -1,4 +1,5 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { normalizeLogisticsPath } from "../../components/system/workspace/logisticsRoutes";
 import {
   DATA_PLATFORM_ACTIONS,
@@ -1553,7 +1554,10 @@ function PresetTextCell({
 
 function GoodsInfoTooltip({ option, description }) {
   const [visible, setVisible] = useState(false);
+  const [position, setPosition] = useState({ left: 12, top: 12, width: 336 });
   const tooltipId = useId();
+  const triggerRef = useRef(null);
+  const tooltipRef = useRef(null);
   const openTooltip = () => setVisible(true);
   const closeTooltip = () => setVisible(false);
   const handleFocus = (event) => {
@@ -1570,8 +1574,38 @@ function GoodsInfoTooltip({ option, description }) {
     event.currentTarget.blur();
   };
 
+  useLayoutEffect(() => {
+    if (!visible || typeof window === "undefined") return undefined;
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const viewportPadding = 12;
+      const gap = 8;
+      const width = Math.min(360, Math.max(240, window.innerWidth - viewportPadding * 2));
+      const tooltipHeight = tooltipRef.current?.getBoundingClientRect().height ?? 0;
+      const fitsBelow = rect.bottom + gap + tooltipHeight <= window.innerHeight - viewportPadding;
+      const top = fitsBelow
+        ? rect.bottom + gap
+        : Math.max(viewportPadding, rect.top - gap - tooltipHeight);
+      const left = Math.min(
+        window.innerWidth - viewportPadding - width,
+        Math.max(viewportPadding, rect.right - width),
+      );
+      setPosition({ left, top, width });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [description, visible]);
+
   return (
     <span
+      ref={triggerRef}
       className="relative ml-auto shrink-0"
       onPointerEnter={openTooltip}
       onPointerLeave={closeTooltip}
@@ -1584,18 +1618,25 @@ function GoodsInfoTooltip({ option, description }) {
         onBlur={closeTooltip}
         onPointerDown={handlePointerDown}
         onClick={handleClick}
-        className="flex h-4 w-4 items-center justify-center rounded-full border border-[#636366] text-[10px] font-semibold leading-none text-[#A1A1A6] outline-none hover:border-[#8E8E93] hover:text-white focus-visible:ring-1 focus-visible:ring-[#5E9EFF]"
+        className="flex h-5 w-5 items-center justify-center rounded-full border border-[#636366] text-[11px] font-semibold leading-none text-[#A1A1A6] outline-none hover:border-[#8E8E93] hover:text-white focus-visible:ring-1 focus-visible:ring-[#5E9EFF]"
       >
         i
       </button>
-      <span
-        id={tooltipId}
-        role="tooltip"
-        aria-hidden={!visible}
-        className={`${visible ? "block" : "hidden"} pointer-events-none absolute right-0 top-full z-[90] mt-1 w-[310px] rounded-[8px] border border-[#3A3A3C] bg-[#161616] px-3 py-2 text-left text-[11px] font-normal leading-5 text-[#D1D1D6] shadow-2xl`}
-      >
-        {description}
-      </span>
+      {visible && typeof document !== "undefined"
+        ? createPortal(
+          <span
+            ref={tooltipRef}
+            id={tooltipId}
+            role="tooltip"
+            aria-hidden={!visible}
+            className="pointer-events-none fixed z-[250] max-h-[calc(100vh-24px)] overflow-y-auto rounded-[10px] border border-[#4A4A4F] bg-[#161616] px-3.5 py-3 text-left text-[13px] font-normal leading-[1.55] text-[#E5E5EA] shadow-2xl"
+            style={{ left: position.left, top: position.top, width: position.width }}
+          >
+            {description}
+          </span>,
+          document.body,
+        )
+        : null}
     </span>
   );
 }
@@ -3390,7 +3431,7 @@ function FinancePanel({ assetCode, assets }) {
                           onClick={() => toggleFinanceSection(row.sectionKey)}
                           className="flex w-full items-center gap-2 px-3 py-2 text-left outline-none hover:bg-white/[0.03] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#5E9EFF]"
                         >
-                          <span aria-hidden="true" className="w-3 text-[10px] text-[#6E6E73]">
+                          <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center text-[15px] leading-none text-[#A1A1A6]">
                             {collapsedFinanceSections.has(row.sectionKey) ? "▸" : "▾"}
                           </span>
                           <span>{row.label}</span>

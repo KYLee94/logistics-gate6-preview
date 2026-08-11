@@ -58,6 +58,11 @@ test('finance sections are expanded by default and hide only detail rows when to
     /isFinanceStatementDetailRow\(row\)\s*&&\s*collapsedFinanceSections\.has\(row\.section\)[\s\S]{0,40}\?\s*true\s*:\s*undefined/u,
   );
   assert.match(platformSource, /row\.kind === ["']section["'][\s\S]*?aria-hidden=["']true["']/u);
+  assert.match(
+    platformSource,
+    /aria-hidden=["']true["'] className=["'][^"']*h-5[^"']*w-5[^"']*text-\[15px\][^"']*["']/u,
+    'section disclosure triangle must be large enough to scan and click',
+  );
 });
 
 test('formula info icons and tooltips are absent from the finance statement', () => {
