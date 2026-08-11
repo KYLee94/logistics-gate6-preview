@@ -63,6 +63,18 @@ test('서버가 반환한 사용자 정의 계정은 사람용 이름과 지정 
   );
 });
 
+test('내부 DOCUMENT 경로는 사용자 정의 계정명으로도 화면에 노출하지 않는다', async () => {
+  const formulas = await importFresh('src/features/logistics-data-platform/formulas.js');
+  const hierarchy = formulas.buildFinanceAccountHierarchy([{
+    account_code: 'DOCUMENT:operating_expense:0',
+    name: 'DOCUMENT:operating_expense:0',
+    statement_section: 'operating_expense',
+  }], new Set(['DOCUMENT:operating_expense:0']));
+  const account = hierarchy.find((section) => section.key === 'operating_expense').accounts[0];
+  assert.equal(account.label, '사용자 계정');
+  assert.doesNotMatch(account.label, /DOCUMENT:/u);
+});
+
 test('활성 계정은 먼저, 비활성 계정은 금액을 보존한 채 hierarchy 하단으로 이동한다', async () => {
   const formulas = await importFresh('src/features/logistics-data-platform/formulas.js');
   const accounts = [

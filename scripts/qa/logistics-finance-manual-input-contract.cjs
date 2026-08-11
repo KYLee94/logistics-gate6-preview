@@ -33,7 +33,10 @@ async function main() {
   });
   assert.deepEqual(statement.periods, ['2026-08', '2026-09']);
   assert.deepEqual(statement.potential_income, [{
-    name: '임대료',
+    account_code: 'BASE_RENT',
+    statement_section: 'potential_income',
+    label: '임대료',
+    normal_sign: 1,
     selected: true,
     amounts: { '2026-08': 125, '2026-09': 20 },
   }]);
@@ -54,11 +57,14 @@ async function main() {
     }],
   });
   assert.deepEqual(payload.statement.potential_income, [{
-    name: '임대료',
+    account_code: 'BASE_RENT',
+    statement_section: 'potential_income',
+    label: '임대료',
+    normal_sign: 1,
     selected: true,
     amounts: { '2026-08': 125, '2026-09': 20 },
   }]);
-  for (const forbidden of ['entry_key', 'account_code', 'source_kind', 'revision', 'operation']) {
+  for (const forbidden of ['entry_key', 'source_kind', 'revision', 'operation']) {
     assert.equal(JSON.stringify(payload).includes(forbidden), false, `${forbidden} leaked into finance document`);
   }
 

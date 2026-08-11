@@ -1,7 +1,11 @@
 export const FINANCE_FORMULA_VERSION = 'gate6-korean-logistics-noi-v2';
 
 const DEFAULT_VISIBLE_NOI_CODES = new Set([
-  'OPERATING_REVENUE',
+  'RENT_REVENUE',
+  'MANAGEMENT_FEE_INCOME',
+  'UTILITIES_REIMBURSEMENT_INCOME',
+  'INTEREST_INCOME',
+  'MISCELLANEOUS_INCOME',
   'PM_FEE',
   'FM_FEE',
   'REPAIRS_MAINTENANCE',
@@ -26,6 +30,11 @@ const DEFAULT_VISIBLE_NOI_CODES = new Set([
 
 export const KOREAN_LOGISTICS_NOI_ACCOUNTS = Object.freeze([
   ['potential_income', '영업수익', 'OPERATING_REVENUE', '영업수익'],
+  ['potential_income', '영업수익', 'RENT_REVENUE', '임대수익'],
+  ['potential_income', '영업수익', 'MANAGEMENT_FEE_INCOME', '관리비수익'],
+  ['potential_income', '영업수익', 'UTILITIES_REIMBURSEMENT_INCOME', '수도광열비 회수수익'],
+  ['potential_income', '영업수익', 'INTEREST_INCOME', '이자수익'],
+  ['potential_income', '영업수익', 'MISCELLANEOUS_INCOME', '기타수익'],
   ['potential_income', '잠재총수입', 'POTENTIAL_BASE_RENT', '잠재 임대료'],
   ['potential_income', '잠재총수입', 'POTENTIAL_CAM_INCOME', '잠재 관리비'],
   ['potential_income', '잠재총수입', 'EXPENSE_REIMBURSEMENT_INCOME', '설비·공과금 회수수익'],
@@ -94,6 +103,12 @@ export const FINANCE_SECTION_LABELS = Object.freeze({
   cash_balance: '현금잔액',
 });
 
+function financeAccountDisplayLabel(account, definition) {
+  return [definition?.label, account?.name, account?.name_ko, account?.account_name]
+    .map((value) => String(value || '').trim())
+    .find((value) => value && !/^DOCUMENT:/iu.test(value)) || '사용자 계정';
+}
+
 export function buildFinanceAccountHierarchy(accounts = [], selectedAccountCodes = new Set()) {
   const selected = selectedAccountCodes instanceof Set
     ? selectedAccountCodes
@@ -111,11 +126,7 @@ export function buildFinanceAccountHierarchy(accounts = [], selectedAccountCodes
         const definition = definitionsByCode.get(account.account_code);
         return {
           ...account,
-          label: definition?.label
-            || account.name
-            || account.name_ko
-            || account.account_name
-            || account.account_code,
+          label: financeAccountDisplayLabel(account, definition),
           is_custom: account.is_custom === true || !definition,
           active: selected.has(account.account_code),
         };
@@ -139,7 +150,26 @@ export function filterFinanceCalculationAccounts(accounts = [], selectedAccountC
   const selected = selectedAccountCodes instanceof Set
     ? selectedAccountCodes
     : new Set(selectedAccountCodes || []);
-  return accounts.filter((account) => selected.has(account.account_code));
+  const selectedAccounts = accounts.filter((account) => selected.has(account.account_code));
+  const canonicalRevenueCodes = new Set([
+    'RENT_REVENUE',
+    'MANAGEMENT_FEE_INCOME',
+    'UTILITIES_REIMBURSEMENT_INCOME',
+    'INTEREST_INCOME',
+    'MISCELLANEOUS_INCOME',
+  ]);
+  const hasCanonicalRevenue = selectedAccounts.some((account) => (
+    canonicalRevenueCodes.has(account.account_code)
+  ));
+  if (!hasCanonicalRevenue) return selectedAccounts;
+  const legacyRevenueCodes = new Set([
+    'OPERATING_REVENUE', 'POTENTIAL_BASE_RENT', 'POTENTIAL_CAM_INCOME',
+    'EXPENSE_REIMBURSEMENT_INCOME', 'DEPOSIT_OPERATING_INCOME',
+    'PARKING_YARD_INCOME', 'ROOF_SOLAR_ANTENNA_INCOME', 'OTHER_PROPERTY_INCOME',
+  ]);
+  return selectedAccounts.filter((account) => (
+    !legacyRevenueCodes.has(account.account_code)
+  ));
 }
 
 export function calculateKoreanLogisticsNoi(input = {}) {
@@ -198,7 +228,7 @@ export function applyFinanceCashBalances(series = []) {
 }
 
 export const FINANCE_FORMULA_EXPLANATIONS = Object.freeze({
-  effective_gross_income: '영업수익에서 수입 손실을 차감합니다.',
+  effective_gross_income: '임대수익·관리비수익·수도광열비 회수수익·이자수익·기타수익을 합산합니다.',
   total_operating_expense: '선택한 영업비용 계정의 금액을 합산합니다.',
   net_operating_income: '영업수익에서 영업비용을 차감합니다.',
   asset_net_cash_flow: '순영업소득에서 NOI 하단 현금비용을 차감하고 비현금비용을 가산합니다.',

@@ -14,12 +14,16 @@ async function presentation() {
   return import(`${pathToFileURL(PRESENTATION_PATH).href}?finance-presentation=${Date.now()}-${Math.random()}`);
 }
 
-test('finance presentation exposes one editable operating revenue account and hides detailed income/loss rows', async () => {
+test('finance presentation exposes five canonical revenue inputs and one operating revenue subtotal', async () => {
   const { buildFinanceStatementPresentationRows } = await presentation();
   const rows = buildFinanceStatementPresentationRows([
     { key: 'potential_income', label: '영업수익', accounts: [
       { account_code: 'OPERATING_REVENUE', label: '영업수익', active: true },
-      { account_code: 'POTENTIAL_BASE_RENT', label: '잠재 임대료', active: true },
+      { account_code: 'RENT_REVENUE', label: '임대수익', active: true },
+      { account_code: 'MANAGEMENT_FEE_INCOME', label: '관리비수익', active: true },
+      { account_code: 'UTILITIES_REIMBURSEMENT_INCOME', label: '수도광열비 회수수익', active: true },
+      { account_code: 'INTEREST_INCOME', label: '이자수익', active: true },
+      { account_code: 'MISCELLANEOUS_INCOME', label: '기타수익', active: true },
     ] },
     { key: 'income_loss', label: '수입 손실', accounts: [{ account_code: 'VACANCY_LOSS', label: '공실 손실', active: true }] },
     { key: 'operating_expense', label: '운영비용', accounts: [] },
@@ -39,9 +43,14 @@ test('finance presentation exposes one editable operating revenue account and hi
       .map(({ kind, key, label }) => ({ kind, key, label })),
     [
       { kind: 'section', key: 'operating_revenue', label: '영업수익' },
-      { kind: 'account', key: 'OPERATING_REVENUE', label: '영업수익' },
+      { kind: 'account', key: 'RENT_REVENUE', label: '임대수익' },
+      { kind: 'account', key: 'MANAGEMENT_FEE_INCOME', label: '관리비수익' },
+      { kind: 'account', key: 'UTILITIES_REIMBURSEMENT_INCOME', label: '수도광열비 회수수익' },
+      { kind: 'account', key: 'INTEREST_INCOME', label: '이자수익' },
+      { kind: 'account', key: 'MISCELLANEOUS_INCOME', label: '기타수익' },
+      { kind: 'metric', key: 'effective_gross_income', label: '영업수익 소계' },
       { kind: 'section', key: 'operating_expense', label: '운영비용' },
-      { kind: 'metric', key: 'total_operating_expense', label: '영업비용 소계' },
+      { kind: 'metric', key: 'total_operating_expense', label: '운영비용 소계' },
       { kind: 'metric', key: 'net_operating_income', label: '순영업소득(NOI)' },
       { kind: 'section', key: 'below_noi', label: 'NOI 하단 조정' },
       { kind: 'metric', key: 'asset_net_cash_flow', label: '부채상환 전 현금흐름' },
@@ -57,12 +66,26 @@ test('finance presentation exposes one editable operating revenue account and hi
       { kind: 'metric', key: 'closing_cash_balance', label: '기말 현금잔액' },
     ],
   );
-  assert.equal(rows.filter((row) => row.key === 'OPERATING_REVENUE').length, 1);
-  assert.equal(rows.some((row) => row.key === 'POTENTIAL_BASE_RENT'), false);
+  assert.equal(rows.filter((row) => row.key === 'OPERATING_REVENUE').length, 0);
+  assert.equal(rows.filter((row) => row.kind === 'account' && [
+    'RENT_REVENUE', 'MANAGEMENT_FEE_INCOME', 'UTILITIES_REIMBURSEMENT_INCOME',
+    'INTEREST_INCOME', 'MISCELLANEOUS_INCOME',
+  ].includes(row.key)).length, 5);
   assert.equal(rows.some((row) => row.key === 'VACANCY_LOSS'), false);
-  assert.equal(rows.some((row) => row.key === 'effective_gross_income'), false);
+  assert.equal(rows.filter((row) => row.key === 'effective_gross_income').length, 1);
   assert.equal(rows.some((row) => row.key === 'potential_gross_income'), false);
   assert.equal(rows.some((row) => row.key === 'total_income_loss'), false);
+});
+
+test('legacy aggregate-only read still exposes an editable revenue row until backend canonical migration completes', async () => {
+  const { buildFinanceStatementPresentationRows } = await presentation();
+  const rows = buildFinanceStatementPresentationRows([{
+    key: 'potential_income', label: '영업수익', accounts: [
+      { account_code: 'OPERATING_REVENUE', label: '영업수익', active: true },
+    ],
+  }]);
+  assert.equal(rows.filter((row) => row.key === 'OPERATING_REVENUE').length, 1);
+  assert.equal(rows.filter((row) => row.key === 'effective_gross_income').length, 1);
 });
 
 test('finance comparison presents operating revenue once and keeps downstream results', async () => {

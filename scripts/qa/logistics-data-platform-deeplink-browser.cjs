@@ -17,6 +17,22 @@ const HOME_MATURITY_ALERT_CONTRACT = Object.freeze({
   expectedDate: '2026-08-11',
   expectedLenders: Object.freeze(['국민은행', '신한은행']),
 });
+const FINANCE_HUMAN_LABEL_CONTRACT = Object.freeze([
+  'PM 수수료', 'FM 수수료', '수선유지비', '수도광열비',
+  '보험료', '건물 재산세', '토지 재산세', '종합부동산세',
+  '도로점용료', '간주임대료 부가세', '기타 세금', '기타 운영비',
+  'AMC 수수료', '자산보관 수수료', '일반사무·수탁 수수료',
+  '자본적 지출', '임차인 시설공사비(TI)', '임대 중개수수료(LC)',
+  '이자 지급액', '원금 상환액', '대출 관련 수수료',
+  '기타 현금유입', '기타 현금유출', '기초 현금잔액',
+]);
+const FINANCE_REVENUE_CHILD_CODES = Object.freeze([
+  'RENT_REVENUE',
+  'MANAGEMENT_FEE_INCOME',
+  'UTILITIES_REIMBURSEMENT_INCOME',
+  'INTEREST_INCOME',
+  'MISCELLANEOUS_INCOME',
+]);
 const INTERNAL_MATURITY_IDENTIFIER = /\b(?:[0-9a-f]{8}-[0-9a-f-]{27,}|(?:asset|tenant|lease|contract|maturity|loan|fund)_[a-z0-9_-]+)\b/iu;
 const ROUTES = Object.freeze([
   {
@@ -1024,12 +1040,15 @@ async function authenticatedProbe(
   const errors = [];
   const edgeActions = [];
   const edgeResponses = [];
+  const edgeRequestStartedAt = new WeakMap();
+  const probeStartedAt = Date.now();
   const rentRollReadPayloadPromises = [];
   let documentRequestCount = 0;
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('request', (request) => {
     if (request.resourceType() === 'document') documentRequestCount += 1;
     if (!request.url().includes('/functions/v1/ll-dashboard-api')) return;
+    edgeRequestStartedAt.set(request, Date.now());
     try {
       const body = request.postDataJSON();
       if (body?.action) edgeActions.push(String(body.action));
@@ -1041,7 +1060,11 @@ async function authenticatedProbe(
   page.on('response', (response) => {
     const action = requestAction(response.request());
     if (response.url().includes('/functions/v1/ll-dashboard-api')) {
-      edgeResponses.push({ action, status: response.status() });
+      edgeResponses.push({
+        action,
+        status: response.status(),
+        elapsed_ms: Date.now() - (edgeRequestStartedAt.get(response.request()) || probeStartedAt),
+      });
     }
     if (
       response.url().includes('/functions/v1/ll-dashboard-api')
@@ -1068,6 +1091,15 @@ async function authenticatedProbe(
     }
   });
   let report;
+  let assetDirectoryTiming = {
+    checked: false,
+    initial_option_count: 0,
+    initial_selected: false,
+    ready_option_count: 0,
+    ready_selected: false,
+    ready_elapsed_ms: null,
+    home_read_responses: [],
+  };
   try {
     const directResponse = await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
     const dataPlatformMain = page.locator('[data-testid="logistics-data-platform"]');
@@ -1130,6 +1162,40 @@ async function authenticatedProbe(
     }
     const refreshPath = normalizedPathname(page.url());
     const refreshLegacySurfaceSeen = await page.evaluate(() => Boolean(window.__gate6LegacySurfaceSeen));
+    if (isDataPlatform) {
+      const assetSelect = dataPlatformMain.locator('[data-testid="data-platform-asset-select"]');
+      assetDirectoryTiming = {
+        ...assetDirectoryTiming,
+        checked: true,
+        initial_option_count: await assetSelect.locator('option').count().catch(() => 0),
+        initial_selected: Boolean(await assetSelect.inputValue().catch(() => '')),
+      };
+      try {
+        await page.waitForFunction(() => {
+          const select = document.querySelector('[data-testid="data-platform-asset-select"]');
+          const optionCount = select?.options?.length || 0;
+          return optionCount > 1 && Boolean(select.value);
+        }, null, { timeout: timeoutMs });
+      } catch {
+        const optionCount = await assetSelect.locator('option').count().catch(() => 0);
+        const selected = Boolean(await assetSelect.inputValue().catch(() => ''));
+        const homeReadResponses = edgeResponses
+          .filter((item) => item.action === 'v2/home/read')
+          .map(({ status, elapsed_ms: elapsedMs }) => ({ status, elapsed_ms: elapsedMs }));
+        throw new Error(
+          `ASSET_DIRECTORY_READY_TIMEOUT options=${optionCount} selected=${selected} home_reads=${JSON.stringify(homeReadResponses)}`,
+        );
+      }
+      assetDirectoryTiming = {
+        ...assetDirectoryTiming,
+        ready_option_count: await assetSelect.locator('option').count(),
+        ready_selected: Boolean(await assetSelect.inputValue()),
+        ready_elapsed_ms: Date.now() - probeStartedAt,
+        home_read_responses: edgeResponses
+          .filter((item) => item.action === 'v2/home/read')
+          .map(({ status, elapsed_ms: elapsedMs }) => ({ status, elapsed_ms: elapsedMs })),
+      };
+    }
     if (expectWriteEnabled && isDataPlatform) {
       await page.waitForFunction(() => Boolean(document.querySelector('header select')?.value), null, {
         timeout: timeoutMs,
@@ -1269,6 +1335,43 @@ async function authenticatedProbe(
         write_control_enabled: await page.locator(writeSelector).isEnabled(),
       };
     }
+    let financeStatementUi = { checked: false };
+    if (isDataPlatform && route.internalPath.endsWith('/income-expense')) {
+      const financeTable = page.locator('[data-testid="finance-statement-table"]');
+      await financeTable.waitFor({ state: 'visible', timeout: timeoutMs });
+      financeStatementUi = await financeTable.evaluate((table, contract) => {
+        const visibleFinanceRowLabels = Array.from(table.querySelectorAll('tbody tr'))
+          .map((row) => row.querySelector('th')?.innerText.trim() || '')
+          .filter(Boolean);
+        const accountRows = Array.from(table.querySelectorAll('tbody tr[data-finance-account-active]'));
+        const hasEditableCode = (accountCode) => accountRows.some((row) => (
+          row.querySelector(`input[data-autosave-field^="${accountCode}-"]`)
+        ));
+        const revenueChildCodes = contract.revenueChildCodes.filter(hasEditableCode);
+        const legacyOperatingRevenueEditableCount = hasEditableCode('OPERATING_REVENUE') ? 1 : 0;
+        const internalDocumentLabelCount = (table.innerText.match(/DOCUMENT:/gu) || []).length;
+        const inconsistentExpenseSubtotalCount = visibleFinanceRowLabels.filter(
+          (label) => label === '영업비용 소계',
+        ).length;
+        return {
+          checked: true,
+          internal_document_label_count: internalDocumentLabelCount,
+          inconsistent_expense_subtotal_count: inconsistentExpenseSubtotalCount,
+          legacy_operating_revenue_editable_count: legacyOperatingRevenueEditableCount,
+          operating_revenue_child_editable_count: revenueChildCodes.length,
+          missing_revenue_child_codes: contract.revenueChildCodes.filter(
+            (accountCode) => !revenueChildCodes.includes(accountCode),
+          ),
+          visible_finance_row_labels: visibleFinanceRowLabels,
+          missing_human_account_labels: contract.expectedHumanLabels.filter(
+            (label) => !visibleFinanceRowLabels.includes(label),
+          ),
+        };
+      }, {
+        expectedHumanLabels: FINANCE_HUMAN_LABEL_CONTRACT,
+        revenueChildCodes: FINANCE_REVENUE_CHILD_CODES,
+      });
+    }
     let financeTrendHover = { checked: false };
     if (isDataPlatform && route.internalPath.endsWith('/income-expense')) {
       const firstTrendPoint = page.locator('[data-testid="finance-trend"] button').first();
@@ -1394,6 +1497,7 @@ async function authenticatedProbe(
       browser_session_adopted: sessionAdoption.ok,
       asset_selected: assetSelected,
       asset_option_count: assetOptionCount,
+      asset_directory_timing: assetDirectoryTiming,
       legacy_work_platform_visible: legacyWorkPlatformVisible,
       legacy_work_platform_ever_seen: directLegacySurfaceSeen || refreshLegacySurfaceSeen,
       legacy_work_platform_seen_direct: directLegacySurfaceSeen,
@@ -1408,6 +1512,7 @@ async function authenticatedProbe(
       write_ui: writeUi,
       login_history_ui: loginHistoryUi,
       return_focus_ui: returnFocusUi,
+      finance_statement_ui: financeStatementUi,
       finance_trend_hover: financeTrendHover,
       home_brief_ui: homeBriefUi,
       home_maturity_alert_ui: homeMaturityAlertUi,
@@ -1456,6 +1561,14 @@ async function authenticatedProbe(
         && returnFocusUi.document_request_count === 0
       ))
       && (!financeTrendHover.checked || (financeTrendHover.tooltip_visible && financeTrendHover.tooltip_text.length > 0))
+      && (!financeStatementUi.checked || (
+        financeStatementUi.internal_document_label_count === 0
+        && financeStatementUi.inconsistent_expense_subtotal_count === 0
+        && financeStatementUi.legacy_operating_revenue_editable_count === 0
+        && financeStatementUi.operating_revenue_child_editable_count === 5
+        && financeStatementUi.missing_revenue_child_codes.length === 0
+        && financeStatementUi.missing_human_account_labels.length === 0
+      ))
       && (!homeBriefUi.checked || (homeBriefUi.visible && homeBriefUi.legacy_grid_count === 0 && !homeBriefUi.horizontal_overflow))
       && (!homeMaturityAlertUi.checked || (
         homeMaturityAlertUi.selected_asset === HOME_MATURITY_ALERT_CONTRACT.assetName
@@ -1501,6 +1614,7 @@ async function authenticatedProbe(
       current_url: page.url(),
       body_text: await page.locator('body').innerText().catch(() => ''),
       asset_option_count: await page.locator('header select option').count().catch(() => 0),
+      asset_directory_timing: assetDirectoryTiming,
       errors,
     };
   } finally {

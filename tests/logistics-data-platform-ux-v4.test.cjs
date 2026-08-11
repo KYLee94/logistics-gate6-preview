@@ -44,7 +44,11 @@ test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 �
   const core = formulas.KOREAN_LOGISTICS_NOI_ACCOUNTS.filter((account) => account.defaultVisible);
   const optional = formulas.KOREAN_LOGISTICS_NOI_ACCOUNTS.filter((account) => !account.defaultVisible);
   const expectedCore = [
-    'OPERATING_REVENUE',
+    'RENT_REVENUE',
+    'MANAGEMENT_FEE_INCOME',
+    'UTILITIES_REIMBURSEMENT_INCOME',
+    'INTEREST_INCOME',
+    'MISCELLANEOUS_INCOME',
     'PM_FEE',
     'FM_FEE',
     'REPAIRS_MAINTENANCE',
@@ -79,23 +83,31 @@ test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 �
       account_code: account.code,
       display_order: index + 1,
     })),
-    new Set(['OPERATING_REVENUE']),
+    new Set(['RENT_REVENUE']),
   );
   const income = hierarchy.find((section) => section.key === 'potential_income');
   assert.deepEqual(
     income.accounts.slice(0, 1).map((account) => [account.account_code, account.active]),
-    [['OPERATING_REVENUE', true]],
+    [['RENT_REVENUE', true]],
   );
   assert.ok(income.accounts.slice(1).every((account) => account.active === false));
 
   const calculationAccounts = formulas.filterFinanceCalculationAccounts(
     income.accounts,
-    new Set(['OPERATING_REVENUE']),
+    new Set(['RENT_REVENUE']),
   );
   assert.deepEqual(
     calculationAccounts.map((account) => account.account_code),
-    ['OPERATING_REVENUE'],
+    ['RENT_REVENUE'],
     '비활성 계정은 화면 선택만 바꾸고 DB 원장을 삭제하지 않으면서 NOI 계산에서는 제외해야 합니다.',
+  );
+  assert.deepEqual(
+    formulas.filterFinanceCalculationAccounts(
+      income.accounts,
+      new Set(['OPERATING_REVENUE', 'RENT_REVENUE']),
+    ).map((account) => account.account_code),
+    ['RENT_REVENUE'],
+    'canonical 수익 하위계정이 있으면 legacy 합계행을 중복 계산하면 안 됩니다.',
   );
 
   const source = read('src/features/logistics-data-platform/LogisticsDataPlatform.jsx');
@@ -108,8 +120,9 @@ test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 �
   assert.match(source, /pendingAccountFocusRef/u);
   assert.match(source, /accountSelectionAnnouncement/u);
   assert.match(presentationSource, /OPERATING_REVENUE/u);
-  assert.match(presentationSource, /영업비용 소계/u);
-  assert.doesNotMatch(presentationSource, /수익 차감|effective_gross_income.*영업수익 소계/u);
+  assert.match(presentationSource, /운영비용 소계/u);
+  assert.doesNotMatch(presentationSource, /수익 차감/u);
+  assert.match(presentationSource, /effective_gross_income.*영업수익 소계/u);
 });
 
 test('NOI·부채상환 후 현금흐름 차트는 키보드와 마우스 호버 상세 툴팁을 제공한다', () => {

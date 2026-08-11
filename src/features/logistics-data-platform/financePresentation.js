@@ -55,22 +55,32 @@ export function buildFinanceStatementPresentationRows(financeHierarchy = []) {
     .map((section) => [section.key, section]));
   const section = (key, label) => byKey.get(key) || { key, label, accounts: [] };
   const rows = [{ kind: 'section', key: 'operating_revenue', label: '영업수익' }];
-  const operatingRevenue = section('potential_income', '영업수익').accounts
-    .find((account) => account.account_code === 'OPERATING_REVENUE');
-  if (operatingRevenue) {
-    rows.push({
-      kind: 'account',
-      key: operatingRevenue.account_code,
-      label: '영업수익',
-      account: operatingRevenue,
-      active: operatingRevenue.active,
-    });
-  }
+  const potentialIncome = section('potential_income', '영업수익');
+  const canonicalRevenueCodes = new Set([
+    'RENT_REVENUE',
+    'MANAGEMENT_FEE_INCOME',
+    'UTILITIES_REIMBURSEMENT_INCOME',
+    'INTEREST_INCOME',
+    'MISCELLANEOUS_INCOME',
+  ]);
+  const canonicalRevenueAccounts = potentialIncome.accounts.filter((account) => (
+    canonicalRevenueCodes.has(account.account_code) || account.is_custom === true
+  ));
+  const legacyAggregate = potentialIncome.accounts.find((account) => (
+    account.account_code === 'OPERATING_REVENUE'
+  ));
+  appendAccounts(rows, {
+    ...potentialIncome,
+    accounts: canonicalRevenueAccounts.length
+      ? canonicalRevenueAccounts
+      : legacyAggregate ? [legacyAggregate] : [],
+  });
+  rows.push({ kind: 'metric', key: 'effective_gross_income', label: '영업수익 소계' });
 
   const operatingExpense = section('operating_expense', '운영비용');
   rows.push({ kind: 'section', key: operatingExpense.key, label: operatingExpense.label });
   appendAccounts(rows, operatingExpense);
-  rows.push({ kind: 'metric', key: 'total_operating_expense', label: '영업비용 소계' });
+  rows.push({ kind: 'metric', key: 'total_operating_expense', label: '운영비용 소계' });
   rows.push({ kind: 'metric', key: 'net_operating_income', label: '순영업소득(NOI)' });
 
   const belowNoi = section('below_noi', 'NOI 하단 조정');

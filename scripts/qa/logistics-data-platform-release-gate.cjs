@@ -106,14 +106,49 @@ const releaseSteps = Object.freeze([
     target: 'tests/logistics-home-fund-aum-live-audit.test.cjs',
   },
   {
+    id: 'fund-aum-authoritative-live-audit-unit',
+    kind: 'node',
+    target: 'tests/logistics-fund-aum-authoritative-live-audit.test.cjs',
+  },
+  {
+    id: 'fund-aum-source-backfill-contract',
+    kind: 'node',
+    target: 'tests/logistics-fund-aum-source-backfill-contract.test.cjs',
+  },
+  {
     id: 'rent-roll-cost-addable-multiselect',
     kind: 'node',
     target: 'tests/logistics-rent-roll-cost-addable-multiselect.test.cjs',
   },
   {
+    id: 'rent-roll-cost-taxonomy',
+    kind: 'node',
+    target: 'tests/logistics-rent-roll-cost-taxonomy.test.cjs',
+  },
+  {
     id: 'finance-presentation-hierarchy',
     kind: 'node',
     target: 'tests/logistics-finance-presentation-hierarchy.test.cjs',
+  },
+  {
+    id: 'finance-human-label-browser-contract',
+    kind: 'node',
+    target: 'tests/logistics-finance-human-label-browser-contract.test.cjs',
+  },
+  {
+    id: 'finance-cash-waterfall',
+    kind: 'node',
+    target: 'tests/logistics-finance-cash-waterfall.test.cjs',
+  },
+  {
+    id: 'finance-comparison-last-period-qa',
+    kind: 'node',
+    target: 'tests/logistics-finance-comparison-last-period-qa.test.cjs',
+  },
+  {
+    id: 'finance-cash-rent-cost-contract',
+    kind: 'node',
+    target: 'tests/logistics-finance-cash-rent-cost-contract.test.cjs',
   },
   {
     id: 'finance-custom-accounts',
@@ -129,6 +164,11 @@ const releaseSteps = Object.freeze([
   { id: 'frontend-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-frontend-contract.cjs' },
   { id: 'ux-v4-regression', kind: 'node', target: 'tests/logistics-data-platform-ux-v4.test.cjs' },
   { id: 'login-entry-v4-regression', kind: 'node', target: 'tests/logistics-data-platform-login-entry-v4.test.cjs' },
+  {
+    id: 'deeplink-asset-ready-contract',
+    kind: 'node',
+    target: 'tests/logistics-data-platform-deeplink-asset-ready.test.cjs',
+  },
   {
     id: 'deeplink-browser-self-test',
     kind: 'node',

@@ -291,11 +291,25 @@ function canonicalStatement(statement = {}) {
     periods,
     ...Object.fromEntries(INCOME_EXPENSE_SECTIONS.map((section) => [
       section,
-      statementRows(statement, section).map((account) => ({
-        name: account?.name ?? account?.name_ko ?? '',
-        selected: account?.selected === true,
-        amounts: canonicalAmounts(account?.amounts, periods),
-      })),
+      statementRows(statement, section).map((account) => {
+        const accountCode = String(account?.account_code || '').trim();
+        const label = String(account?.label ?? account?.name ?? account?.name_ko ?? '').trim();
+        const normalSign = Number(account?.normal_sign);
+        const common = {
+          selected: account?.selected === true,
+          amounts: canonicalAmounts(account?.amounts, periods),
+        };
+        if (accountCode && !accountCode.startsWith('DOCUMENT:')) {
+          return {
+            account_code: accountCode,
+            statement_section: String(account?.statement_section || section).trim() || section,
+            label,
+            normal_sign: Number.isFinite(normalSign) ? normalSign : (section === 'potential_income' ? 1 : -1),
+            ...common,
+          };
+        }
+        return { name: label, ...common };
+      }),
     ])),
   };
 }
@@ -440,6 +454,9 @@ export function documentsEqual(left, right) {
 
 export function projectIncomeExpenseStatement(statement = {}, definitions = []) {
   const canonical = canonicalStatement(statement);
+  const definitionByCode = new Map(
+    definitions.map((definition) => [definition.code, definition]),
+  );
   const definitionByName = new Map(
     definitions.map((definition) => [`${definition.section}\u0000${definition.label}`, definition]),
   );
@@ -448,17 +465,22 @@ export function projectIncomeExpenseStatement(statement = {}, definitions = []) 
   const selectedAccountCodes = [];
   INCOME_EXPENSE_SECTIONS.forEach((section) => {
     canonical[section].forEach((row, index) => {
-      const definition = definitionByName.get(`${section}\u0000${row.name}`);
-      const accountCode = definition?.code || `DOCUMENT:${section}:${index}`;
+      const sourceAccountCode = String(row.account_code || '').trim();
+      const rowLabel = row.label ?? row.name ?? '';
+      const definition = definitionByCode.get(sourceAccountCode)
+        || definitionByName.get(`${section}\u0000${rowLabel}`);
+      const accountCode = sourceAccountCode || definition?.code || `DOCUMENT:${section}:${index}`;
       accounts.push({
         account_code: accountCode,
-        name: row.name,
-        name_ko: row.name,
+        name: rowLabel,
+        name_ko: rowLabel,
         statement_section: section,
         display_order: (index + 1) * 10,
-        normal_sign: definition?.normalSign
+        normal_sign: Number.isFinite(Number(row.normal_sign))
+          ? Number(row.normal_sign)
+          : definition?.normalSign
           ?? (section === 'potential_income' || section === 'cash_balance' ? 1 : -1),
-        is_custom: !definition,
+        is_custom: !sourceAccountCode && !definition,
         selected: row.selected,
       });
       if (row.selected) selectedAccountCodes.push(accountCode);
@@ -486,14 +508,24 @@ export function buildIncomeExpenseStatement({
     periods: normalizedPeriods,
     ...Object.fromEntries(INCOME_EXPENSE_SECTIONS.map((section) => [
       section,
-      accounts.filter((account) => account.statement_section === section).map((account) => ({
-        name: account.name ?? account.name_ko ?? account.account_name ?? '',
-        selected: selected.has(account.account_code),
-        amounts: Object.fromEntries(normalizedPeriods.flatMap((month) => {
+      accounts.filter((account) => account.statement_section === section).map((account) => {
+        const label = account.name ?? account.name_ko ?? account.account_name ?? '';
+        const amounts = Object.fromEntries(normalizedPeriods.flatMap((month) => {
           const key = `${account.account_code}\u0000${month}`;
           return byAccountAndMonth.has(key) ? [[month, byAccountAndMonth.get(key)]] : [];
-        })),
-      })),
+        }));
+        if (account.is_custom !== true && !String(account.account_code || '').startsWith('DOCUMENT:')) {
+          return {
+            account_code: account.account_code,
+            statement_section: section,
+            label,
+            normal_sign: Number(account.normal_sign || (section === 'potential_income' ? 1 : -1)),
+            selected: selected.has(account.account_code),
+            amounts,
+          };
+        }
+        return { name: label, selected: selected.has(account.account_code), amounts };
+      }),
     ])),
   };
 }

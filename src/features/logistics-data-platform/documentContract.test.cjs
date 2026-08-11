@@ -399,27 +399,86 @@ test('수익비용 statement와 기존 화면 projection은 이름·선택·기�
   ];
   const projection = projectIncomeExpenseStatement({
     periods: ['2026-07', '2026-08'],
-    potential_income: [{ name: '임대료', selected: true, amounts: { '2026-07': 100, '2026-08': 110 } }],
+    potential_income: [{
+      account_code: 'RENT', statement_section: 'potential_income', label: '임대료', normal_sign: 1,
+      selected: true, amounts: { '2026-07': 100, '2026-08': 110 },
+    }],
     income_loss: [],
-    operating_expense: [{ name: 'PM 수수료', selected: false, amounts: { '2026-08': 10 } }],
+    operating_expense: [{
+      account_code: 'PM', statement_section: 'operating_expense', label: 'PM 수수료', normal_sign: -1,
+      selected: false, amounts: { '2026-08': 10 },
+    }],
     below_noi: [],
     debt_service: [],
-    cash_flow: [{ name: '기타 현금유입', selected: true, amounts: { '2026-08': 5 } }],
-    cash_balance: [{ name: '기초 현금잔액', selected: true, amounts: { '2026-07': 50 } }],
+    cash_flow: [{
+      account_code: 'OTHER_CASH_INFLOW', statement_section: 'cash_flow', label: '기타 현금유입', normal_sign: 1,
+      selected: true, amounts: { '2026-08': 5 },
+    }],
+    cash_balance: [{
+      account_code: 'OPENING_CASH_BALANCE', statement_section: 'cash_balance', label: '기초 현금잔액', normal_sign: 1,
+      selected: true, amounts: { '2026-07': 50 },
+    }],
   }, definitions);
 
   assert.deepEqual(projection.selectedAccountCodes, ['RENT', 'OTHER_CASH_INFLOW', 'OPENING_CASH_BALANCE']);
   assert.equal(projection.entries.length, 5);
   assert.deepEqual(buildIncomeExpenseStatement(projection), {
     periods: ['2026-07', '2026-08'],
-    potential_income: [{ name: '임대료', selected: true, amounts: { '2026-07': 100, '2026-08': 110 } }],
+    potential_income: [{
+      account_code: 'RENT', statement_section: 'potential_income', label: '임대료', normal_sign: 1,
+      selected: true, amounts: { '2026-07': 100, '2026-08': 110 },
+    }],
     income_loss: [],
-    operating_expense: [{ name: 'PM 수수료', selected: false, amounts: { '2026-08': 10 } }],
+    operating_expense: [{
+      account_code: 'PM', statement_section: 'operating_expense', label: 'PM 수수료', normal_sign: -1,
+      selected: false, amounts: { '2026-08': 10 },
+    }],
     below_noi: [],
     debt_service: [],
-    cash_flow: [{ name: '기타 현금유입', selected: true, amounts: { '2026-08': 5 } }],
-    cash_balance: [{ name: '기초 현금잔액', selected: true, amounts: { '2026-07': 50 } }],
+    cash_flow: [{
+      account_code: 'OTHER_CASH_INFLOW', statement_section: 'cash_flow', label: '기타 현금유입', normal_sign: 1,
+      selected: true, amounts: { '2026-08': 5 },
+    }],
+    cash_balance: [{
+      account_code: 'OPENING_CASH_BALANCE', statement_section: 'cash_balance', label: '기초 현금잔액', normal_sign: 1,
+      selected: true, amounts: { '2026-07': 50 },
+    }],
   });
+});
+
+test('backend canonical 계정 metadata는 projection과 저장 왕복에서 보존하고 DOCUMENT 내부 경로를 만들지 않는다', async () => {
+  const { buildIncomeExpenseStatement, projectIncomeExpenseStatement } = await contract();
+  const definitions = [
+    { section: 'potential_income', code: 'OPERATING_REVENUE', label: '영업수익', normalSign: 1 },
+    { section: 'operating_expense', code: 'PM_FEE', label: 'PM 수수료', normalSign: -1 },
+    { section: 'below_noi', code: 'CAPEX', label: '자본적 지출', normalSign: -1 },
+  ];
+  const statement = {
+    periods: ['2026-08'],
+    potential_income: [{
+      account_code: 'OPERATING_REVENUE', statement_section: 'potential_income',
+      label: '영업수익', normal_sign: 1, selected: true, amounts: { '2026-08': 100 },
+    }],
+    income_loss: [],
+    operating_expense: [{
+      account_code: 'PM_FEE', statement_section: 'operating_expense',
+      label: 'PM 수수료', normal_sign: -1, selected: true, amounts: { '2026-08': 10 },
+    }],
+    below_noi: [{
+      account_code: 'CAPEX', statement_section: 'below_noi',
+      label: '자본적 지출', normal_sign: -1, selected: true, amounts: { '2026-08': 5 },
+    }],
+    debt_service: [], cash_flow: [], cash_balance: [],
+  };
+  const projection = projectIncomeExpenseStatement(statement, definitions);
+  assert.deepEqual(projection.accounts.map((account) => account.account_code), [
+    'OPERATING_REVENUE', 'PM_FEE', 'CAPEX',
+  ]);
+  assert.deepEqual(projection.accounts.map((account) => account.name), [
+    '영업수익', 'PM 수수료', '자본적 지출',
+  ]);
+  assert.doesNotMatch(JSON.stringify(projection), /DOCUMENT:/u);
+  assert.deepEqual(buildIncomeExpenseStatement(projection), statement);
 });
 
 test('수익비용 저장 periods는 조회기간이 아니라 실제 금액 entry의 월만 보존한다', async () => {

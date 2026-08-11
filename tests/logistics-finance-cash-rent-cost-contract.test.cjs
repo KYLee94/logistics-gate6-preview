@@ -134,26 +134,37 @@ test('future custom account codes remain custom rows with their entered amounts'
   assert.deepEqual({ ...source }, source);
 });
 
-test('actual frontend name-only statement is accepted and server-canonicalized before storage', {
+test('actual frontend canonical statement preserves required account metadata before storage', {
   skip: !migrationPath,
 }, async () => {
   const contractUrl = pathToFileURL(path.resolve(__dirname, '../src/features/logistics-data-platform/documentContract.js'));
   const { buildIncomeExpenseStatement } = await import(`${contractUrl.href}?db-contract=${Date.now()}`);
   const accounts = [
-    ['potential_income', 'OPERATING_REVENUE', '영업수익'],
+    ['operating_expense', 'PM_FEE', 'PM 수수료'],
     ['cash_flow', 'OTHER_CASH_INFLOW', '기타 현금유입'],
     ['cash_flow', 'OTHER_CASH_OUTFLOW', '기타 현금유출'],
     ['cash_balance', 'OPENING_CASH_BALANCE', '기초 현금잔액'],
   ].map(([statement_section, account_code, name]) => ({ statement_section, account_code, name }));
   const statement = buildIncomeExpenseStatement({
     accounts,
-    entries: [{ account_code: 'OPERATING_REVENUE', month: '2026-08', amount: 100 }],
+    entries: [{ account_code: 'PM_FEE', month: '2026-08', amount: 100 }],
     selectedAccountCodes: accounts.map(({ account_code }) => account_code),
   });
-  assert.deepEqual(Object.keys(statement.potential_income[0]).sort(), ['amounts', 'name', 'selected']);
-  assert.equal(statement.potential_income[0].name, '영업수익');
+  assert.deepEqual(Object.keys(statement.operating_expense[0]).sort(), [
+    'account_code', 'amounts', 'label', 'normal_sign', 'selected', 'statement_section',
+  ]);
+  assert.deepEqual(statement.operating_expense[0], {
+    account_code: 'PM_FEE',
+    statement_section: 'operating_expense',
+    label: 'PM 수수료',
+    normal_sign: -1,
+    selected: true,
+    amounts: { '2026-08': 100 },
+  });
   assert.match(sql, /create or replace function logistics_core\.sanitize_finance_section\(/iu);
   assert.match(sql, /finance_account_code\(p_section,\s*item\.value\)/iu);
-  assert.match(sql, /coalesce\(nullif\(btrim\(item\.value->>'label'\),\s*''\),\s*nullif\(btrim\(item\.value->>'name'\),\s*''\)\)/iu);
+  for (const key of ['account_code', 'statement_section', 'label', 'normal_sign', 'selected', 'amounts']) {
+    assert.match(sql, new RegExp(`'${key}'`, 'u'));
+  }
   assert.match(sql, /FINANCE_CANONICAL_INPUT_ROW_REQUIRED/u);
 });

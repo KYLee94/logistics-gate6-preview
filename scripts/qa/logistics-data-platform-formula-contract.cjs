@@ -226,7 +226,10 @@ async function main() {
       });
       assert.deepEqual(statement.periods, ['2026-01', '2026-02']);
       assert.deepEqual(statement.potential_income, [{
-        name: '임대료',
+        account_code: 'BASE_RENT',
+        statement_section: 'potential_income',
+        label: '임대료',
+        normal_sign: 1,
         selected: true,
         amounts: { '2026-01': 10, '2026-02': 20 },
       }]);
