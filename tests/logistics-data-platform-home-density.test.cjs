@@ -30,7 +30,7 @@ test('홈 상단은 자산 개요·임대 운영·층별 배치의 세 개 세�
     source.indexOf('const HOME_ASSET_OVERVIEW_FIELDS'),
     source.indexOf('function AssetBrief'),
   );
-  for (const label of ['자산명', '주소', '용도지역', '대지면적', '건축면적', '연면적', '임대가능면적', '주용도', '건폐율', '용적률', '층수', '구조', '주차대수', '준공일']) {
+  for (const label of ['자산명', '주소', '용도지역', '대지면적', '건축면적', '연면적', '현재 렌트롤 면적', '주용도', '건폐율', '용적률', '층수', '구조', '주차대수', '준공일']) {
     assert.ok(briefFields.includes(label), `자산 개요 필드 누락: ${label}`);
   }
   for (const removed of ['자산 코드', '섹터', '기준 통화', '담당팀', '담당자', '취득가', '현재 평가액', '건축물대장']) {
@@ -68,7 +68,8 @@ test('자산 브리프는 기존 편집·저장 계약과 ㎡·평 병기 및 �
   assert.match(source, /data-testid=["']home-edit["']/u);
   assert.match(source, /data-testid=["']home-cancel["']/u);
   assert.match(source, /data-testid=["']home-save["']/u);
-  assert.match(source, /formatHomeOverviewValue\(field, asset\[field\.key\]\)/u);
+  assert.match(source, /resolveHomeAssetOverviewValue\(field\.key, asset, occupancySummary\)/u);
+  assert.match(source, /formatHomeOverviewValue\(field, resolved\.value\)/u);
   assert.match(source, /buildStackingFloorsFromRows\(\s*occupiedRows,\s*\[\],\s*\)/u);
   assert.doesNotMatch(source, /overviewForAsset|stackingPlanForAsset/u);
   assert.match(source, /title=["']펀드·수익증권 투자["']/u);
@@ -109,7 +110,7 @@ test('층별 배치 상세는 포인터 이탈·클릭 시 닫히고 키보드 f
   }
 });
 
-test('임대율은 서버 점유 요약을 우선하고 임대가능면적이 없으면 연면적을 분모로 사용한다', () => {
+test('임대율과 현재 렌트롤 면적은 서버의 현재 렌트롤 점유 요약만 사용한다', () => {
   assert.match(source, /sourceData\.occupancy_summary/u);
   assert.match(source, /occupied_area_sqm/u);
   assert.match(source, /active_tenant_count/u);

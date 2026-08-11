@@ -59,6 +59,7 @@ import {
 } from "./homeInvestmentPresentation";
 import { homeFundTableCellAlign } from "./homeFundTableAlignment";
 import { formatHomeLoanRate } from "./homeLoanRates";
+import { resolveHomeAssetOverviewValue } from "./homeAssetOverview";
 import {
   useDismissibleDetails,
   useDismissiblePopover,
@@ -462,7 +463,7 @@ const HOME_ASSET_OVERVIEW_FIELDS = Object.freeze([
   { key: "land_area_sqm", label: "대지면적", type: "number", format: "area" },
   { key: "building_area_sqm", label: "건축면적", type: "number", format: "area" },
   { key: "gross_area_sqm", label: "연면적", type: "number", format: "area" },
-  { key: "leasable_area_sqm", label: "임대가능면적", type: "number", format: "area" },
+  { key: "leasable_area_sqm", label: "현재 렌트롤 면적", type: "number", format: "area" },
   { key: "primary_use", label: "주용도", type: "text" },
   { key: "building_coverage_ratio", label: "건폐율", type: "number", format: "percent" },
   { key: "floor_area_ratio", label: "용적률", type: "number", format: "percent" },
@@ -510,6 +511,7 @@ function AssetBrief({
   onSave,
   onAssetChange,
   occupancyRate,
+  occupancySummary,
   tenantSummaries,
   activeTenantCount,
   occupiedSpaceCount,
@@ -599,13 +601,15 @@ function AssetBrief({
         >
           <h3 id="home-asset-overview-title" className="mb-2 text-sm font-semibold text-white">자산 개요</h3>
           <dl className="divide-y divide-[#333333]">
-            {HOME_ASSET_OVERVIEW_FIELDS.map((field) => (
+            {HOME_ASSET_OVERVIEW_FIELDS.map((field) => {
+              const resolved = resolveHomeAssetOverviewValue(field.key, asset, occupancySummary);
+              return (
               <div key={field.key} className="grid grid-cols-[104px_minmax(0,1fr)] items-center gap-3 py-2">
                 <dt className="text-xs text-[#86868B]">{field.label}</dt>
                 <dd className="min-w-0 text-right">
                   {!editing || field.editable === false ? (
-                    <span className="block truncate text-sm text-white" title={homeText(asset[field.key])}>
-                      {formatHomeOverviewValue(field, asset[field.key])}
+                    <span className="block truncate text-sm text-white" title={resolved.kind === "status" ? resolved.text : homeText(resolved.value)}>
+                      {resolved.kind === "status" ? resolved.text : formatHomeOverviewValue(field, resolved.value)}
                     </span>
                   ) : (
                     <HomeValue
@@ -619,7 +623,8 @@ function AssetBrief({
                   )}
                 </dd>
               </div>
-            ))}
+              );
+            })}
           </dl>
         </section>
 
@@ -1082,6 +1087,7 @@ function HomePanel({ assetCode, resource, maturities }) {
           onSave={() => void saveHome()}
           onAssetChange={(field, value) => updateHomeDraft("asset", 0, field, value)}
           occupancyRate={occupancyRate}
+          occupancySummary={occupancySummary}
           tenantSummaries={tenantSummaries}
           activeTenantCount={activeTenantCount}
           occupiedSpaceCount={occupiedSpaceCount}

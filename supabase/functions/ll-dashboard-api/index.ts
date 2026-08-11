@@ -20956,12 +20956,23 @@ function buildingRegisterSummaryFromItem(first: Record<string, unknown> | null |
   });
 }
 
-function buildingRegisterFirstItem(body: Record<string, unknown>) {
+function buildingRegisterItems(body: Record<string, unknown>) {
   const response = body?.response as Record<string, unknown> | undefined;
   const responseBody = response?.body as Record<string, unknown> | undefined;
   const items = responseBody?.items as Record<string, unknown> | undefined;
   const item = items?.item;
-  return Array.isArray(item) ? item[0] as Record<string, unknown> : item as Record<string, unknown> | undefined;
+  if (Array.isArray(item)) return item as Array<Record<string, unknown>>;
+  return item && typeof item === 'object' ? [item as Record<string, unknown>] : [];
+}
+
+function buildingRegisterBestItem(body: Record<string, unknown>) {
+  const items = buildingRegisterItems(body);
+  return [...items].sort((left, right) => {
+    const leftTotalArea = Number(firstDefined(left.totArea, left.vlRatEstmTotArea, left.archArea, 0)) || 0;
+    const rightTotalArea = Number(firstDefined(right.totArea, right.vlRatEstmTotArea, right.archArea, 0)) || 0;
+    if (leftTotalArea !== rightTotalArea) return rightTotalArea - leftTotalArea;
+    return String(left.mgmBldrgstPk || '').localeCompare(String(right.mgmBldrgstPk || ''));
+  })[0];
 }
 
 function buildingRegisterEndpointCandidates() {
@@ -21009,23 +21020,36 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
     let body: Record<string, unknown> = {};
     let providerOk = false;
     let summary: Record<string, unknown> = {};
+    let recapSummary: Record<string, unknown> = {};
+    let titleSummary: Record<string, unknown> = {};
     let providerEndpoint = '';
     const providerAttempts: Array<Record<string, unknown>> = [];
     for (const buildingBaseUrl of buildingRegisterEndpointCandidates()) {
       providerEndpoint = buildingBaseUrl;
       const result = await fetchJsonWithTimeout(`${buildingBaseUrl}?${query}`, {}, 20_000, 2);
-      response = result.response;
-      body = result.body as Record<string, unknown>;
-      providerOk = buildingRegisterProviderOk(response, body);
-      summary = buildingRegisterSummaryFromItem(buildingRegisterFirstItem(body));
+      const attemptBody = result.body as Record<string, unknown>;
+      const attemptOk = buildingRegisterProviderOk(result.response, attemptBody);
+      const attemptSummary = attemptOk
+        ? buildingRegisterSummaryFromItem(buildingRegisterBestItem(attemptBody))
+        : {};
+      if (attemptOk) {
+        providerOk = true;
+        response = result.response;
+        body = attemptBody;
+      } else if (!providerOk) {
+        response = result.response;
+        body = attemptBody;
+      }
+      if (buildingBaseUrl.includes('getBrRecapTitleInfo')) recapSummary = attemptSummary;
+      else titleSummary = attemptSummary;
       providerAttempts.push({
         endpoint: buildingBaseUrl.includes('getBrRecapTitleInfo') ? 'recap_title' : 'title',
-        status: response.status,
-        has_data: Object.keys(summary).length > 0,
-        message: providerMessageFromBody(body) || undefined,
+        status: result.response.status,
+        has_data: Object.keys(attemptSummary).length > 0,
+        message: providerMessageFromBody(attemptBody) || undefined,
       });
-      if (!providerOk || Object.keys(summary).length > 0) break;
     }
+    summary = { ...titleSummary, ...recapSummary };
     let cacheWriteError = '';
     let cacheReadbackHit = false;
     const hasSummaryData = Object.keys(summary).length > 0;

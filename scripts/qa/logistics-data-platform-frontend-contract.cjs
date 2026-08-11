@@ -78,7 +78,7 @@ assert.match(ui, /draggable=/u);
 
 assert.match(ui, /data-testid=["']home-asset-brief["']/u);
 assert.match(ui, /data-testid=["']home-lease-operations["']/u);
-for (const label of ['대지면적', '연면적', '임대가능면적', '임대 운영', '약정액', '투입액', 'Coupon', 'All-in']) {
+for (const label of ['대지면적', '연면적', '현재 렌트롤 면적', '임대 운영', '약정액', '투입액', 'Coupon', 'All-in']) {
   assert.ok(ui.includes(label), `missing home field: ${label}`);
 }
 for (const code of ['POTENTIAL_BASE_RENT', 'RENT_FREE_CONCESSION_LOSS', 'FM_FEE', 'PROPERTY_TAX_PUBLIC_DUES', 'CAPEX', 'TENANT_IMPROVEMENT', 'LEASING_COMMISSION', 'INTEREST_PAID']) {

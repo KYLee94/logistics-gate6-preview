@@ -141,6 +141,26 @@ const releaseSteps = Object.freeze([
     target: 'tests/logistics-home-asset-nonnegative-contract.test.cjs',
   },
   {
+    id: 'home-building-register-main-building-selection',
+    kind: 'node',
+    target: 'tests/logistics-building-register-main-building-selection.test.cjs',
+  },
+  {
+    id: 'home-building-register-refresh-audit-contract',
+    kind: 'node',
+    target: 'tests/logistics-building-register-refresh-audit.test.cjs',
+  },
+  {
+    id: 'home-building-register-backfill-v12-contract',
+    kind: 'node',
+    target: 'tests/logistics-home-building-register-backfill-v12.test.cjs',
+  },
+  {
+    id: 'home-asset-overview-presentation-contract',
+    kind: 'node',
+    target: 'tests/logistics-home-asset-overview-presentation.test.cjs',
+  },
+  {
     id: 'occupancy-rent-roll-basis-contract',
     kind: 'node',
     target: 'tests/logistics-occupancy-rent-roll-basis-contract.test.cjs',
