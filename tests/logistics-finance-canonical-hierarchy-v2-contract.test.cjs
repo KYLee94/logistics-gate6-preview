@@ -130,3 +130,32 @@ test('writer grant does not require an optional deployment role', () => {
     /grant\s+execute\s+on\s+function\s+logistics_core\.finance_batch_save_entry\(uuid,\s*text,\s*jsonb,\s*jsonb\)\s+to\s+authenticated/iu,
   );
 });
+
+test('catalog defaults keep only principal repayment and loan fee optional', () => {
+  const { sql } = migrationSource();
+  assert.match(
+    sql,
+    /\('debt_service',\s*10,\s*'INTEREST_PAID',\s*'이자 지급액',\s*-1,\s*true\)/u,
+  );
+  assert.match(
+    sql,
+    /\('debt_service',\s*20,\s*'PRINCIPAL_REPAYMENT',\s*'원금 상환액',\s*-1,\s*false\)/u,
+  );
+  assert.match(
+    sql,
+    /\('debt_service',\s*30,\s*'LOAN_FEE',\s*'대출 관련 수수료',\s*-1,\s*false\)/u,
+  );
+  for (const code of [
+    'TENANT_IMPROVEMENT', 'LEASING_COMMISSION', 'AMC_FEE',
+    'CUSTODY_FEE', 'GENERAL_ADMIN_TRUSTEE_FEE',
+    'BUILDING_PROPERTY_TAX', 'LAND_PROPERTY_TAX',
+    'COMPREHENSIVE_REAL_ESTATE_TAX', 'ROAD_OCCUPANCY_FEE',
+    'DEEMED_RENT_VAT', 'OTHER_TAXES',
+  ]) {
+    assert.match(
+      sql,
+      new RegExp(`\\([^\\n]*'${escapeRegExp(code)}'[^\\n]*true\\)`, 'u'),
+      `${code} must remain selected by default`,
+    );
+  }
+});

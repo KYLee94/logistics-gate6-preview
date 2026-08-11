@@ -136,6 +136,26 @@ const releaseSteps = Object.freeze([
     target: 'tests/logistics-finance-human-label-browser-contract.test.cjs',
   },
   {
+    id: 'finance-canonical-hierarchy-v2-contract',
+    kind: 'node',
+    target: 'tests/logistics-finance-canonical-hierarchy-v2-contract.test.cjs',
+  },
+  {
+    id: 'finance-selected-default-contract',
+    kind: 'node',
+    target: 'tests/logistics-finance-selected-default-contract.test.cjs',
+  },
+  {
+    id: 'finance-section-collapse-contract',
+    kind: 'node',
+    target: 'tests/logistics-finance-section-collapse.test.cjs',
+  },
+  {
+    id: 'home-loan-rate-percent-contract',
+    kind: 'node',
+    target: 'tests/logistics-home-loan-rate-percent-contract.test.cjs',
+  },
+  {
     id: 'finance-cash-waterfall',
     kind: 'node',
     target: 'tests/logistics-finance-cash-waterfall.test.cjs',

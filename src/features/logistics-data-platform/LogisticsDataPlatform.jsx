@@ -36,20 +36,23 @@ import {
   buildFinanceAccountHierarchy,
   calculateKoreanLogisticsNoi,
   filterFinanceCalculationAccounts,
-  FINANCE_FORMULA_EXPLANATIONS,
   FINANCE_SECTION_ORDER,
   KOREAN_LOGISTICS_NOI_ACCOUNTS,
 } from "./formulas";
 import {
   buildFinanceStatementPresentationRows,
   financeComparisonValue,
+  financeSectionControlIds,
+  financeStatementRowId,
   FINANCE_COMPARISON_PRESENTATION_KEYS,
+  isFinanceStatementDetailRow,
 } from "./financePresentation";
 import {
   homeShareClassOptions,
   homeShareClassOptionsFromInvestments,
   homeShareClassPresentation,
 } from "./homeInvestmentPresentation";
+import { formatHomeLoanRate } from "./homeLoanRates";
 import {
   maturityDetailRows,
   maturityDisplayName,
@@ -256,8 +259,23 @@ function HomeValue({ editing, value, type = "text", onChange, align = "left", ar
   if (!editing) {
     return (
       <span className={`block min-h-8 px-2 py-1.5 text-sm text-white ${align === "right" ? "text-right tabular-nums" : ""}`}>
-        {type === "number" ? amount(value) : display(value)}
+        {type === "number" ? amount(value) : type === "percent" ? formatHomeLoanRate(value) : display(value)}
       </span>
+    );
+  }
+  if (type === "percent") {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          aria-label={ariaLabel}
+          type="number"
+          step="any"
+          value={value ?? ""}
+          onChange={(event) => onChange(event.target.value)}
+          className={`${INPUT_CLASS} bg-[#202020] text-right tabular-nums`}
+        />
+        <span className="pr-1 text-xs text-[#86868B]">%</span>
+      </div>
     );
   }
   return (
@@ -1122,9 +1140,9 @@ function HomePanel({ assetCode, resource, maturities }) {
                     ["maturity_date", "date"],
                     ["loan_type", "text"],
                     ["interest_type", "text"],
-                    ["coupon_rate", "text"],
-                    ["all_in_rate", "text"],
-                    ["fee_rate", "text"],
+                    ["coupon_rate", "percent"],
+                    ["all_in_rate", "percent"],
+                    ["fee_rate", "percent"],
                   ].map(([field, type]) => (
                     <td
                       key={field}
@@ -2726,6 +2744,7 @@ function FinancePanel({ assetCode, assets }) {
   const [accountSelectionAnnouncement, setAccountSelectionAnnouncement] = useState("");
   const [customAccountDrafts, setCustomAccountDrafts] = useState({});
   const [accountMutationPending, setAccountMutationPending] = useState(false);
+  const [collapsedFinanceSections, setCollapsedFinanceSections] = useState(() => new Set());
   const accountToggleRefs = useRef(new Map());
   const pendingAccountFocusRef = useRef(null);
   const [selectedAccountCodes, setSelectedAccountCodes] = useState(
@@ -3031,6 +3050,14 @@ function FinancePanel({ assetCode, assets }) {
     closing_cash_balance: "기말 현금잔액",
   });
   const rows = buildFinanceStatementPresentationRows(financeHierarchy);
+  const toggleFinanceSection = (sectionKey) => {
+    setCollapsedFinanceSections((current) => {
+      const next = new Set(current);
+      if (next.has(sectionKey)) next.delete(sectionKey);
+      else next.add(sectionKey);
+      return next;
+    });
+  };
   const comparisonAction = (
     <div
       data-testid="finance-comparison-controls"
@@ -3214,15 +3241,33 @@ function FinancePanel({ assetCode, assets }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {rows.map((row, rowIndex) => (
                 <tr
                   key={`${row.kind}-${row.key}`}
+                  id={financeStatementRowId(row, rowIndex)}
+                  hidden={
+                    isFinanceStatementDetailRow(row) && collapsedFinanceSections.has(row.section)
+                      ? true
+                      : undefined
+                  }
                   data-finance-account-active={row.kind === "account" ? String(row.active) : undefined}
                 >
                   {row.kind === "section" ? (
                     <>
-                      <th className="sticky left-0 z-10 border-b border-r border-[#414145] bg-[#1D1D1D] px-3 py-2 text-left text-xs font-semibold text-[#9A9AA0]">
-                        {row.label}
+                      <th className="sticky left-0 z-10 border-b border-r border-[#414145] bg-[#1D1D1D] p-0 text-left text-xs font-semibold text-[#9A9AA0]">
+                        <button
+                          data-testid="finance-section-toggle"
+                          type="button"
+                          aria-expanded={!collapsedFinanceSections.has(row.sectionKey)}
+                          aria-controls={financeSectionControlIds(rows, row.sectionKey).join(" ")}
+                          onClick={() => toggleFinanceSection(row.sectionKey)}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left outline-none hover:bg-white/[0.03] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#5E9EFF]"
+                        >
+                          <span aria-hidden="true" className="w-3 text-[10px] text-[#6E6E73]">
+                            {collapsedFinanceSections.has(row.sectionKey) ? "▸" : "▾"}
+                          </span>
+                          <span>{row.label}</span>
+                        </button>
                       </th>
                       {periods.map((period) => (
                         <td
@@ -3328,22 +3373,7 @@ function FinancePanel({ assetCode, assets }) {
                               </button>
                             ) : null}
                           </div>
-                        ) : (
-                          <span
-                            title={FINANCE_FORMULA_EXPLANATIONS[row.key]}
-                            className="inline-flex items-center gap-1.5"
-                          >
-                            {row.label}
-                            {FINANCE_FORMULA_EXPLANATIONS[row.key] ? (
-                              <span
-                                aria-label={`${row.label} 계산식: ${FINANCE_FORMULA_EXPLANATIONS[row.key]}`}
-                                className="text-[10px] font-normal text-[#7FAEEA]"
-                              >
-                                ⓘ
-                              </span>
-                            ) : null}
-                          </span>
-                        )}
+                        ) : row.label}
                       </th>
                       {periods.map((period, periodIndex) => {
                         if (row.kind === "metric")

@@ -197,6 +197,25 @@ test('home serializer converts edited numeric strings and omits empty nested num
   });
 });
 
+test('home serializer keeps loan rate percentage-point values unchanged', async () => {
+  const { buildHomeDocumentPayload } = await contract();
+  const payload = buildHomeDocumentPayload({
+    asset: { asset_code: 'ASSET-01', fund_code: 'FUND-01' },
+    funds: [{ fund_code: 'FUND-01' }],
+    loans: [{
+      fund_code: 'FUND-01',
+      coupon_rate: '0.01',
+      all_in_rate: '5.375',
+      fee_rate: '',
+    }],
+  });
+
+  assert.deepEqual(payload.funds[0].loans, [{
+    coupon_rate: 0.01,
+    all_in_rate: 5.375,
+  }]);
+});
+
 test('home serializer keeps empty loan rows valid after the UI adds blank aliases', async () => {
   const { buildHomeDocumentPayload, documentsEqual } = await contract();
   const draft = {

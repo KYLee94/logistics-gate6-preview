@@ -93,7 +93,8 @@ test('FinancePanel은 입력 현금계정을 월별 계산에 연결하고 deriv
   assert.match(source, /OTHER_CASH_INFLOW/u);
   assert.match(source, /OTHER_CASH_OUTFLOW/u);
   assert.match(source, /OPENING_CASH_BALANCE/u);
-  assert.match(source, /FINANCE_FORMULA_EXPLANATIONS\[row\.key\]/u);
+  assert.doesNotMatch(source, /FINANCE_FORMULA_EXPLANATIONS\[row\.key\]/u);
+  assert.match(source, /data-testid=["']finance-section-toggle["']/u);
   assert.match(source, /closing_cash_balance/u);
   const statementBuilder = source.slice(
     source.indexOf('const saveFinanceDocument'),
