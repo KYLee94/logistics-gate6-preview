@@ -35,6 +35,16 @@ export const RENT_ROLL_GOODS_INFO = Object.freeze({
   '화장품': '포함: 스킨케어, 색조, 헤어·바디케어, 향수. 제외: 세탁·청소용품, 의약품·의약외품.',
 });
 
+export function rentRollGoodsInfoSections(description) {
+  const text = String(description ?? '').trim();
+  const match = text.match(/^포함:\s*(.*?)\s+제외:\s*(.+)$/u);
+  if (!match) return [{ label: '설명', text }];
+  return [
+    { label: '포함', text: match[1].trim() },
+    { label: '제외', text: match[2].trim() },
+  ];
+}
+
 export const TENANT_COST_OPTIONS = Object.freeze([
   '수도광열비·공과금',
   '임차인 시설 설치·개조비',

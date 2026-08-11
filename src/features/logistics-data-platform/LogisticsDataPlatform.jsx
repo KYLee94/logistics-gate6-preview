@@ -28,6 +28,7 @@ import {
   RENT_ROLL_PASTE_COLUMNS,
   rentRollFloorSortValue,
   rentRollGoodsDisplayOptions,
+  rentRollGoodsInfoSections,
   rentRollGroupSegments,
   rentRollStickyLeft,
   serializeCostTerms,
@@ -1558,6 +1559,7 @@ function GoodsInfoTooltip({ option, description }) {
   const tooltipId = useId();
   const triggerRef = useRef(null);
   const tooltipRef = useRef(null);
+  const infoSections = rentRollGoodsInfoSections(description);
   const openTooltip = () => setVisible(true);
   const closeTooltip = () => setVisible(false);
   const handleFocus = (event) => {
@@ -1632,7 +1634,14 @@ function GoodsInfoTooltip({ option, description }) {
             className="pointer-events-none fixed z-[250] max-h-[calc(100vh-24px)] overflow-y-auto rounded-[10px] border border-[#4A4A4F] bg-[#161616] px-3.5 py-3 text-left text-[13px] font-normal leading-[1.55] text-[#E5E5EA] shadow-2xl"
             style={{ left: position.left, top: position.top, width: position.width }}
           >
-            {description}
+            <ul className="list-disc space-y-2 pl-5">
+              {infoSections.map((section) => (
+                <li key={section.label}>
+                  <strong className="font-bold text-white">{section.label}</strong>
+                  <span className="ml-1">{section.text}</span>
+                </li>
+              ))}
+            </ul>
           </span>,
           document.body,
         )

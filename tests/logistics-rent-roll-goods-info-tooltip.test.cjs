@@ -28,6 +28,7 @@ test('주요 취급 화물 10종은 저장값과 분리된 정확한 포함·제
     addRentRollGoodsType,
     RENT_ROLL_GOODS_INFO,
     RENT_ROLL_GOODS_OPTIONS,
+    rentRollGoodsInfoSections,
     serializeRentRollGoodsTypes,
     toggleRentRollGoodsType,
   } = await import(
@@ -41,6 +42,16 @@ test('주요 취급 화물 10종은 저장값과 분리된 정확한 포함·제
   assert.deepEqual(toggleRentRollGoodsType(['종합상품'], '의약품'), ['의약품']);
   assert.deepEqual(addRentRollGoodsType(['종합상품'], '사용자 추가값'), ['사용자 추가값']);
   assert.deepEqual(toggleRentRollGoodsType(persisted, '의류'), ['화장품', '사용자 추가값']);
+  assert.deepEqual(rentRollGoodsInfoSections(EXPECTED_INFO['가구·인테리어']), [
+    {
+      label: '포함',
+      text: '거실·침실·주방가구, 침구, 커튼·블라인드, 인테리어소품, DIY 인테리어 자재·원예용품.',
+    },
+    {
+      label: '제외',
+      text: '디지털·가전, 일상 소모품, 가정용 공구.',
+    },
+  ]);
 });
 
 test('정보 아이콘은 hover와 keyboard focus만 열고 click sticky와 checkbox toggle을 막는다', () => {
@@ -79,6 +90,20 @@ test('정보 설명은 스크롤 드롭다운 밖의 viewport portal에 충분�
   assert.match(tooltip, /leading-\[1\.55\]/u);
   assert.match(tooltip, /Math\.min\(360/u);
   assert.doesNotMatch(tooltip, /absolute right-0 top-full/u);
+});
+
+test('정보 설명은 포함과 제외를 줄바꿈 bullet로 나누고 제목을 굵게 표시한다', () => {
+  const source = fs.readFileSync(FRONTEND_PATH, 'utf8');
+  const start = source.indexOf('function GoodsInfoTooltip');
+  const end = source.indexOf('function AddableMultiSelectCell', start);
+  const tooltip = source.slice(start, end);
+
+  assert.match(tooltip, /rentRollGoodsInfoSections\(description\)/u);
+  assert.match(tooltip, /<ul[^>]*className="[^"]*list-disc[^"]*space-y-2[^"]*"/u);
+  assert.match(tooltip, /<li[^>]*key=\{section\.label\}/u);
+  assert.match(tooltip, /<strong[^>]*className="[^"]*font-bold[^"]*"/u);
+  assert.match(tooltip, /\{section\.label\}/u);
+  assert.match(tooltip, /\{section\.text\}/u);
 });
 
 test('기본 10종에만 설명 아이콘을 연결하고 custom 항목과 저장 serializer는 그대로 둔다', () => {
