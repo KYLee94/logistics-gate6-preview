@@ -1132,6 +1132,7 @@ function HomePanel({ assetCode, resource, maturities }) {
                             description={HOME_FUND_AUM_INFO}
                             content={HOME_FUND_AUM_INFO}
                             ariaLabel="AUM 기준일 안내"
+                            compact
                           />
                         </span>
                       ) : label}
@@ -1641,7 +1642,13 @@ function PresetTextCell({
   );
 }
 
-function GoodsInfoTooltip({ option, description, content = null, ariaLabel = "" }) {
+function GoodsInfoTooltip({
+  option,
+  description,
+  content = null,
+  ariaLabel = "",
+  compact = false,
+}) {
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ left: 12, top: 12, width: 336 });
   const tooltipId = useId();
@@ -1671,8 +1678,10 @@ function GoodsInfoTooltip({ option, description, content = null, ariaLabel = "" 
       if (!trigger) return;
       const rect = trigger.getBoundingClientRect();
       const viewportPadding = 12;
-      const gap = 8;
-      const width = Math.min(360, Math.max(240, window.innerWidth - viewportPadding * 2));
+      const gap = compact ? 6 : 8;
+      const regularWidth = Math.min(360, Math.max(240, window.innerWidth - viewportPadding * 2));
+      const measuredWidth = tooltipRef.current?.getBoundingClientRect().width ?? regularWidth;
+      const width = compact ? measuredWidth : regularWidth;
       const tooltipHeight = tooltipRef.current?.getBoundingClientRect().height ?? 0;
       const fitsBelow = rect.bottom + gap + tooltipHeight <= window.innerHeight - viewportPadding;
       const top = fitsBelow
@@ -1691,7 +1700,7 @@ function GoodsInfoTooltip({ option, description, content = null, ariaLabel = "" 
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [description, visible]);
+  }, [compact, description, visible]);
 
   return (
     <span
@@ -1719,8 +1728,15 @@ function GoodsInfoTooltip({ option, description, content = null, ariaLabel = "" 
             id={tooltipId}
             role="tooltip"
             aria-hidden={!visible}
-            className="pointer-events-none fixed z-[250] max-h-[calc(100vh-24px)] overflow-y-auto rounded-[10px] border border-[#4A4A4F] bg-[#161616] px-3.5 py-3 text-left text-[13px] font-normal leading-[1.55] text-[#E5E5EA] shadow-2xl"
-            style={{ left: position.left, top: position.top, width: position.width }}
+            className={`pointer-events-none fixed z-[250] rounded-[10px] border border-[#4A4A4F] bg-[#161616] text-left font-normal text-[#E5E5EA] shadow-2xl ${
+              compact ? "whitespace-nowrap px-2.5 py-2 text-xs leading-none" : "max-h-[calc(100vh-24px)] overflow-y-auto px-3.5 py-3 text-[13px] leading-[1.55]"
+            }`}
+            style={{
+              left: position.left,
+              top: position.top,
+              width: compact ? "max-content" : position.width,
+              maxWidth: "calc(100vw - 24px)",
+            }}
           >
             {content ? (
               <span>{content}</span>

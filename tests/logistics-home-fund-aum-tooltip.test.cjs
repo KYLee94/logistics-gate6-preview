@@ -18,6 +18,7 @@ test('홈 펀드 AUM 헤더는 정확한 기준일을 기존 비고정 정보 to
   assert.match(header, /<GoodsInfoTooltip/u);
   assert.match(header, /ariaLabel="AUM 기준일 안내"/u);
   assert.match(header, /content=\{HOME_FUND_AUM_INFO\}/u);
+  assert.match(header, /content=\{HOME_FUND_AUM_INFO\}[\s\S]*?compact/u);
 });
 
 test('AUM 안내는 저장 값과 무관한 표시 정보이고 hover·focus-visible만 열리며 즉시 닫힌다', () => {
@@ -25,6 +26,10 @@ test('AUM 안내는 저장 값과 무관한 표시 정보이고 hover·focus-vis
   const end = source.indexOf('function AddableMultiSelectCell', start);
   const tooltip = source.slice(start, end);
   assert.match(tooltip, /content = null/u);
+  assert.match(tooltip, /compact = false/u);
+  assert.match(tooltip, /const width = compact/u);
+  assert.match(tooltip, /width: compact \? "max-content" : position\.width/u);
+  assert.match(tooltip, /compact \? "whitespace-nowrap/u);
   assert.match(tooltip, /onPointerEnter=\{openTooltip\}/u);
   assert.match(tooltip, /onPointerLeave=\{closeTooltip\}/u);
   assert.match(tooltip, /matches\(":focus-visible"\)/u);

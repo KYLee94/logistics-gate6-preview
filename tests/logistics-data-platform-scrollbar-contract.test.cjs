@@ -57,7 +57,8 @@ test('렌트롤·드롭다운·모달·다중선택·재무 표는 다크 스크
   const goodsTooltip = sourceBetween('function GoodsInfoTooltip', 'function AddableMultiSelectCell');
   assert.match(goodsTooltip, /createPortal\(/u);
   assert.match(goodsTooltip, /role=["']tooltip["']/u);
-  assert.match(goodsTooltip, /fixed[\s\S]*?overflow-y-auto[\s\S]*?bg-\[#161616\]/u);
+  assert.match(goodsTooltip, /fixed[\s\S]*?bg-\[#161616\]/u);
+  assert.match(goodsTooltip, /max-h-\[calc\(100vh-24px\)\][\s\S]*?overflow-y-auto/u);
   assert.match(goodsTooltip, /document\.body/u);
 
   const rentFreeDialog = sourceBetween('function RentFreePeriodsDialog', 'function PresetTextCell');
