@@ -55,3 +55,9 @@ test('수익비용 연도 제목행은 세로 스크롤 영역 상단에 고정�
   assert.match(table, /finance-statement-scroll[\s\S]{0,180}max-h-\[calc\(100vh-190px\)\][^"']*overflow-auto/u);
   assert.match(table, /구분 \/ 계정 선택[\s\S]*?periods\.map\(\(period\)[\s\S]{0,220}sticky top-0/u);
 });
+
+test('NOI 손익표 원 단위는 컴포넌트 제목에 한 번만 표시하고 연월 제목에서는 제거한다', () => {
+  const source = fs.readFileSync(FRONTEND_PATH, 'utf8');
+  assert.match(source, /title="물류센터 NOI 손익표 \(원\)"/u);
+  assert.doesNotMatch(source, /\{period\} \(원\)/u);
+});

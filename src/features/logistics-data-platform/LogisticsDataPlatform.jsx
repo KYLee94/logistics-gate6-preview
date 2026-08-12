@@ -3493,7 +3493,7 @@ function FinancePanel({ assetCode, assets }) {
         </Section>
       </div>
       <Section
-        title="물류센터 NOI 손익표"
+        title="물류센터 NOI 손익표 (원)"
         action={<SaveState state={saveState} />}
       >
         <p
@@ -3523,7 +3523,7 @@ function FinancePanel({ assetCode, assets }) {
                     key={period}
                     className="sticky top-0 z-20 min-w-[104px] border-b border-[#333333] bg-[#202020] px-2 py-2.5 text-right text-xs text-[#A1A1AA]"
                   >
-                    {period} (원)
+                    {period}
                   </th>
                 ))}
               </tr>
