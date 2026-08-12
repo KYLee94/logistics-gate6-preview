@@ -61,3 +61,13 @@ test('NOI 손익표 원 단위는 컴포넌트 제목에 한 번만 표시하고
   assert.match(source, /title="물류센터 NOI 손익표 \(원\)"/u);
   assert.doesNotMatch(source, /\{period\} \(원\)/u);
 });
+
+test('NOI 손익표 제목행은 구분 셀과 모든 연월 셀을 가운데 정렬한다', () => {
+  const source = fs.readFileSync(FRONTEND_PATH, 'utf8');
+  const table = source.slice(
+    source.indexOf('data-testid="finance-statement-scroll"'),
+    source.indexOf('</thead>', source.indexOf('data-testid="finance-statement-scroll"')),
+  );
+  assert.match(table, /<th className="[^"]*text-center[^"]*">\s*구분 \/ 계정 선택/u);
+  assert.match(table, /periods\.map\(\(period\)[\s\S]{0,260}className="[^"]*text-center/u);
+});

@@ -3515,13 +3515,13 @@ function FinancePanel({ assetCode, assets }) {
           >
             <thead>
               <tr>
-                <th className="sticky left-0 top-0 z-20 min-w-[264px] border-b border-r border-[#333333] bg-[#202020] px-3 py-2.5 text-left text-xs text-[#A1A1AA]">
+                <th className="sticky left-0 top-0 z-20 min-w-[264px] border-b border-r border-[#333333] bg-[#202020] px-3 py-2.5 text-center text-xs text-[#A1A1AA]">
                   구분 / 계정 선택
                 </th>
                 {periods.map((period) => (
                   <th
                     key={period}
-                    className="sticky top-0 z-20 min-w-[104px] border-b border-[#333333] bg-[#202020] px-2 py-2.5 text-right text-xs text-[#A1A1AA]"
+                    className="sticky top-0 z-20 min-w-[104px] border-b border-[#333333] bg-[#202020] px-2 py-2.5 text-center text-xs text-[#A1A1AA]"
                   >
                     {period}
                   </th>
