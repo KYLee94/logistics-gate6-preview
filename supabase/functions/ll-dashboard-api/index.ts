@@ -26938,6 +26938,24 @@ const LOGISTICS_AUTH_EMAIL_ALIASES: Record<string, string> = {
   '10524@igisam.com': 'kylee@igisam.com',
 };
 const LOGIN_HISTORY_TEST_PATTERN = /(smoke|test|qa|playwright|codex|dummy|example)/iu;
+const LOGIN_HISTORY_DUPLICATE_WINDOW_MS = 2000;
+
+function deduplicateLoginHistoryEvents(rows: Record<string, unknown>[]) {
+  const latestTimestampByIdentity = new Map<string, number>();
+  return rows.filter((row) => {
+    const identity = [
+      normalizeAuthEmail(row.email),
+      safeText(row.outcome).toLowerCase(),
+      safeText(row.event_type).toLowerCase(),
+    ].join('|');
+    const timestamp = Date.parse(String(row.updated_at || ''));
+    if (!identity || !Number.isFinite(timestamp)) return true;
+    const latestTimestamp = latestTimestampByIdentity.get(identity);
+    if (Number.isFinite(latestTimestamp) && Math.abs((latestTimestamp as number) - timestamp) <= LOGIN_HISTORY_DUPLICATE_WINDOW_MS) return false;
+    latestTimestampByIdentity.set(identity, timestamp);
+    return true;
+  });
+}
 
 function normalizeAuthEmail(value: unknown) {
   return String(value || '').trim().toLowerCase();
@@ -27500,8 +27518,10 @@ async function listLogisticsLoginHistory(ctx: Context, payload: Record<string, u
     .order('updated_at', { ascending: false })
     .limit(300);
   if (firstAccessEventError) return fail(500, 'Failed to read first login status', ctx.origin);
-  const rows = ((eventRows || []) as Record<string, unknown>[])
-    .filter((row) => !LOGIN_HISTORY_TEST_PATTERN.test(normalizeAuthEmail(row.email)))
+  const rows = deduplicateLoginHistoryEvents(
+    ((eventRows || []) as Record<string, unknown>[])
+      .filter((row) => !LOGIN_HISTORY_TEST_PATTERN.test(normalizeAuthEmail(row.email))),
+  )
     .slice(0, limit)
     .map((row) => publicLoginHistoryRow(row, permissionByEmail));
   const latestFirstAccessByEmail = new Map<string, Record<string, unknown>>();

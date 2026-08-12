@@ -314,6 +314,7 @@ const releaseSteps = Object.freeze([
   { id: 'frontend-contract', kind: 'node', target: 'scripts/qa/logistics-data-platform-frontend-contract.cjs' },
   { id: 'ux-v4-regression', kind: 'node', target: 'tests/logistics-data-platform-ux-v4.test.cjs' },
   { id: 'login-entry-v4-regression', kind: 'node', target: 'tests/logistics-data-platform-login-entry-v4.test.cjs' },
+  { id: 'login-history-deduplication-contract', kind: 'node', target: 'tests/logistics-login-history-contract.test.cjs' },
   {
     id: 'five-user-login-gate-contract',
     kind: 'node',

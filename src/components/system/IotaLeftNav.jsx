@@ -13,6 +13,7 @@ import {
 } from '../../utils/logisticsPushNotifications';
 import { LOGISTICS_DATA_PLATFORM_HOME, LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './workspace/logisticsRoutes';
 import UserAvatar from './UserAvatar';
+import { deduplicateLoginHistoryRows } from './loginHistory';
 
 const menuItems = [
     {
@@ -499,7 +500,7 @@ const normalizeLoginHistoryData = (data = {}) => {
             ? data.history
             : [];
     return {
-        rows: rows.slice(0, 5),
+        rows: deduplicateLoginHistoryRows(rows).slice(0, 5),
         users: users.map(normalizeLoginCapabilityUserRow).slice(0, 300),
         summary: data.summary || (data.last_login ? { last_login: data.last_login } : null),
     };

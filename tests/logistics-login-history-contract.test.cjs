@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const { pathToFileURL } = require('node:url');
 
 const ROOT = path.resolve(__dirname, '..');
 const migrationPath = path.join(
@@ -28,6 +29,7 @@ const navSource = fs.readFileSync(
   path.join(ROOT, 'src', 'components', 'system', 'IotaLeftNav.jsx'),
   'utf8',
 );
+const loginHistoryHelperPath = path.join(ROOT, 'src', 'components', 'system', 'loginHistory.js');
 
 function sourceBlock(source, marker, nextMarker) {
   const start = source.indexOf(marker);
@@ -66,7 +68,7 @@ test('public first-login attempts are rate-limited and limited to active permiss
   assert.doesNotMatch(handler, /payload\.password|user_agent|ip_address/iu);
 });
 
-test('successful login recording appends one event per request without grouping by user', () => {
+test('successful login history keeps distinct requests but collapses accidental rapid duplicates before returning rows', () => {
   const record = sourceBlock(edgeSource, 'async function recordLogisticsLoginHistory(', 'async function listLogisticsLoginHistory(');
   const list = sourceBlock(edgeSource, 'async function listLogisticsLoginHistory(', 'async function listLogisticsLoginCapability(');
   assert.match(record, /\.from\('ll_login_events'\)/u);
@@ -76,27 +78,42 @@ test('successful login recording appends one event per request without grouping 
   assert.match(list, /\.from\('ll_login_events'\)/u);
   assert.match(list, /\.eq\('outcome', 'success'\)/u);
   assert.match(list, /\.order\('updated_at', \{ ascending: false \}\)/u);
+  assert.match(list, /deduplicateLoginHistoryEvents/u);
   assert.match(list, /\.eq\('event_type', 'first_login'\)/u);
   assert.match(list, /'최초 접속 실패'/u);
   assert.match(list, /'최초 접속 시도'/u);
-  assert.doesNotMatch(list, /distinct|groupBy|new Map\([^)]*email/iu);
 });
 
-test('the login client records first-access attempt and safe failure codes, then records success with the same event id', () => {
+test('the login client blocks concurrent submissions and records success with one event id', () => {
   const login = sourceBlock(authSource, 'const proceedLogin', 'return (');
   assert.match(authSource, /recordLogisticsFirstLoginAttempt/u);
   assert.match(authSource, /classifyLogisticsAuthFailure/u);
   assert.match(login, /crypto\.randomUUID\(\)/u);
+  assert.match(login, /loginSubmissionRef\.current/u);
+  assert.match(login, /setIsLoginSubmitting\(true\)/u);
   assert.match(login, /recordLogisticsFirstLoginAttempt/u);
   assert.match(login, /recordLogisticsLoginHistory\([^)]*loginEventId/su);
   assert.doesNotMatch(login, /user_agent|navigator\.userAgent/iu);
 });
 
-test('the recent login UI requests and renders the latest five event rows without deduplicating email', () => {
+test('the recent login UI requests and renders the latest five distinct login attempts', () => {
   assert.match(navSource, /auth\/login-history\/list', \{ limit: 5 \}/u);
   assert.match(navSource, /recentLoginHistoryRows\.map/u);
-  assert.doesNotMatch(
-    sourceBlock(navSource, 'const normalizeLoginHistoryData', 'const readLoginHistoryCache'),
-    /new Map\(|new Set\(|findIndex|filter\([^)]*email/iu,
-  );
+  assert.match(sourceBlock(navSource, 'const normalizeLoginHistoryData', 'const readLoginHistoryCache'), /deduplicateLoginHistoryRows/u);
+});
+
+test('rapid duplicate rows collapse while genuine later logins and other users remain', async () => {
+  assert.ok(fs.existsSync(loginHistoryHelperPath), 'missing login history deduplication helper');
+  const { deduplicateLoginHistoryRows } = await import(`${pathToFileURL(loginHistoryHelperPath).href}?t=${Date.now()}`);
+  const rows = [
+    { event_id: 'newer', email: 'jhlee@igisam.com', logged_at: '2026-08-12T05:57:42.615Z', status: 'success', source_label: '웹 로그인' },
+    { event_id: 'duplicate', email: 'jhlee@igisam.com', logged_at: '2026-08-12T05:57:42.220Z', status: 'success', source_label: '웹 로그인' },
+    { event_id: 'later-real-login', email: 'jhlee@igisam.com', logged_at: '2026-08-12T05:52:00.000Z', status: 'success', source_label: '웹 로그인' },
+    { event_id: 'other-user', email: 'oce@igisam.com', logged_at: '2026-08-12T05:57:42.300Z', status: 'success', source_label: '웹 로그인' },
+  ];
+  assert.deepEqual(deduplicateLoginHistoryRows(rows).map((row) => row.event_id), [
+    'newer',
+    'later-real-login',
+    'other-user',
+  ]);
 });

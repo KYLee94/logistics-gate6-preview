@@ -184,8 +184,10 @@ export default function AuthSetup({ onLogin }) {
     const [showContactModal, setShowContactModal] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [isRecoverySubmitting, setIsRecoverySubmitting] = useState(false);
+    const [isLoginSubmitting, setIsLoginSubmitting] = useState(false);
     
     const passwordInputRef = useRef(null);
+    const loginSubmissionRef = useRef(false);
     const currentAuthEmail = () => (resolvedAuthEmail || email).trim().toLowerCase();
     const selectedAvatarInfo = selectedMemberInfo || { staff_name: staffName, name: staffName, email: currentAuthEmail() };
 
@@ -443,11 +445,15 @@ export default function AuthSetup({ onLogin }) {
     };
 
     const proceedLogin = async () => {
+        if (loginSubmissionRef.current) return;
+        loginSubmissionRef.current = true;
+        setIsLoginSubmitting(true);
         setShowConfirmModal(false);
         setErrorMessage('');
         const loginEventId = crypto.randomUUID();
         const shouldTrackFirstLogin = selectedMemberInfo?.has_successful_login !== true;
         let firstLoginAttemptWrite = Promise.resolve();
+        let loginSucceeded = false;
         
         try {
             const normalizedEmail = email.trim().toLowerCase();
@@ -544,6 +550,7 @@ export default function AuthSetup({ onLogin }) {
             }
 
             setDissolved(true);
+            loginSucceeded = true;
             setTimeout(() => {
                 navigateAfterSuccessfulAuth(onLogin);
             }, 700);
@@ -559,6 +566,11 @@ export default function AuthSetup({ onLogin }) {
                 });
             }
             triggerError('인증 처리 중 오류가 발생했습니다.');
+        } finally {
+            if (!loginSucceeded) {
+                loginSubmissionRef.current = false;
+                setIsLoginSubmitting(false);
+            }
         }
     };
 
@@ -731,9 +743,10 @@ export default function AuthSetup({ onLogin }) {
 
                                 <button 
                                     type="submit"
-                                    className="w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
+                                    disabled={isLoginSubmitting}
+                                    className={`w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] ${isLoginSubmitting ? 'cursor-wait opacity-70' : 'cursor-pointer'}`}
                                 >
-                                    확인하기
+                                    {isLoginSubmitting ? '로그인 중...' : '확인하기'}
                                 </button>
 
                                 {!isFirstTime && (
@@ -964,7 +977,7 @@ export default function AuthSetup({ onLogin }) {
                         <p className="text-[16px] font-medium text-[#1D1D1F] dark:text-white mb-8">이대로 진행할까요?</p>
                         <div className="w-full flex gap-3">
                             <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-3.5 rounded-[16px] bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white font-semibold text-[15px] hover:bg-[#E8E8ED] dark:hover:bg-[#3A3A3C] transition-colors cursor-pointer">취소</button>
-                            <button onClick={proceedLogin} className="flex-1 py-3.5 rounded-[16px] bg-[#111] dark:bg-white text-white dark:text-[#111111] font-semibold text-[15px] hover:bg-[#333] dark:hover:bg-gray-200 transition-colors cursor-pointer">진행하기</button>
+                            <button onClick={proceedLogin} disabled={isLoginSubmitting} className={`flex-1 py-3.5 rounded-[16px] bg-[#111] dark:bg-white text-white dark:text-[#111111] font-semibold text-[15px] hover:bg-[#333] dark:hover:bg-gray-200 transition-colors ${isLoginSubmitting ? 'cursor-wait opacity-70' : 'cursor-pointer'}`}>{isLoginSubmitting ? '진행 중...' : '진행하기'}</button>
                         </div>
                     </div>
                 </div>
