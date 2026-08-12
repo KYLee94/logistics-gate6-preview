@@ -72,9 +72,9 @@ function StackingPlanTenant({ floor, tenant, index, onTenantClick }) {
     ["임차인", tenant.tenantMasterName || "임차인 미입력"],
     ["층·구역", [tenant.sourceFloorLabel || floor.floorLabel, tenant.detailAreaLabel].filter(Boolean).join(" · ") || "미입력"],
     ["임대면적", formatAreaDetail(tenant.leasedAreaSqm)],
-    ["월 임대료", formatCurrency(monthlyRent)],
-    ["월 관리비", formatCurrency(monthlyCam)],
-    ["월 합계", formatCurrency(monthlyTotal)],
+    ["월 임대료(원)", formatCurrency(monthlyRent)],
+    ["월 관리비(원)", formatCurrency(monthlyCam)],
+    ["월 합계(원)", formatCurrency(monthlyTotal)],
   ];
   const content = (
     <>

@@ -490,6 +490,23 @@ export function projectIncomeExpenseStatement(statement = {}, definitions = []) 
       });
     });
   });
+  const accountCodes = new Set(accounts.map((account) => account.account_code));
+  definitions.filter((definition) => (
+    definition.materializeWhenMissing === true && !accountCodes.has(definition.code)
+  )).forEach((definition) => {
+    const sectionRows = accounts.filter((account) => account.statement_section === definition.section);
+    accounts.push({
+      account_code: definition.code,
+      name: definition.label,
+      name_ko: definition.label,
+      statement_section: definition.section,
+      display_order: Math.max(0, ...sectionRows.map((account) => Number(account.display_order || 0))) + 10,
+      normal_sign: definition.normalSign,
+      is_custom: false,
+      selected: definition.defaultVisible === true,
+    });
+    if (definition.defaultVisible === true) selectedAccountCodes.push(definition.code);
+  });
   return { periods: canonical.periods, accounts, entries, selectedAccountCodes };
 }
 

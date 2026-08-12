@@ -19,6 +19,7 @@ test('NOI 아래 현금흐름은 부채상환 전·후와 기타 현금유입·�
     below_noi_cash_cost: 50,
     noncash_addback: 10,
     debt_service: 100,
+    dividend_payment: 0,
     other_cash_inflow: 20,
     other_cash_outflow: 5,
   }), {
@@ -30,6 +31,7 @@ test('NOI 아래 현금흐름은 부채상환 전·후와 기타 현금유입·�
     asset_net_cash_flow: 760,
     pre_debt_cash_flow: 760,
     after_debt_service_cash_flow: 660,
+    dividend_payment: 0,
     other_cash_inflow: 20,
     other_cash_outflow: 5,
     net_cash_flow: 675,
@@ -66,6 +68,7 @@ test('현금 입력 계정과 계산 설명은 저장 계정과 계산 행을 �
       .map(({ code, section, normalSign, defaultVisible }) => ({ code, section, normalSign, defaultVisible })),
     [
       { code: 'OTHER_CASH_INFLOW', section: 'cash_flow', normalSign: 1, defaultVisible: true },
+      { code: 'DIVIDEND_PAYMENT', section: 'cash_flow', normalSign: -1, defaultVisible: true },
       { code: 'OTHER_CASH_OUTFLOW', section: 'cash_flow', normalSign: -1, defaultVisible: true },
       { code: 'OPENING_CASH_BALANCE', section: 'cash_balance', normalSign: 1, defaultVisible: true },
     ],

@@ -54,7 +54,7 @@ test('임대 운영은 임대율과 월 임대료·관리비 총액 및 평단�
   assert.match(source, /const\s+averageRentPerPy\s*=/u);
   assert.match(source, /const\s+averageCamPerPy\s*=/u);
   assert.match(source, /maximumFractionDigits:\s*0/u);
-  for (const label of ['임대율', '임차인', '점유 공간', '공실 공간', '입주 예정', '임대면적', '월 임대료 총액', '임대료\/평', '월 관리비 총액', '관리비\/평', '평균 E.NOC\/평']) {
+  for (const label of ['임대율', '임차인', '점유 공간', '공실 공간', '입주 예정', '임대면적', '월 임대료 총액(원)', '임대료/평(원)', '월 관리비 총액(원)', '관리비/평(원)', '평균 E.NOC/평(원)']) {
     assert.ok(source.includes(label), `임차 현황 항목 누락: ${label}`);
   }
   assert.match(source, /data-testid=["']home-tenant-operations["']/u);
@@ -105,7 +105,7 @@ test('층별 배치 상세는 포인터 이탈·클릭 시 닫히고 키보드 f
   assert.match(stackingSource, /onClick=\{handleClick\}/u);
   assert.doesNotMatch(stackingSource, /group-focus-within\/tenant/u);
   assert.match(stackingSource, /aria-describedby/u);
-  for (const label of ['임차인', '층·구역', '임대면적', '월 임대료', '월 관리비', '월 합계']) {
+  for (const label of ['임차인', '층·구역', '임대면적', '월 임대료(원)', '월 관리비(원)', '월 합계(원)']) {
     assert.ok(stackingSource.includes(label), `층별 배치 툴팁 항목 누락: ${label}`);
   }
 });

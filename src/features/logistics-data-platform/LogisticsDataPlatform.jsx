@@ -131,7 +131,7 @@ const DEFAULT_FINANCE_ACCOUNT_CODES = Object.freeze(
 );
 const INPUT_CLASS =
   "w-full rounded-[6px] border border-transparent bg-transparent px-2 py-1.5 text-sm text-white outline-none hover:border-[#3A3A3C] focus:border-[#5E9EFF] focus:bg-[#202020] disabled:opacity-50";
-const HOME_FUND_AUM_INFO = "AUM 기준은 2026-07-31일 기준입니다.";
+const HOME_FUND_AUM_INFO = "2026년 07월 31일 기준";
 
 function todayKst() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -534,11 +534,11 @@ function AssetBrief({
     ["공실 공간", `${vacantSpaceCount}개`],
     ["입주 예정", `${plannedRows.length}개`],
     ["임대면적", formatHomeArea(occupiedArea)],
-    ["월 임대료 총액", homeAmount(monthlyRent)],
-    ["임대료/평", homeAmount(averageRentPerPy)],
-    ["월 관리비 총액", homeAmount(monthlyCam)],
-    ["관리비/평", homeAmount(averageCamPerPy)],
-    ["평균 E.NOC/평", homeAmount(averageEnoc)],
+    ["월 임대료 총액(원)", homeAmount(monthlyRent)],
+    ["임대료/평(원)", homeAmount(averageRentPerPy)],
+    ["월 관리비 총액(원)", homeAmount(monthlyCam)],
+    ["관리비/평(원)", homeAmount(averageCamPerPy)],
+    ["평균 E.NOC/평(원)", homeAmount(averageEnoc)],
   ];
 
   return (
@@ -675,7 +675,7 @@ function AssetBrief({
               <div className="grid grid-cols-[minmax(0,1fr)_minmax(90px,auto)_minmax(90px,auto)] gap-x-3 pb-1 text-[10px] text-[#6E6E73]">
                 <span>임차인</span>
                 <span className="text-right">임대면적</span>
-                <span className="text-right">월 임대료</span>
+                <span className="text-right">월 임대료(원)</span>
               </div>
               {tenantSummaries.length ? (
                 <ul className="divide-y divide-[#333333]">
@@ -1176,7 +1176,7 @@ function HomePanel({ assetCode, resource, maturities }) {
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="text-[11px] text-[#86868B]">
-                    {["종 구분", "투자자", "약정액", "투입액"].map(
+                    {["종 구분", "투자자", "약정액(원)", "투입액(원)"].map(
                       (label) => (
                         <th
                           key={label}
@@ -1239,7 +1239,7 @@ function HomePanel({ assetCode, resource, maturities }) {
                 {[
                   "구분",
                   "대주",
-                  "약정액",
+                  "약정액(원)",
                   "실행일",
                   "만기일",
                   "대출 유형",
@@ -2824,6 +2824,7 @@ function buildFinanceSeries(entries, accounts, months, aggregation) {
       below_noi_cash_cost: 0,
       noncash_addback: 0,
       debt_service: 0,
+      dividend_payment: 0,
       other_cash_inflow: 0,
       other_cash_outflow: 0,
       opening_cash_balance: null,
@@ -2861,6 +2862,8 @@ function buildFinanceSeries(entries, accounts, months, aggregation) {
           totals.below_noi_cash_cost += raw;
         else if (account.statement_section === "debt_service")
           totals.debt_service += raw;
+        else if (account.account_code === "DIVIDEND_PAYMENT")
+          totals.dividend_payment += raw;
         else if (account.account_code === "OTHER_CASH_INFLOW")
           totals.other_cash_inflow += raw;
         else if (account.account_code === "OTHER_CASH_OUTFLOW")
@@ -3436,11 +3439,11 @@ function FinancePanel({ assetCode, assets }) {
                 <tr>
                   <th className="px-3 py-2 text-left font-medium">항목</th>
                   <th className="truncate px-2 py-2 text-right font-medium" title={selectedAssetName}>
-                    {selectedAssetName}
+                    {selectedAssetName} (원)
                   </th>
                   {comparisonResults.length ? comparisonResults.map((result) => (
                     <th key={result.assetKey} className="truncate px-2 py-2 text-right font-medium" title={result.assetName}>
-                      {result.assetName}
+                      {result.assetName} (원)
                     </th>
                   )) : (
                     <th className="px-2 py-2 text-right font-medium">비교 자산 미선택</th>
@@ -3504,7 +3507,7 @@ function FinancePanel({ assetCode, assets }) {
                     key={period}
                     className="min-w-[104px] border-b border-[#333333] bg-[#202020] px-2 py-2.5 text-right text-xs text-[#A1A1AA]"
                   >
-                    {period}
+                    {period} (원)
                   </th>
                 ))}
               </tr>

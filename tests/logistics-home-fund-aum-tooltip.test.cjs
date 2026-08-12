@@ -11,7 +11,7 @@ const source = fs.readFileSync(
 );
 
 test('홈 펀드 AUM 헤더는 정확한 기준일을 기존 비고정 정보 tooltip으로 안내한다', () => {
-  assert.match(source, /const HOME_FUND_AUM_INFO = "AUM 기준은 2026-07-31일 기준입니다\.";/u);
+  assert.match(source, /const HOME_FUND_AUM_INFO = "2026년 07월 31일 기준";/u);
   const headerStart = source.indexOf('AUM(원)');
   assert.notEqual(headerStart, -1);
   const header = source.slice(headerStart - 500, headerStart + 900);

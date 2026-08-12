@@ -125,7 +125,7 @@ test('수익증권 표는 중복 펀드 열을 제거하고 tranche를 종 구�
     source.indexOf('</Section>', investmentStart),
   );
 
-  assert.match(investmentTable, /\["종 구분", "투자자", "약정액", "투입액"\]/u);
+  assert.match(investmentTable, /\["종 구분", "투자자", "약정액\(원\)", "투입액\(원\)"\]/u);
   assert.match(investmentTable, /<AddableSingleSelectCell/u);
   assert.match(investmentTable, /options=\{investmentShareClassOptions\}/u);
   assert.doesNotMatch(investmentTable, /\["fund_name", "text"\]/u);

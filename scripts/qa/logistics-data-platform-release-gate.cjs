@@ -221,6 +221,11 @@ const releaseSteps = Object.freeze([
     target: 'tests/logistics-home-fund-aum-tooltip.test.cjs',
   },
   {
+    id: 'data-platform-krw-column-labels',
+    kind: 'node',
+    target: 'tests/logistics-data-platform-krw-column-labels.test.cjs',
+  },
+  {
     id: 'rent-roll-cost-addable-multiselect',
     kind: 'node',
     target: 'tests/logistics-rent-roll-cost-addable-multiselect.test.cjs',
@@ -264,6 +269,11 @@ const releaseSteps = Object.freeze([
     id: 'finance-cash-waterfall',
     kind: 'node',
     target: 'tests/logistics-finance-cash-waterfall.test.cjs',
+  },
+  {
+    id: 'finance-dividend-payment-contract',
+    kind: 'node',
+    target: 'tests/logistics-finance-dividend-payment-contract.test.cjs',
   },
   {
     id: 'finance-closing-balance-empty-state',

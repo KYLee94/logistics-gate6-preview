@@ -69,6 +69,7 @@ test('NOI 본표는 계층별로 활성 계정을 먼저, 비활성 계정을 �
     'GENERAL_ADMIN_TRUSTEE_FEE',
     'INTEREST_PAID',
     'OTHER_CASH_INFLOW',
+    'DIVIDEND_PAYMENT',
     'OTHER_CASH_OUTFLOW',
     'OPENING_CASH_BALANCE',
   ];

@@ -128,7 +128,7 @@ export function buildFinanceStatementPresentationRows(financeHierarchy = []) {
   appendAccounts(rows, debtService);
   rows.push({ kind: 'metric', key: 'after_debt_service_cash_flow', label: '부채상환 후 현금흐름' });
 
-  const cashFlow = section('cash_flow', '기타 현금흐름');
+  const cashFlow = section('cash_flow', '배당·기타 현금흐름');
   rows.push({ kind: 'section', key: cashFlow.key, sectionKey: cashFlow.key, label: cashFlow.label });
   appendAccounts(rows, cashFlow, { allowCustom: false });
   rows.push({ kind: 'metric', key: 'net_cash_flow', label: '월 순현금흐름' });

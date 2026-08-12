@@ -42,6 +42,7 @@ const CANONICAL_SELECTED = Object.freeze({
   PRINCIPAL_REPAYMENT: false,
   LOAN_FEE: false,
   OTHER_CASH_INFLOW: true,
+  DIVIDEND_PAYMENT: true,
   OTHER_CASH_OUTFLOW: true,
   OPENING_CASH_BALANCE: true,
 });

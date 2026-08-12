@@ -1,4 +1,4 @@
-export const FINANCE_FORMULA_VERSION = 'gate6-korean-logistics-noi-v2';
+export const FINANCE_FORMULA_VERSION = 'gate6-korean-logistics-noi-v3';
 
 const DEFAULT_VISIBLE_NOI_CODES = new Set([
   'RENT_REVENUE',
@@ -26,6 +26,7 @@ const DEFAULT_VISIBLE_NOI_CODES = new Set([
   'GENERAL_ADMIN_TRUSTEE_FEE',
   'INTEREST_PAID',
   'OTHER_CASH_INFLOW',
+  'DIVIDEND_PAYMENT',
   'OTHER_CASH_OUTFLOW',
   'OPENING_CASH_BALANCE',
 ]);
@@ -79,8 +80,9 @@ export const KOREAN_LOGISTICS_NOI_ACCOUNTS = Object.freeze([
   ['debt_service', '부채상환', 'INTEREST_PAID', '이자 지급액'],
   ['debt_service', '부채상환', 'PRINCIPAL_REPAYMENT', '원금 상환액'],
   ['debt_service', '부채상환', 'LOAN_FEE', '대출 관련 수수료'],
-  ['cash_flow', '기타 현금흐름', 'OTHER_CASH_INFLOW', '기타 현금유입', 1],
-  ['cash_flow', '기타 현금흐름', 'OTHER_CASH_OUTFLOW', '기타 현금유출', -1],
+  ['cash_flow', '배당·기타 현금흐름', 'OTHER_CASH_INFLOW', '기타 현금유입', 1],
+  ['cash_flow', '배당·기타 현금흐름', 'DIVIDEND_PAYMENT', '배당 지급', -1],
+  ['cash_flow', '배당·기타 현금흐름', 'OTHER_CASH_OUTFLOW', '기타 현금유출', -1],
   ['cash_balance', '현금잔액', 'OPENING_CASH_BALANCE', '기초 현금잔액', 1],
 ].map(([section, sectionLabel, code, label, normalSign]) => Object.freeze({
   section,
@@ -89,6 +91,7 @@ export const KOREAN_LOGISTICS_NOI_ACCOUNTS = Object.freeze([
   label,
   normalSign: normalSign ?? (section === 'potential_income' ? 1 : -1),
   defaultVisible: DEFAULT_VISIBLE_NOI_CODES.has(code),
+  materializeWhenMissing: code === 'DIVIDEND_PAYMENT',
 })));
 
 export const FINANCE_SECTION_ORDER = Object.freeze([
@@ -107,7 +110,7 @@ export const FINANCE_SECTION_LABELS = Object.freeze({
   operating_expense: '운영비용',
   below_noi: 'NOI 하단 조정',
   debt_service: '부채상환',
-  cash_flow: '기타 현금흐름',
+  cash_flow: '배당·기타 현금흐름',
   cash_balance: '현금잔액',
 });
 
@@ -187,6 +190,7 @@ export function calculateKoreanLogisticsNoi(input = {}) {
   const belowNoiCashCost = Math.abs(Number(input.below_noi_cash_cost) || 0);
   const noncashAddback = Number(input.noncash_addback) || 0;
   const debtService = Math.abs(Number(input.debt_service) || 0);
+  const dividendPayment = Math.abs(Number(input.dividend_payment) || 0);
   const otherCashInflow = Number(input.other_cash_inflow) || 0;
   const otherCashOutflow = Math.abs(Number(input.other_cash_outflow) || 0);
   const effectiveGrossIncome = potentialGrossIncome - incomeLoss;
@@ -202,9 +206,10 @@ export function calculateKoreanLogisticsNoi(input = {}) {
     asset_net_cash_flow: assetNetCashFlow,
     pre_debt_cash_flow: assetNetCashFlow,
     after_debt_service_cash_flow: afterDebtServiceCashFlow,
+    dividend_payment: dividendPayment,
     other_cash_inflow: otherCashInflow,
     other_cash_outflow: otherCashOutflow,
-    net_cash_flow: afterDebtServiceCashFlow + otherCashInflow - otherCashOutflow,
+    net_cash_flow: afterDebtServiceCashFlow - dividendPayment + otherCashInflow - otherCashOutflow,
   };
 }
 
@@ -242,7 +247,7 @@ export const FINANCE_FORMULA_EXPLANATIONS = Object.freeze({
   asset_net_cash_flow: '순영업소득에서 NOI 하단 현금비용을 차감하고 비현금비용을 가산합니다.',
   pre_debt_cash_flow: '순영업소득에서 NOI 하단 현금비용을 차감하고 비현금비용을 가산합니다.',
   after_debt_service_cash_flow: '부채상환 전 현금흐름에서 이자·원금·대출수수료를 차감합니다.',
-  net_cash_flow: '부채상환 후 현금흐름에 기타 현금유입을 더하고 기타 현금유출을 차감합니다.',
+  net_cash_flow: '부채상환 후 현금흐름에서 배당 지급과 기타 현금유출을 차감하고 기타 현금유입을 더합니다.',
   cumulative_net_cash_flow: '조회 범위 첫 월부터 월 순현금흐름을 누적합니다.',
   closing_cash_balance: '해당 월 기초 현금잔액에 월 순현금흐름을 더합니다. 기초잔액이 없으면 표시하지 않습니다.',
 });
