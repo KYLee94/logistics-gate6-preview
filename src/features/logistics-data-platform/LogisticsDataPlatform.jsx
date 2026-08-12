@@ -58,7 +58,7 @@ import {
   homeShareClassPresentation,
 } from "./homeInvestmentPresentation";
 import { homeFundTableCellAlign } from "./homeFundTableAlignment";
-import { formatHomeLoanRate } from "./homeLoanRates";
+import { formatHomeLoanRate, formatHomeLoanRateInput } from "./homeLoanRates";
 import { resolveHomeAssetOverviewValue } from "./homeAssetOverview";
 import {
   useDismissibleDetails,
@@ -325,28 +325,65 @@ function homeValueAlignClass(align) {
   return "text-left";
 }
 
-function HomeValue({ editing, value, type = "text", onChange, align = "left", ariaLabel }) {
-  const alignClass = homeValueAlignClass(align);
+function HomePercentValue({ editing, value, onChange, alignClass, ariaLabel }) {
+  const inputRef = useRef(null);
+  const [draft, setDraft] = useState(() => formatHomeLoanRateInput(value));
+
+  useEffect(() => {
+    if (editing && globalThis.document?.activeElement === inputRef.current) return;
+    setDraft(formatHomeLoanRateInput(value));
+  }, [editing, value]);
+
   if (!editing) {
     return (
       <span className={`block min-h-8 px-2 py-1.5 text-sm text-white ${alignClass}`}>
-        {type === "number" ? amount(value) : type === "percent" ? formatHomeLoanRate(value) : display(value)}
+        {formatHomeLoanRate(value)}
       </span>
     );
   }
+
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        ref={inputRef}
+        aria-label={ariaLabel}
+        type="number"
+        step="0.01"
+        value={draft}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          onChange(event.target.value);
+        }}
+        onBlur={() => {
+          const normalized = formatHomeLoanRateInput(draft);
+          setDraft(normalized);
+          onChange(normalized);
+        }}
+        className={`${INPUT_CLASS} bg-[#202020] ${alignClass}`}
+      />
+      <span className="pr-1 text-xs text-[#86868B]">%</span>
+    </div>
+  );
+}
+
+function HomeValue({ editing, value, type = "text", onChange, align = "left", ariaLabel }) {
+  const alignClass = homeValueAlignClass(align);
   if (type === "percent") {
     return (
-      <div className="flex items-center gap-1">
-        <input
-          aria-label={ariaLabel}
-          type="number"
-          step="any"
-          value={value ?? ""}
-          onChange={(event) => onChange(event.target.value)}
-          className={`${INPUT_CLASS} bg-[#202020] ${alignClass}`}
-        />
-        <span className="pr-1 text-xs text-[#86868B]">%</span>
-      </div>
+      <HomePercentValue
+        editing={editing}
+        value={value}
+        onChange={onChange}
+        alignClass={alignClass}
+        ariaLabel={ariaLabel}
+      />
+    );
+  }
+  if (!editing) {
+    return (
+      <span className={`block min-h-8 px-2 py-1.5 text-sm text-white ${alignClass}`}>
+        {type === "number" ? amount(value) : display(value)}
+      </span>
     );
   }
   return (
@@ -3515,7 +3552,10 @@ function FinancePanel({ assetCode, assets }) {
           >
             <thead>
               <tr>
-                <th className="sticky left-0 top-0 z-20 min-w-[264px] border-b border-r border-[#333333] bg-[#202020] px-3 py-2.5 text-center text-xs text-[#A1A1AA]">
+                <th
+                  data-testid="finance-statement-corner-header"
+                  className="sticky left-0 top-0 z-40 min-w-[264px] border-b border-r border-[#333333] bg-[#202020] px-3 py-2.5 text-center text-xs text-[#A1A1AA]"
+                >
                   구분 / 계정 선택
                 </th>
                 {periods.map((period) => (

@@ -68,6 +68,14 @@ test('NOI 손익표 제목행은 구분 셀과 모든 연월 셀을 가운데 �
     source.indexOf('data-testid="finance-statement-scroll"'),
     source.indexOf('</thead>', source.indexOf('data-testid="finance-statement-scroll"')),
   );
-  assert.match(table, /<th className="[^"]*text-center[^"]*">\s*구분 \/ 계정 선택/u);
+  assert.match(table, /data-testid="finance-statement-corner-header"[\s\S]{0,180}className="[^"]*text-center/u);
   assert.match(table, /periods\.map\(\(period\)[\s\S]{0,260}className="[^"]*text-center/u);
+});
+
+test('NOI 손익표의 구분 제목 셀은 상단과 왼쪽 교차 지점에 최우선 고정된다', () => {
+  const source = fs.readFileSync(FRONTEND_PATH, 'utf8');
+  assert.match(
+    source,
+    /data-testid="finance-statement-corner-header"[\s\S]{0,180}className="[^"]*sticky left-0 top-0 z-40/u,
+  );
 });

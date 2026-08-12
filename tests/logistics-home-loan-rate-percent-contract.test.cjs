@@ -18,19 +18,23 @@ async function documentContract() {
 }
 
 test('stored loan rates are displayed as percentage points without ratio conversion', async () => {
-  const { formatHomeLoanRate } = await loanRateContract();
+  const { formatHomeLoanRate, formatHomeLoanRateInput } = await loanRateContract();
 
   assert.equal(formatHomeLoanRate(5.25), '5.25%');
-  assert.equal(formatHomeLoanRate('4.375'), '4.375%');
+  assert.equal(formatHomeLoanRate('4.375'), '4.38%');
   assert.equal(formatHomeLoanRate(0.01), '0.01%');
-  assert.equal(formatHomeLoanRate(0), '0%');
+  assert.equal(formatHomeLoanRate(5), '5.00%');
+  assert.equal(formatHomeLoanRate(5.5), '5.50%');
+  assert.equal(formatHomeLoanRate(0), '0.00%');
   assert.equal(formatHomeLoanRate(''), '—');
   assert.equal(formatHomeLoanRate(null), '—');
+  assert.equal(formatHomeLoanRateInput(5), '5.00');
+  assert.equal(formatHomeLoanRateInput(5.5), '5.50');
 });
 
 test('loan rate cells use decimal numeric inputs with a percent suffix and no scaling transform', () => {
   const homeValue = platformSource.slice(
-    platformSource.indexOf('function HomeValue'),
+    platformSource.indexOf('function HomePercentValue'),
     platformSource.indexOf('function AddableSingleSelectCell'),
   );
   const loanTable = platformSource.slice(
@@ -38,9 +42,11 @@ test('loan rate cells use decimal numeric inputs with a percent suffix and no sc
     platformSource.indexOf('</Section>', platformSource.indexOf('<Section title="대출 현황">')),
   );
 
-  assert.match(homeValue, /type === ["']percent["']/u);
+  assert.match(platformSource, /function HomePercentValue/u);
   assert.match(homeValue, /type=["']number["']/u);
-  assert.match(homeValue, /step=["']any["']/u);
+  assert.match(homeValue, /step=["']0\.01["']/u);
+  assert.match(homeValue, /onBlur=\{\(\) =>/u);
+  assert.match(homeValue, /formatHomeLoanRateInput\(draft\)/u);
   assert.match(homeValue, />%<\/span>/u);
   assert.doesNotMatch(homeValue, /\*\s*100|\/\s*100/u);
 

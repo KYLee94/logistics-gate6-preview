@@ -78,8 +78,9 @@ test('렌트롤의 모든 원화 필드는 제목에 원 단위를 표시한다'
   }
 });
 
-test('수익비용 월 입력 열과 자산 비교 금액 열은 원 단위를 표시한다', () => {
-  assert.match(platformSource, /\{period\}\s*\(원\)/u);
+test('수익비용 원 단위는 손익표 제목과 자산 비교 금액 열에 표시한다', () => {
+  assert.match(platformSource, /title="물류센터 NOI 손익표 \(원\)"/u);
+  assert.doesNotMatch(platformSource, /\{period\}\s*\(원\)/u);
   assert.match(platformSource, /\{selectedAssetName\}\s*\(원\)/u);
   assert.match(platformSource, /\{result\.assetName\}\s*\(원\)/u);
 });
