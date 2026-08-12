@@ -315,6 +315,11 @@ const releaseSteps = Object.freeze([
   { id: 'ux-v4-regression', kind: 'node', target: 'tests/logistics-data-platform-ux-v4.test.cjs' },
   { id: 'login-entry-v4-regression', kind: 'node', target: 'tests/logistics-data-platform-login-entry-v4.test.cjs' },
   {
+    id: 'five-user-login-gate-contract',
+    kind: 'node',
+    target: 'tests/logistics-five-user-login-gate-contract.test.cjs',
+  },
+  {
     id: 'deeplink-asset-ready-contract',
     kind: 'node',
     target: 'tests/logistics-data-platform-deeplink-asset-ready.test.cjs',
