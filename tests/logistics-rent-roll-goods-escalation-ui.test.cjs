@@ -47,7 +47,7 @@ test('용도 선택지는 기존 네 값만 유지하고 취급 화물은 canoni
   assert.deepEqual(storedOrder, ['화장품', '사용자 추가값', '의류']);
 });
 
-test('그룹 헤더는 실제 컬럼 순서의 연속 구간이며 좌측 고정 두 그룹의 위치와 폭을 고정한다', async () => {
+test('그룹 헤더는 실제 컬럼 순서의 연속 구간이며 순서 다음 층·구역·임대 상태·임차인까지 고정한다', async () => {
   const {
     RENT_ROLL_COLUMNS,
     rentRollGroupSegments,
@@ -56,16 +56,18 @@ test('그룹 헤더는 실제 컬럼 순서의 연속 구간이며 좌측 고정
   const segments = rentRollGroupSegments(RENT_ROLL_COLUMNS);
 
   assert.deepEqual(segments.slice(0, 5), [
-    { group: '임대 상태', keys: ['occupancy_status'], colSpan: 1, width: 104, stickyLeft: 62 },
-    { group: '임차인', keys: ['tenant_name'], colSpan: 1, width: 190, stickyLeft: 166 },
+    { group: '공간', keys: ['floor_label', 'zone_label'], colSpan: 2, width: 168, stickyLeft: 62 },
+    { group: '임대 상태', keys: ['occupancy_status'], colSpan: 1, width: 104, stickyLeft: 230 },
+    { group: '임차인', keys: ['tenant_name'], colSpan: 1, width: 190, stickyLeft: 334 },
     { group: '임차인 정보', keys: ['business_registration_number'], colSpan: 1, width: 142, stickyLeft: null },
-    { group: '공간', keys: ['temperature_type', 'goods_type', 'floor_label', 'zone_label'], colSpan: 4, width: 380, stickyLeft: null },
-    { group: '전차 여부', keys: ['subtenant_name', 'free_area_type'], colSpan: 2, width: 232, stickyLeft: null },
+    { group: '공간', keys: ['temperature_type', 'goods_type'], colSpan: 2, width: 212, stickyLeft: null },
   ]);
   assert.equal(segments.reduce((sum, segment) => sum + segment.colSpan, 0), RENT_ROLL_COLUMNS.length);
   assert.equal(segments.reduce((sum, segment) => sum + segment.width, 0), RENT_ROLL_COLUMNS.reduce((sum, column) => sum + column.width, 0));
-  assert.equal(rentRollStickyLeft('occupancy_status'), 62);
-  assert.equal(rentRollStickyLeft('tenant_name'), 166);
+  assert.equal(rentRollStickyLeft('floor_label'), 62);
+  assert.equal(rentRollStickyLeft('zone_label'), 134);
+  assert.equal(rentRollStickyLeft('occupancy_status'), 230);
+  assert.equal(rentRollStickyLeft('tenant_name'), 334);
   assert.equal(rentRollStickyLeft('business_registration_number'), null);
 });
 

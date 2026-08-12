@@ -61,6 +61,11 @@ const releaseSteps = Object.freeze([
     target: 'tests/logistics-data-platform-scrollbar-contract.test.cjs',
   },
   {
+    id: 'data-platform-table-freeze',
+    kind: 'node',
+    target: 'tests/logistics-data-platform-table-freeze.test.cjs',
+  },
+  {
     id: 'data-platform-home-density',
     kind: 'node',
     target: 'tests/logistics-data-platform-home-density.test.cjs',

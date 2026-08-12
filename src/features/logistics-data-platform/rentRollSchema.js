@@ -92,13 +92,13 @@ const column = (key, label, group, kind = 'text', width = 128, extra = {}) => Ob
 
 // 네 개의 운영 렌트롤 원본에서 반복되는 필드를 한 셀 한 값 원칙으로 평탄화했습니다.
 export const RENT_ROLL_COLUMNS = Object.freeze([
+  column('floor_label', '층', '공간', 'text', 72),
+  column('zone_label', '구역', '공간', 'text', 96),
   column('occupancy_status', '임대 상태', '임대 상태', 'select', 104, { options: [['occupied', '임대'], ['vacant', '공실'], ['planned', '예정']] }),
   column('tenant_name', '임차인', '임차인', 'text', 190),
   column('business_registration_number', '사업자등록번호', '임차인 정보', 'text', 142),
   column('temperature_type', '용도', '공간', 'select', 94, { options: [['저온', '저온'], ['상온', '상온'], ['복합', '복합'], ['사무실', '사무실']] }),
   column('goods_type', '주요 취급 화물', '공간', 'goods_multi_select', 118, { options: RENT_ROLL_GOODS_OPTIONS }),
-  column('floor_label', '층', '공간', 'text', 72),
-  column('zone_label', '구역', '공간', 'text', 96),
   column('subtenant_name', '전대 임차인', '전차 여부', 'text', 140),
   column('free_area_type', '유·무상', '전차 여부', 'text', 92),
   column('exclusive_area_sqm', '전용면적(㎡)', '면적', 'number', 118),
@@ -151,8 +151,10 @@ export const RENT_ROLL_COLUMNS = Object.freeze([
 ]);
 
 const RENT_ROLL_STICKY_LEFT = Object.freeze({
-  occupancy_status: 62,
-  tenant_name: 166,
+  floor_label: 62,
+  zone_label: 134,
+  occupancy_status: 230,
+  tenant_name: 334,
 });
 
 export function rentRollStickyLeft(columnKey) {

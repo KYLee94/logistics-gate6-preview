@@ -105,7 +105,7 @@ test('부담비용 다중선택은 기존 jsonb 원문과 출처 메타데이터
 
 test('한국 물류센터 NOI는 PGI, EGI, NOI, NCF, 부채상환 후 현금흐름을 분리한다', async () => {
   const formulas = await importFresh('src/features/logistics-data-platform/formulas.js');
-  assert.equal(formulas.FINANCE_FORMULA_VERSION, 'gate6-korean-logistics-noi-v2');
+  assert.equal(formulas.FINANCE_FORMULA_VERSION, 'gate6-korean-logistics-noi-v3');
   const result = formulas.calculateKoreanLogisticsNoi({
     potential_income: 1_000,
     income_loss: 100,
@@ -123,6 +123,7 @@ test('한국 물류센터 NOI는 PGI, EGI, NOI, NCF, 부채상환 후 현금흐�
     asset_net_cash_flow: 560,
     pre_debt_cash_flow: 560,
     after_debt_service_cash_flow: 360,
+    dividend_payment: 0,
     other_cash_inflow: 0,
     other_cash_outflow: 0,
     net_cash_flow: 360,
@@ -174,7 +175,7 @@ test('렌트롤은 편집 중 서버 요청 없이 초안을 유지하고 사용
   assert.match(source, /PresetTextCell/u);
   assert.match(source, /column\?\.kind === ["']multi_select["'][\s\S]{0,160}serializeCostTerms/u);
   assert.match(source, /column\?\.kind === ["']percent["'][\s\S]{0,160}percentStoredValue/u);
-  assert.doesNotMatch(source, /finance-statement-scroll[\s\S]{0,160}max-h/iu);
+  assert.match(source, /finance-statement-scroll[\s\S]{0,160}max-h-\[calc\(100vh-190px\)\]/iu);
 });
 
 test('v2 API는 홈 저장을 공개 write action으로 라우팅한다', async () => {

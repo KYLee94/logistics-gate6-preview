@@ -91,8 +91,7 @@ assert.doesNotMatch(ui, /자산 순현금흐름\(NCF\)/u);
 assert.match(ui, /finance-comparison-asset/u);
 assert.doesNotMatch(ui, /data-testid=["']finance-aggregation["']/u);
 assert.match(ui, /finance-trend/u);
-assert.match(ui, /finance-statement-scroll[\s\S]{0,160}custom-scrollbar overflow-x-auto/u);
-assert.doesNotMatch(ui, /finance-statement-scroll[\s\S]{0,160}max-h/u);
+assert.match(ui, /finance-statement-scroll[\s\S]{0,180}custom-scrollbar max-h-\[calc\(100vh-190px\)\] overflow-auto/u);
 assert.match(financeSchema, /budget/u);
 assert.match(financeSchema, /forecast/u);
 

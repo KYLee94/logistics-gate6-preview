@@ -3507,7 +3507,7 @@ function FinancePanel({ assetCode, assets }) {
         </p>
         <div
           data-testid="finance-statement-scroll"
-          className="custom-scrollbar overflow-x-auto rounded-[10px] border border-[#333333]"
+          className="custom-scrollbar max-h-[calc(100vh-190px)] overflow-auto rounded-[10px] border border-[#333333]"
         >
           <table
             data-testid="finance-statement-table"
@@ -3521,7 +3521,7 @@ function FinancePanel({ assetCode, assets }) {
                 {periods.map((period) => (
                   <th
                     key={period}
-                    className="min-w-[104px] border-b border-[#333333] bg-[#202020] px-2 py-2.5 text-right text-xs text-[#A1A1AA]"
+                    className="sticky top-0 z-20 min-w-[104px] border-b border-[#333333] bg-[#202020] px-2 py-2.5 text-right text-xs text-[#A1A1AA]"
                   >
                     {period} (원)
                   </th>

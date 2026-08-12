@@ -73,7 +73,7 @@ test('렌트롤·드롭다운·모달·다중선택·재무 표는 다크 스크
   const finance = sourceBetween('function FinancePanel', 'export default function LogisticsDataPlatform');
   assert.match(finance, /data-testid=["']finance-comparison-controls["'][\s\S]*?max-h-64[^"']*overflow-y-auto/u);
   assert.match(finance, /data-testid=["']finance-period-summary["']/u);
-  assert.match(finance, /data-testid=["']finance-statement-scroll["'][\s\S]*?custom-scrollbar[^"']*overflow-x-auto/u);
+  assert.match(finance, /data-testid=["']finance-statement-scroll["'][\s\S]*?custom-scrollbar[^"']*max-h-\[calc\(100vh-190px\)\][^"']*overflow-auto/u);
 });
 
 test('데이터 플랫폼 탭 본문은 우측 다크 스크롤을 표시하고 기존 화면만 숨김 계약을 유지한다', () => {
